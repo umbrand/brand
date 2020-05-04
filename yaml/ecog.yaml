@@ -1,0 +1,30 @@
+
+# In the development of the cart, we're going to model an artificial
+# brain generator. 
+# This generator reads from a source of ECoG data, and then sends data out
+# So that downstream sources can start debugging what's necessary
+
+
+- name: enable
+  value: true
+  description: Start or stop the the system
+
+- name: broadcastPort
+  value: 53000
+  description: Specify which port the broadcasted UDP packets will be sent to. 
+
+- name: samplingFrequency
+  value: 1000
+  description: Frequency (Hz) the rate at which data is saved within the file. 
+  static: true
+
+- name: broadcastInterval
+  value: 0.01
+  description: Interval, in seconds, at which data should be sent
+  static: true
+
+- name: dataSource
+  value: bp_verbs.mat
+  description: Source of data
+  options: [bp_verbs.mat, aa_verbs.mat]
+  static: true

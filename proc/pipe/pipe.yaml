@@ -1,0 +1,63 @@
+# Variables for running the pipe function
+
+
+- name: enable
+  value: true
+  description: Enable or disable the neural feature procesing pipeline
+
+- name: samplesPerCycle
+  value: 20
+  min: 1
+  description: Number of samples per cycle of the Pipe
+
+- name: samplingFrequency
+  value: 1000
+  description: Frequency (Hz) the rate at which data is saved within the file. 
+  static: true
+  
+###########################################
+# Controlling CAR
+###########################################
+
+- name: enableCAR
+  value: true
+  description: Enable common-value averaging
+
+- name: sampleAveragingLengthCAR
+  value: 1000
+  description: Number of samples that CAR uses when computing its rolling average
+  
+###########################################
+# Controlling Notch filtering
+###########################################
+
+- name: enableNotch120
+  value: true
+  description: Enable a notch filter at 120Hz
+
+- name: enableNotch180
+  value: true
+  description: Enable a notch filter at 180Hz
+
+###########################################
+# Controlling the Butterworth filter
+###########################################
+
+- name: enableButterworth
+  value: true
+  description: Enable butterworth filtering
+
+- name: butterworthLowerCutoff
+  value: 76
+  description: Lower cutoff for the butterworth filter
+  static: true
+
+- name: butterworthUpperCutoff
+  value: 200
+  description: Upper cutoff for the butterworth filter
+  static: true
+
+- name: butterworthOrder
+  value: 2
+  description: Order for the butterworth filtering
+

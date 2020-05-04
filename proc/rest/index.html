@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Variable inspector</title>
+    <script src="js/variableInspector.js"></script>
+    <link href="css/bulma.min.css" rel="stylesheet" type="text/css"> 
+
+</head>
+<body>
+
+	<div id="elm"></div>
+   <script>
+		var app = Elm.VariableInspector.init({
+		  node: document.getElementById('elm')
+		});
+	</script>
+</body>
+</html>
+

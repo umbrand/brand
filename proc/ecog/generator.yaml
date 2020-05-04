@@ -1,0 +1,40 @@
+# Here are the configuration parameters for the C code that generates data
+
+- name: redisIP
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redisPort
+  value: 6379
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: enable
+  value: true
+  description: Do we want to be generating data
+
+- name: fileName
+  value: bp_verb.bin
+  description: Filename to be loaded
+  static: true
+
+- name: broadcastPort
+  value: 53000
+  description: What port do we want to use from broadcasting
+  static: true
+
+- name: broadcastRate
+  value: 1
+  description: Time, in milliseconds, for broadcasting data
+  static: true
+
+- name: useRamp
+  value: true
+  description: Output a ramp function instead of reading from a binary file
+  static: true
+
+- name: numChannels
+  value: 48
+  description: Number of channels associated with the binary file, or for creating a ramp function
+  static: true
