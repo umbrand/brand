@@ -69,9 +69,35 @@
  *
  *  The original Licorice code uses shared memory for IPC. While fast, it also means
  *  that the code needed a lot of overhead to ensure that processes had the correct
- *  information at the correc time in the correct order.
+ *  information at the correct time in the correct order.
  *
  *  The new approach to IPC will be use Redis. 
+ *
+ * ------------------------------------
+ *  Testing
+ *  -----------------------------------
+ *
+ * This next implentation will work as follows:
+ * Sources will sit and subscribe to the timer_step value
+ *
+ * eval "redis.call('publish','timer_step',redis.call(redis.call('incr','timer_step')); return 0"
+ * And then the timer.c function goes through all of the listed functions and checks to see if they
+ * have completed their cycle
+ *
+ * Each process has process_is_working variable, that is 1 if the function is working and 0 if idle
+ * Deciding if a process is working or not depends on the is_working variable. This is how
+ * timer will know if there's a lag
+ * There is no longer a difference between sources and sinks and modules. Just modules
+ * The behavior relative to the published data is what is going to distinguish the processes
+ *
+ *
+ *
+ * Timer will keep track of the processes spawned in this way:
+ * typedef struct child {
+     * pid_t child_pid;
+     * char[32] name;
+     * } 
+ * So that it can be more informed as to what is happening if a child dies
  *
  */
 #define _GNU_SOURCE
@@ -95,13 +121,15 @@
 #include <stdatomic.h>
 #include <time.h>
 #include <stdlib.h>
+#include <hiredis.h>
 #include "utilityFunctions.h"
 #include "timer.h"
+#include "redisTools.h"
 
 
 /* Initialization functions */
 
-void initialize_params();
+void initialize_redis();
 void initialize_state();
 void initialize_signals();
 void initialize_processes();
@@ -155,8 +183,11 @@ int NUM_SINKS = 0;
 int NUM_MODULES = 0;
 int NUM_SOURCES = 1;
 
-static sem_t *semaphoresUp;
-static sem_t *semaphoresDown;
+
+// Redis information
+redisContext *redis_context;
+redisReply *reply;
+
 
 // -------------------------------------------------
 // Main 
@@ -164,7 +195,9 @@ static sem_t *semaphoresDown;
 
 int main(int argc, char* argv[]) {
 
-    initialize_params();
+
+
+    initialize_redis();
 
     initialize_state();
 
@@ -197,18 +230,36 @@ int main(int argc, char* argv[]) {
 // Initialization functions
 // -------------------------------------------------
 
-void initialize_params() {
+void initialize_redis() {
 
-     // TODO: Load this from the YAML file
+    printf("[timer] Load YAML configuration file to Redis...\n");
+
+    char redis_ip[16]       = {0};
+    char redis_port[16]     = {0};
+
+    initialize_redis_from_YAML("timer");
+
+    load_YAML_variable_string("timer", "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string("timer", "redis_port", redis_port, sizeof(redis_port));
+
+
+    printf("[timer] From YAML, I have redis ip: %s, port: %s\n", redis_ip, redis_port);
+
+    printf("[timer] Trying to connect to redis.\n");
+
+    load_redis_context(&redis_context, redis_ip, redis_port);
+
+    printf("[timer] Redis initialized.\n");
+
+
      
-    timer_params.secreq = 0;
-    timer_params.usecreq = 1000;
 }
 
 void initialize_state() {
 
 
-    timer_state.timestep = 0;
+    redis_succeed(redis_context, "set timer_step 0");
+
 
 }
 
@@ -233,6 +284,47 @@ void initialize_signals() {
 void initialize_semaphores() {
 
     printf("[timer] Attempting to initialize semaphores.\n");
+
+    
+    int num_sinks;
+    if(redis_int(redis_context, "llen sinks", &num_sinks)) {
+        printf("[timer] could not read length sinks list.\n");
+        exit(1);
+    }
+
+    int num_sources;
+    if(redis_int(redis_context, "llen sources", &num_sources)) {
+        printf("[timer] could not read length sources list.\n");
+        exit(1);
+    }
+
+    int num_modules;
+    if(redis_int(redis_context, "llen modules", &num_modules)) {
+        printf("[timer] could not read length modules list.\n");
+        exit(1);
+    }
+
+
+    char command[36]        = {0};
+    char buffer[36]         = {0};
+    char semaphore_up[36]   = {0};
+    char semaphore_down[36] = {0};
+
+    for (int i = 0; i < num_sinks; i++) {
+        sprintf(command, "lindex sinks %d", i);
+        redis_string(redis_context, command, buffer, sizeof(buffer));
+
+        sprintf(semaphore_up, "%s_semaphore_up", buffer);
+        sprintf(semaphore_down, "%s_semaphore_down", buffer);
+
+        printf("%s %s\n", semaphore_up, semaphore_down);
+
+        sem_open(semaphore_up, O_CREAT , 0644, 0);   // NB. Starts 0
+        sem_open(semaphore_down, O_CREAT , 0644, 1); // NB. Starts 0
+
+    }
+
+
 
     semaphoresUp   = sem_open("debug_semaphore_up", O_CREAT , 0644, 0); // NB. Starts 0
     semaphoresDown = sem_open("debug_semaphore_down", O_CREAT , 0644, 1); // NB. starts 1
@@ -276,13 +368,19 @@ void initialize_timer() {
 
     printf("[timer] Attempting to initialize SIGALRM timer.\n");
 
-    rtTimer.it_value.tv_sec     = timer_params.secreq;
-    rtTimer.it_value.tv_usec    = timer_params.usecreq;
-    rtTimer.it_interval.tv_sec  = timer_params.secreq;
-    rtTimer.it_interval.tv_usec = timer_params.usecreq;
+    char buffer[16] ={0};
+    if(redis_string(redis_context, "get timer_sample_period", buffer, sizeof(buffer))){
+        printf("[timer] Could not load timer_sample_period.\n");
+        exit(1);
+    }
+
+    rtTimer.it_value.tv_sec     = 0;
+    rtTimer.it_value.tv_usec    = atoi(buffer);
+    rtTimer.it_interval.tv_sec  = 0;
+    rtTimer.it_interval.tv_usec = atoi(buffer);
     setitimer(ITIMER_REAL, &rtTimer, NULL);
 
-    printf("[timer] SIGALRM Timer initialized.\n");
+    printf("[timer] SIGALRM Timer initialized, usec = %d.\n", atoi(buffer));
 
 }
 
@@ -342,17 +440,46 @@ void dead_child() {
     printf("[timer] Dead child. \n");
     sigchld_recv--;
 
+  int saved_errno = errno;
+  int dead_pid;
+  while ((dead_pid = waitpid((pid_t)(-1), 0, WNOHANG)) == 0);
+  printf("[timer] Dead child pid: %d \n", dead_pid);
+  for (de_i = 0; de_i < NUM_SINKS; de_i++) {   
+    if (si_pids[de_i] == dead_pid) {
+      si_pids[de_i] = -1;
+    }
+  }
+  for (de_i = 0; de_i < NUM_SINKS; de_i++) {   
+    if (so_pids[de_i] == dead_pid) {
+      so_pids[de_i] = -1;
+    }
+  }
+  for (de_i = 0; de_i < NUM_MODULES; de_i++) {
+    if (ch_pids[de_i] == dead_pid) {
+      ch_pids[de_i] = -1;
+    }
+  }
+  errno = saved_errno;
+  die("I have lost a child :( \n");
+
 }
 
 // TODO: Differentiate between sinks, sources, and modules
 void check_children() {
 
-    /* printf("Checking children %d\n", timer_state.timestep); */
+// Logic in the first function:
+// Go throguh the non-sources and then count tick violations
+// Then Wait on all of the sources
+// Then adjust variables
+// Then post to the sources
+// Then send alarms to the sources
+// Then post to thenon-sources
 
     if ((sigalrm_recv > 1))
         die("[timer] Timer missed a tick. Dying.");
 
-    timer_state.timestep++;
+    // Increment the step-timer
+    redis_succeed(redis_context, "incr timer_step");
     /* int semValueUp = -1; */
     /* int semValueDown = -1; */
 
@@ -418,3 +545,37 @@ void usr2_handler(int signum) {
 void chld_handler(int sig) {
     sigchld_recv++;
 }
+    /* sprintf(bashCommand, "python %s %s --ip", redisToolsPath, configurationFile); */
+    /* printf("%s\n", bashCommand); */
+
+    /* fp = popen(bashCommand, "r"); */
+    /* if (fp == NULL) { */
+    /*     perror("[timer] Failed to run python script to load IP.\n" ); */
+    /*     exit(1); */
+    /* } */
+
+    /* if((readLength = fread(redis_ip, 16, 1, fp)) < 0) { */
+    /*     perror("[timer] Could not read the IP address from python script.\n"); */
+    /*     exit(1); */
+    /* } */
+    /* if(strlen(redis_ip) == 0) { */
+    /*     perror("[timer] I could read the IP address but it is empty.\n"); */
+    /*     exit(1); */
+    /* } */
+    /* memset(bashCommand, 0, sizeof(bashCommand)); */
+    /* sprintf(bashCommand, "python %s %s --port", redisToolsPath, configurationFile); */
+    /* fp = popen(bashCommand, "r"); */
+
+    /* if (fp == NULL) { */
+    /*     perror("[timer] Failed to run python script to load port.\n" ); */
+    /*     exit(1); */
+    /* } */
+
+    /* if((readLength = fread(redis_port, 16, 1, fp)) < 0) { */
+    /*     perror("[timer] Could not read the port from python script.\n"); */
+    /*     exit(1); */
+    /* } */
+    /* if(strlen(redis_port) == 0) { */
+    /*     perror("[timer] I could read the port but it is empty.\n"); */
+    /*     exit(1); */
+    /* } */

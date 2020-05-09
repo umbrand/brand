@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
     pid_t ppid = getppid();
     kill(ppid, SIGUSR2);
 
-    int max = 1000000;
+    /* int max = 1000000; */
     /* int semValueUp; */
     /* int semValueDown; */
     /* int i = 0; */
@@ -89,9 +89,9 @@ int main(int argc, char* argv[]) {
 
         sem_wait(semaphoreUp); 
 
-        for(int i = 0; i <= max; i++){
-           if (i == max) printf("%d\n", max); 
-        }
+        /* for(int i = 0; i <= max; i++){ */
+        /*    if (i == max) printf("%d\n", max); */ 
+        /* } */
         /* sem_getvalue(semaphoreUp, &semValueUp); */
         /* sem_getvalue(semaphoreDown, &semValueDown); */
         /* printf("[debug] %d %d %d\n", i++, semValueUp, semValueDown); */

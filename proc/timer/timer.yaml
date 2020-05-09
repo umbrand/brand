@@ -1,0 +1,32 @@
+
+# This contains the configuration file for the timer.c
+
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: sample_period
+  value: 1000
+  description: Period (nanoseconds) at which the timer fires and coordinates the system
+  static: true
+
+- name: sources
+  value: []
+  description: List of sources to run
+  static: true
+
+- name: modules
+  value: [debug]
+  description: List of modules to run
+  static: true
+
+- name: sinks
+  value: [a1, a2, a3]
+  description: List of sinks to run
+  static: true
