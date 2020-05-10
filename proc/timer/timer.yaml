@@ -8,25 +8,16 @@
 
 - name: redis_port
   value: 6379
-  description: What is the IP of our Redis instance
+  description: What is the port of our Redis instance
   static: true
 
 - name: sample_period
-  value: 1000
+  value: 10000
   description: Period (nanoseconds) at which the timer fires and coordinates the system
   static: true
 
-- name: sources
-  value: []
-  description: List of sources to run
-  static: true
-
 - name: modules
-  value: [debug]
+  value: [udpAdapter]
   description: List of modules to run
   static: true
 
-- name: sinks
-  value: [a1, a2, a3]
-  description: List of sinks to run
-  static: true

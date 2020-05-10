@@ -77,6 +77,8 @@ def initializeRedisFromYAML(fileName):
 
         record['name'] = processName + "_" + record['name']
 
+        r.delete(record['name'])
+
         print("     Record: ", record['name'], ": ", record['value'])
 
 

@@ -4,191 +4,141 @@
  *
  * David Brandman, May 2020
  */
-#define _GNU_SOURCE
 #include <stdio.h>
-#include <signal.h>
-#include <sys/time.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdlib.h>
-#include <sys/io.h>
+#include <signal.h>
 #include <unistd.h>
-#include <sched.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <sys/types.h>
-#include <stdint.h>
-#include <semaphore.h>
-#include <sys/wait.h>
-#include <stdatomic.h>
-#include <time.h>
-#include <stdlib.h>
-#include "utilityFunctions.h"
-#include "debug.h"
+#include "redisTools.h"
+#include "hiredis/hiredis.h"
+#include "hiredis/async.h"
+#include "hiredis/adapters/libevent.h"
 
-
-void initialize_params();
+void initialize_parameters();
 void initialize_state();
+void initialize_redis();
 void initialize_signals();
-void initialize_semaphores();
+void subscribe_callback(redisAsyncContext *c, void *reply, void *privdata);
+
+void handle_exit(int exitStatus);
+void ignore_exit(int exitStatus);
+char PROCESS[] = "debug";
 
 
-void alarm_handler(int signum);
-void exit_handler(int signum);
+// There are two contexts used. The first is the async one for the callback when
+// a subscribed message arrives. 
 
+redisAsyncContext *redis_async_context; 
+redisContext *redis_context;
 
+int main (int argc, char **argv) {
 
-// Each process has its own params and state process
-// If I want to recv a message from a different process,
-// I just import its structure and we're good to go
-// The initial params_t will be loaded from a YAML file
+    initialize_parameters();
 
-static debug_params_t debug_params;
-static debug_state_t debug_state;
-
-static sem_t *semaphoreUp;
-static sem_t *semaphoreDown;
-
-
-// -------------------------------------------------
-// Main 
-// -------------------------------------------------
-
-int main(int argc, char* argv[]) {
-
-    initialize_params();
-
-    initialize_state();
+    initialize_redis();
 
     initialize_signals();
 
-    initialize_semaphores();
-    
-    // Send a signal to say that we're done initializing
+    initialize_state();
+
+    struct event_base *base = event_base_new();
+
     pid_t ppid = getppid();
     kill(ppid, SIGUSR2);
+    
 
-    /* int max = 1000000; */
-    /* int semValueUp; */
-    /* int semValueDown; */
-    /* int i = 0; */
+    redisLibeventAttach(redis_async_context, base);
+    redisAsyncCommand(redis_async_context, subscribe_callback, NULL, "SUBSCRIBE timer_step");
 
-    while(1) {
+    event_base_dispatch(base);
+    return 0;
+}
+//------------------------------------
+// Callback functions
+//------------------------------------
+void subscribe_callback(redisAsyncContext *c, void *reply, void *privdata) {
+    redis_succeed(redis_context, "incr debug_working");
 
-        /* printf("[debug] before pause .\n"); */
+    redisReply *r = reply;
+    if (r == NULL || r->type == REDIS_REPLY_ERROR) return;
 
-        pause(); // Wait on SIGALRM
+    if (r->type == REDIS_REPLY_ARRAY) {
+        if (r->elements >=2) {
 
-        /* printf("[debug] past pause .\n"); */
-        
-        /* sem_getvalue(semaphoreUp, &semValueUp); */
-        /* sem_getvalue(semaphoreDown, &semValueDown); */
-        /* printf("[debug] %d %d %d\n", i, semValueUp, semValueDown); */
-
-        sem_wait(semaphoreUp); 
-
-        /* for(int i = 0; i <= max; i++){ */
-        /*    if (i == max) printf("%d\n", max); */ 
-        /* } */
-        /* sem_getvalue(semaphoreUp, &semValueUp); */
-        /* sem_getvalue(semaphoreDown, &semValueDown); */
-        /* printf("[debug] %d %d %d\n", i++, semValueUp, semValueDown); */
-
-        /* sem_wait(semaphoreUp); */ 
-        /* sem_getvalue(semaphoreUp, &semValue); */
-        /* printf("[debug]Second: %d %d\n", i, semValue); */
-
-        sem_post(semaphoreDown);
-        /* sem_getvalue(semaphoreUp, &semValueUp); */
-        /* sem_getvalue(semaphoreDown, &semValueDown); */
-        /* printf("[debug] %d %d %d\n", i, semValueUp, semValueDown); */
-        /* sem_getvalue(semaphoreUp, &semValue); */
-        /* printf("[debug]Post: %d %d\n", i, semValue); */
-
+            char a[64] = {0};
+            sprintf(a,"%s",r->element[2]->str); // You need these steps otherwise it barfs
+            int b = atoi(a);
+            printf("%d\n", b);
+        }
     }
+    redis_succeed(redis_context, "decr debug_working");
+}
+//------------------------------------
+// Initialization functions
+//------------------------------------
+
+void initialize_parameters() {
+
+    printf("[%s] Initializing parameters...\n", PROCESS);
+    initialize_redis_from_YAML(PROCESS);
+
 }
 
-// -------------------------------------------------
-// Initialization functions
-// -------------------------------------------------
+void initialize_redis() {
 
-void initialize_params() {
+    printf("[%s] Initializing Redis...\n", PROCESS);
 
-    printf("[debug] Initializing parameters. \n");
+    char redis_ip[16]       = {0};
+    char redis_port[16]     = {0};
 
-    debug_params.parameter = 0;
+    load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
 
-    printf("[debug] Parameters initialized. \n");
+    printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
+
+    printf("[%s] Trying to connect to redis.\n", PROCESS);
+
+    redis_async_context = redisAsyncConnect(redis_ip, atoi(redis_port));
+    if (redis_async_context->err) {
+        printf("error: %s\n", redis_async_context->errstr);
+        exit(1);
+    }
+
+    redis_context = redisConnect(redis_ip, atoi(redis_port));
+    if (redis_context->err) {
+        printf("error: %s\n", redis_context->errstr);
+        exit(1);
+    }
+
+    printf("[%s] Redis initialized.\n", PROCESS);
+     
 }
 
 void initialize_state() {
 
-    printf("[debug] Initializing state.\n");
+    printf("[%s] Initializing state.\n", PROCESS);
 
-    debug_state.state = 0;
+    redis_succeed(redis_context, "set debug_working 0");
 
-    printf("[debug] State initialized.\n");
+    printf("[%s] State initialized.\n", PROCESS);
 
 }
 
 void initialize_signals() {
 
-    printf("[debug] Attempting to initialize signal handles.\n");
-    // These are global static variables
+    printf("[%s] Attempting to initialize signal handlers.\n", PROCESS);
 
-    sigset_t exitMask;
-    sigemptyset(&exitMask);
-    sigaddset(&exitMask, SIGALRM);  
-    init_utils(&exit_handler, &exitMask);
+    signal(SIGINT, &ignore_exit);
+    signal(SIGUSR1, &handle_exit);
 
-    static sigset_t alrmMask;
-    sigfillset(&alrmMask);
-    set_sighandler(SIGINT,  &exit_handler,  &exitMask);
-    set_sighandler(SIGALRM, &alarm_handler, &alrmMask); 
-
-
-    /* signal(SIGALRM, &alarm_handler); */
-
-
-    /* signal(SIGINT, &exit_handler); */
-
-    printf("[debug] Signal handlers installed.\n");
+    printf("[%s] Signal handlers installed.\n", PROCESS);
 }
 
-void initialize_semaphores() {
-
-    printf("[debug] Attempting to initialize semaphores.\n");
-
-    semaphoreUp = sem_open("debug_semaphore_up", 0);
-    semaphoreDown = sem_open("debug_semaphore_down", 0);
-
-    if (semaphoreUp == SEM_FAILED) {
-        perror("[debug] Failed to open semaphoreUp.");
-        exit(1);
-    }
-    if (semaphoreDown == SEM_FAILED) {
-        perror("[debug] Failed to open semaphoreDown.");
-        exit(1);
-    }
-    
-
-    printf("[debug] Semaphores initialized.\n");
+void handle_exit(int exitStatus) {
+    printf("[%s] Exiting!\n", PROCESS);
+    exit(0);
 }
 
-
-
-// -------------------------------------------------
-// Signal handlers
-// -------------------------------------------------
-
-void alarm_handler(int signum) {
-    // Do nothing
+void ignore_exit(int exitStatus) {
+    /* printf("[%s] Terminates through SIGUSR1!\n", PROCESS); */
 }
-
-void exit_handler(int signum) {
-    printf("[debug] Exiting program!\n");
-    exit(1);
-}
-

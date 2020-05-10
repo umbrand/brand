@@ -90,8 +90,6 @@
  * There is no longer a difference between sources and sinks and modules. Just modules
  * The behavior relative to the published data is what is going to distinguish the processes
  *
- *
- *
  * Timer will keep track of the processes spawned in this way:
  * typedef struct child {
      * pid_t child_pid;
@@ -129,6 +127,7 @@
 
 /* Initialization functions */
 
+void initialize_parameters();
 void initialize_redis();
 void initialize_state();
 void initialize_signals();
@@ -171,18 +170,19 @@ struct itimerval rtTimer;
 // The initial params_t will be loaded from a YAML file
 // I think this will dissapear when we introduce Redis
 
-timer_params_t timer_params;
-timer_state_t timer_state;
+typedef struct {
 
-// For debugging purposes
-// TODO: this needs to be made robust according to a YAML configuration
-pid_t so_pids[0];
-pid_t ch_pids[0];
-pid_t si_pids[0];
-int NUM_SINKS = 0;
-int NUM_MODULES = 0;
-int NUM_SOURCES = 1;
+    pid_t pid;
+    char name[16];
 
+} timer_child_t;
+
+timer_child_t *timer_child;
+int num_children;
+
+// The state of this function -- how many times timer has run
+
+int timer_step;
 
 // Redis information
 redisContext *redis_context;
@@ -195,15 +195,13 @@ redisReply *reply;
 
 int main(int argc, char* argv[]) {
 
-
+    initialize_parameters();
 
     initialize_redis();
 
     initialize_state();
 
     initialize_signals();
-
-    initialize_semaphores();
 
     initialize_processes();
 
@@ -230,18 +228,23 @@ int main(int argc, char* argv[]) {
 // Initialization functions
 // -------------------------------------------------
 
-void initialize_redis() {
+void initialize_parameters() {
 
     printf("[timer] Load YAML configuration file to Redis...\n");
+
+    initialize_redis_from_YAML("timer");
+
+}
+
+void initialize_redis() {
+
+    printf("[timer] Initializing Redis...\n");
 
     char redis_ip[16]       = {0};
     char redis_port[16]     = {0};
 
-    initialize_redis_from_YAML("timer");
-
     load_YAML_variable_string("timer", "redis_ip",   redis_ip,   sizeof(redis_ip));
     load_YAML_variable_string("timer", "redis_port", redis_port, sizeof(redis_port));
-
 
     printf("[timer] From YAML, I have redis ip: %s, port: %s\n", redis_ip, redis_port);
 
@@ -250,27 +253,22 @@ void initialize_redis() {
     load_redis_context(&redis_context, redis_ip, redis_port);
 
     printf("[timer] Redis initialized.\n");
-
-
      
 }
 
 void initialize_state() {
 
-
-    redis_succeed(redis_context, "set timer_step 0");
-
+    timer_step = 0;
 
 }
 
 void initialize_signals() {
 
-    printf("[timer] Attempting to initialize signal handles.\n");
+    printf("[timer] Attempting to initialize signal handlers.\n");
 
     sigalrm_recv = 0; // How many SIGALRM received
     sigexit_recv = 0; // How many SIGINT  received
     sigchld_recv = 0; // How many SIGCHLD received
-
 
     signal(SIGINT, &exit_handler);
     signal(SIGALRM, &alarm_handler);
@@ -281,87 +279,61 @@ void initialize_signals() {
     printf("[timer] Signal handlers installed.\n");
 }
 
-void initialize_semaphores() {
-
-    printf("[timer] Attempting to initialize semaphores.\n");
-
-    
-    int num_sinks;
-    if(redis_int(redis_context, "llen sinks", &num_sinks)) {
-        printf("[timer] could not read length sinks list.\n");
-        exit(1);
-    }
-
-    int num_sources;
-    if(redis_int(redis_context, "llen sources", &num_sources)) {
-        printf("[timer] could not read length sources list.\n");
-        exit(1);
-    }
-
-    int num_modules;
-    if(redis_int(redis_context, "llen modules", &num_modules)) {
-        printf("[timer] could not read length modules list.\n");
-        exit(1);
-    }
-
-
-    char command[36]        = {0};
-    char buffer[36]         = {0};
-    char semaphore_up[36]   = {0};
-    char semaphore_down[36] = {0};
-
-    for (int i = 0; i < num_sinks; i++) {
-        sprintf(command, "lindex sinks %d", i);
-        redis_string(redis_context, command, buffer, sizeof(buffer));
-
-        sprintf(semaphore_up, "%s_semaphore_up", buffer);
-        sprintf(semaphore_down, "%s_semaphore_down", buffer);
-
-        printf("%s %s\n", semaphore_up, semaphore_down);
-
-        sem_open(semaphore_up, O_CREAT , 0644, 0);   // NB. Starts 0
-        sem_open(semaphore_down, O_CREAT , 0644, 1); // NB. Starts 0
-
-    }
-
-
-
-    semaphoresUp   = sem_open("debug_semaphore_up", O_CREAT , 0644, 0); // NB. Starts 0
-    semaphoresDown = sem_open("debug_semaphore_down", O_CREAT , 0644, 1); // NB. starts 1
-
-    if (semaphoresUp == SEM_FAILED) {
-        perror("[timer] Failed to create semaphore.");
-        exit(1);
-    }
-    if (semaphoresDown == SEM_FAILED) {
-        perror("[timer] Failed to create semaphore.");
-        exit(1);
-    }
-    
-    printf("[timer] Semaphores initialized.\n");
-}
 
 void initialize_processes() {
 
     printf("[timer] Attempting to initialize processes.\n");
+    
+    // First, how many timer_modules are there?
 
-    if ((so_pids[0] = fork()) == -1) {
-        die("fork failed \n");
-    }
-
-    if (so_pids[0] == 0) { // child process
-
-        char* argv[2] = {"./../debug/debug", NULL}; // file to load
-
-        execvp(argv[0],argv);
-        printf("network exec error. %s \n", strerror(errno));
+    if(redis_int(redis_context, "llen timer_modules", &num_children)) {
+        printf("[timer] could not read length of modules.\n");
         exit(1);
-        //in case execvp fails
     }
-    printf("[timer] Waiting for PID to initialize... %d\n", so_pids[0]);
-    pause(); // Waiting for SIGUSR2 from the child when it's ready to go
-    printf("[timer] PID %d initialized. \n", so_pids[0]);
-    printf("[timer] Processes initialized.\n");
+
+    printf("[timer] There are %d modules to initialize.\n", num_children);
+
+    // timer_child keeps a list of the PIDs and names of processes
+
+    timer_child = malloc(num_children * sizeof(timer_child_t));
+
+    // Get the name of the module to be loaded (Redis), and then fork yourself
+    // and keep track of the pid of what has been forked.
+
+    for (int i = 0; i < num_children; i++) {
+
+        if ((timer_child[i].pid = fork()) == -1) {
+            die("[timer] fork failed \n");
+        }
+
+        char child_name[16] = {0};
+        char reddis_command[64] = {0};
+        sprintf(reddis_command, "lindex timer_modules %d", i);
+        redis_string(redis_context, reddis_command, child_name, 16);
+
+        strcpy(timer_child[i].name, child_name);
+
+        char initializeCommand[64] = {0};
+        sprintf(initializeCommand, "./%s", child_name);
+
+        if (timer_child[i].pid == 0) { // child process
+
+            char* argv[2] = {initializeCommand, NULL}; // file to load
+
+            execvp(argv[0],argv);
+            printf("[timer] network exec error. %s \n", strerror(errno));
+            exit(1);
+            //in case execvp fails
+        }
+
+        printf("[timer] Waiting for SIGUSR2 from [%s]\n", timer_child[i].name);
+
+        pause(); // Waiting for SIGUSR2 from the child when it's ready to go
+
+        printf("[timer] Signal received: [%s] initialized. \n", timer_child[i].name);
+
+    }
+    printf("[timer] All processes initialized.\n");
 }
 
 void initialize_timer() {
@@ -401,124 +373,73 @@ void handle_exit(int exitStatus) {
     rtTimer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &rtTimer, NULL);
 
-    printf("[timer] Killing sinks...\n");
-    for (int ex_i = 0; ex_i < NUM_SINKS; ex_i++) {
-        if (si_pids[ex_i] != -1) {
-            printf("Killing sink: %d\n", si_pids[ex_i]);
-            kill(si_pids[ex_i], SIGUSR1); // children already receive SIGUSR1
-            while (waitpid(si_pids[ex_i], 0, WNOHANG) > 0);
-        }
-    }
-
+    
     printf("[timer] Killing modules...\n");
-    for (int ex_i = 0; ex_i < NUM_MODULES; ex_i++) {
-        if (ch_pids[ex_i] != -1) {
-            printf("Killing module: %d\n", ch_pids[ex_i]);
-            kill(ch_pids[ex_i], SIGUSR1); // children already receive SIGUSR1
-            while (waitpid(ch_pids[ex_i], 0, WNOHANG) > 0);
+    for (int i = 0; i < num_children; i++) {
+        if (timer_child[i].pid != -1) {
+            printf("[timer] Killing module [%s]: %d\n", timer_child[i].name, timer_child[i].pid);
+            kill(timer_child[i].pid, SIGUSR1); // children already receive SIGUSR1
+            while (waitpid(timer_child[i].pid, 0, WNOHANG) > 0);
         }
     }
-
-    printf("[timer] Killing sources...\n");
-    for (int ex_i = 0; ex_i < NUM_SOURCES; ex_i++) {
-        if (so_pids[ex_i] != -1) {
-            printf("Killing source: %d\n", so_pids[ex_i]);
-            kill(so_pids[ex_i], SIGUSR1); // children already receive SIGUSR1
-          while (waitpid(so_pids[ex_i], 0, WNOHANG) > 0);
-        }
-    }
-
-    sem_unlink("/debug_semaphore_up");
-    sem_unlink("/debug_semaphore_down");
 
     printf("[timer] Exiting with status: %d\n", exitStatus);
     exit(exitStatus);
 
 }
-//TODO: Implement this logic
+
+
 void dead_child() {
     printf("[timer] Dead child. \n");
     sigchld_recv--;
 
-  int saved_errno = errno;
-  int dead_pid;
-  while ((dead_pid = waitpid((pid_t)(-1), 0, WNOHANG)) == 0);
-  printf("[timer] Dead child pid: %d \n", dead_pid);
-  for (de_i = 0; de_i < NUM_SINKS; de_i++) {   
-    if (si_pids[de_i] == dead_pid) {
-      si_pids[de_i] = -1;
+    // waitpid(-1,...) waits for any small child to change state
+    // And then WNOHANG means that it will return immediately
+
+    int saved_errno = errno;
+    int dead_pid;
+    while ((dead_pid = waitpid((pid_t)(-1), 0, WNOHANG)) == 0);
+
+    for (int i = 0; i < num_children; i++) {
+        printf("[timer] Checking child [%s]\n", timer_child[i].name);
+        if (timer_child[i].pid == dead_pid) {
+            timer_child[i].pid = -1;
+            printf("[timer] I have lost child [%s]\n", timer_child[i].name);
+        }
     }
-  }
-  for (de_i = 0; de_i < NUM_SINKS; de_i++) {   
-    if (so_pids[de_i] == dead_pid) {
-      so_pids[de_i] = -1;
-    }
-  }
-  for (de_i = 0; de_i < NUM_MODULES; de_i++) {
-    if (ch_pids[de_i] == dead_pid) {
-      ch_pids[de_i] = -1;
-    }
-  }
-  errno = saved_errno;
-  die("I have lost a child :( \n");
+
+    errno = saved_errno;
+    die("A child was lost and now I'm quitting. :-/ \n");
 
 }
 
-// TODO: Differentiate between sinks, sources, and modules
 void check_children() {
 
-// Logic in the first function:
-// Go throguh the non-sources and then count tick violations
-// Then Wait on all of the sources
-// Then adjust variables
-// Then post to the sources
-// Then send alarms to the sources
-// Then post to thenon-sources
+    if ((sigalrm_recv > 1)) {
+        printf("[timer] Timer missed a tick. Dying.\n");
+        handle_exit(1);
+    }
 
-    if ((sigalrm_recv > 1))
-        die("[timer] Timer missed a tick. Dying.");
+    for (int i = 0; i < num_children; i++) {
 
-    // Increment the step-timer
-    redis_succeed(redis_context, "incr timer_step");
-    /* int semValueUp = -1; */
-    /* int semValueDown = -1; */
+        char command[64] = {0};
+        char is_working[64] = {0};
+        sprintf(command, "get %s_working", timer_child[i].name);
+        redis_string(redis_context, command, is_working, 64);
 
-    for (int al_i = 0; al_i < NUM_SOURCES; al_i++) {
+        if (atoi(is_working) > 0) {
 
-        /* sem_getvalue(semaphoresUp, &semValueUp); */
-        /* printf("[timer] PreTryWait %d %d\n", semValueUp, semValueDown); */
-        /* sem_getvalue(semaphoresDown, &semValueDown); */
-        /* printf("[timer] PreTryWait %d %d\n", semValueUp, semValueDown); */
-
-        if (sem_trywait(semaphoresDown)) {
-            printf("Sink timing violation on ms: %d from non_source number %d \n", timer_state.timestep, al_i);
+            printf("Step (%d): [%s] timing violation.\n", timer_step, timer_child[i].name);
         }
 
-        /* sem_getvalue(semaphoresUp, &semValueUp); */
-        /* sem_getvalue(semaphoresDown, &semValueDown); */
-        /* printf("[timer] PostTryWait %d %d\n", semValueUp, semValueDown); */
     }
 
-    /* for (int al_i = 0; al_i < NUM_SOURCES; al_i++)  { */
-    /*     printf("Trying sem_wait child %d\n", al_i); */
-    /*     sem_wait(semaphoresUp[al_i]); */
-    /* } */
+    char publish[64] = {0};
+    sprintf(publish, "publish timer_step %d", timer_step);
+    redis_succeed(redis_context,publish);
 
-
-    for (int al_i = 0; al_i < NUM_SOURCES; al_i++) 
-        kill(so_pids[al_i], SIGALRM);
-
-    // This is where manipulations of shared memory will go
-
-    for (int al_i = 0; al_i < NUM_SOURCES; al_i++) {
-        sem_post(semaphoresUp);
-    }
-    
-
-    
-
+    timer_step++;
     sigalrm_recv--;
-
 
 }
 // -------------------------------------------------
@@ -545,37 +466,4 @@ void usr2_handler(int signum) {
 void chld_handler(int sig) {
     sigchld_recv++;
 }
-    /* sprintf(bashCommand, "python %s %s --ip", redisToolsPath, configurationFile); */
-    /* printf("%s\n", bashCommand); */
 
-    /* fp = popen(bashCommand, "r"); */
-    /* if (fp == NULL) { */
-    /*     perror("[timer] Failed to run python script to load IP.\n" ); */
-    /*     exit(1); */
-    /* } */
-
-    /* if((readLength = fread(redis_ip, 16, 1, fp)) < 0) { */
-    /*     perror("[timer] Could not read the IP address from python script.\n"); */
-    /*     exit(1); */
-    /* } */
-    /* if(strlen(redis_ip) == 0) { */
-    /*     perror("[timer] I could read the IP address but it is empty.\n"); */
-    /*     exit(1); */
-    /* } */
-    /* memset(bashCommand, 0, sizeof(bashCommand)); */
-    /* sprintf(bashCommand, "python %s %s --port", redisToolsPath, configurationFile); */
-    /* fp = popen(bashCommand, "r"); */
-
-    /* if (fp == NULL) { */
-    /*     perror("[timer] Failed to run python script to load port.\n" ); */
-    /*     exit(1); */
-    /* } */
-
-    /* if((readLength = fread(redis_port, 16, 1, fp)) < 0) { */
-    /*     perror("[timer] Could not read the port from python script.\n"); */
-    /*     exit(1); */
-    /* } */
-    /* if(strlen(redis_port) == 0) { */
-    /*     perror("[timer] I could read the port but it is empty.\n"); */
-    /*     exit(1); */
-    /* } */

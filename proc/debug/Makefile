@@ -4,12 +4,22 @@ DEFAULTFLAGS = -Wall
 CFLAGS = -O2 $(DEFAULTFLAGS)
 CFLAGSUNOPT = -O0 $(DEFAULTFLAGS)
 CFLAGS+ = -g -O2 $(DEFAULTFLAGS)
-LDFLAGS = -lrt -pthread -lsqlite3
-CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ 
 
-CFILES = $(ROOT)/lib/utilityFunctions/utilityFunctions.c 
+HIREDIS_PATH=$(ROOT)/lib/hiredis/
 
-all: debug 
+LINKS= -L$(HIREDIS_PATH)
+LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
+LDFLAGS = -lrt -pthread -lsqlite3 -lhiredis -levent
+
+CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ \
+		   -I$(ROOT)/lib/redisTools/ \
+		   -I$(HIREDIS_PATH)
+
+
+CFILES = $(ROOT)/lib/utilityFunctions/utilityFunctions.c \
+		 $(ROOT)/lib/redisTools/redisTools.c
+
+all: debug
 
 debug: debug.c
 	$(CC) $(CFLAGS) $(CINCLUDE) debug.c $(CFILES) -o debug $(LDFLAGS)
