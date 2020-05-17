@@ -16,10 +16,17 @@ cors = CORS(app)
 
 r = redis.StrictRedis(host='localhost', port=6379, db=0)
 
+###############################################
+## Deliver static site
+###############################################
+
 @app.route('/')
 def deliverStatic():
-    print("HELLO")
     return app.send_static_file('index.html')
+
+###############################################
+## Return information about variables stored in Redis
+###############################################
 
 @app.route('/procs/<proc>/<name>', methods=['POST'])
 def test(proc, name):
@@ -53,15 +60,17 @@ def getStreams():
             "parameters" : ["downsample"]
             }
             
-    test = {
-            "name" : "TestName",
-            "keys" : ["key1","key2"],
-            "parameters" : ["parameter1","parameter2"]
+    pipe_result = r.xinfo_stream("pipe")
+    pipe_keys   = [x.decode('utf-8') for x in pipe_result['last-entry'][1].keys()]
+    pipe = {
+            "name" : "pipe",
+            "keys" : pipe_keys,
+            "parameters" : ["downsample"]
             }
             
 
 
-    output = { "streams" : [streamUDP, test] }
+    output = { "streams" : [streamUDP, pipe] }
 
     return json.dumps(output)
             
@@ -70,6 +79,47 @@ def getStreams():
 ###########################################################
 ## /streams/streamUDP
 ###########################################################
+
+@app.route('/streams/pipe/<key>', methods=['GET'])
+def pipe(key):
+
+    downsample = request.args.get('downsample', 1, type=int)
+
+    key = key.encode('utf-8')
+
+    # This will return an array of entries
+    # Each entry has [0] --> timestamp
+    # [1] --> A dictionary
+    data = r.xrevrange("pipe", count=1000)
+
+    if key not in data[0][1].keys():
+        output = {"error" : str(key) + " is not a key in pipe"}
+        return json.dumps(output)
+
+    # If we're here then we know we have a valid key
+    # From the dictionary, return the dictionary entry of the key
+    # and convert it into a float. Create a comprehension over all of the
+    # returned data
+
+    y      = [float(x[1][key]) for x in data]
+    y      = y[::downsample]
+    x      = list(reversed(range(len(y))))
+    name   = str(key)
+    xTitle = "Time"
+    yTitle = "Power"
+    maxID  = data[0][0].decode('utf-8')
+
+    output = { "x"      : x
+             , "y"      : y
+             , "name"   : name
+             , "xTitle" : xTitle
+             , "yTitle" : yTitle
+             , "maxID"  : maxID
+             }
+
+    print(output)
+
+    return json.dumps(output)
 
 
 @app.route('/streams/streamUDP/<key>', methods=['GET'])
