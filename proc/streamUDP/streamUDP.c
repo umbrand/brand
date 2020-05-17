@@ -44,8 +44,8 @@ int main (int argc, char **argv) {
     int udp_fd = initialize_socket();
 
     /* Sending kill causes tmux to close */
-    /* pid_t ppid = getppid(); */
-    /* kill(ppid, SIGUSR2); */
+    pid_t ppid = getppid();
+    kill(ppid, SIGUSR2);
 
 
     while (1) {

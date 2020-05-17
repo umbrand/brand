@@ -13,11 +13,11 @@
 
 - name: sample_period
   value: 10000
-  description: Period (nanoseconds) at which the timer fires and coordinates the system
+  description: Period (milliseconds) at which the timer fires and coordinates the system
   static: true
 
 - name: modules
-  value: [udpAdapter]
-  description: List of modules to run
+  value: [generator, streamUDP, pipe]
+  description: List of commands to run
   static: true
 

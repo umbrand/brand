@@ -63,4 +63,6 @@ int CatchInterruptSignal(void (*handlerFunction)(int))
 		exit(1);
 	}
 
+    return 0;
+
 }
