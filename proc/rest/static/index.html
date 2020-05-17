@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Variable inspector</title>
+    <script src="/js/main.js"></script>
+    <link href="/css/bulma.min.css" rel="stylesheet" type="text/css"> 
+    <script src="/js/plotly-latest.min.js"></script>
+
+
+</head>
+<body>
+
+	<div id="elm"></div>
+   <script>
+		var app = Elm.Main.init({
+		  node: document.getElementById('elm')
+		});
+
+        app.ports.toJS_plotly.subscribe(function(msg) {
+
+            config = {responsive: true}
+            data   = msg[0];
+            layout = msg[1];
+
+
+            Plotly.react('plotly-div',  {
+                data: data ,
+                layout: layout,
+                config: config
+            });
+        });
+
+
+
+	</script>
+</body>
+</html>
+
