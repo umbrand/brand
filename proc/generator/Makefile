@@ -9,7 +9,7 @@ HIREDIS_PATH=$(ROOT)/lib/hiredis/
 
 LINKS= -L$(HIREDIS_PATH)
 LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
-LDFLAGS = -lrt -pthread -lsqlite3 -lhiredis -levent
+LDFLAGS = -lrt -pthread -lsqlite3 -lhiredis #-levent
 
 CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ \
 		   -I$(ROOT)/lib/redisTools/ \
