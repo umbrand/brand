@@ -1,18 +1,20 @@
 # Variables for running the pipe function
 
 
-- name: enable
-  value: true
-  description: Enable or disable the neural feature procesing pipeline
-
 - name: samples_per_cycle
   value: 20
   min: 1
-  description: Number of samples per cycle of the Pipe
+  description: Number of samples per cycle of the Pipe. Controls xrange() call
+  static: true
 
-- name: samplingFrequency
+- name: sampling_frequency
   value: 1000
-  description: Frequency (Hz) the rate at which data is saved within the file. 
+  description: Frequency (Hz) the rate at which data is sampled.
+  static: true
+
+- name: num_channels
+  value: 48
+  description: Number of samples per cycle of the Pipe
   static: true
   
 ###########################################

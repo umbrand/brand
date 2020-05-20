@@ -6,13 +6,25 @@ import pandas as pd
 import scipy.io
 import signal
 import os
+import sys
+
+cimport numpy
+
+
+# Pathway to get redisTools.py
+sys.path.insert(1, '../../lib/redisTools/')
+from redisTools import getSingleValue
+
+YAML_FILE = 'pipe.yaml'
 
 ################################################
-## Initialzing Redis
+## Initializing Redis
 ################################################
 
-print("[pipe] Initializing redis...")
-r = redis.Redis(host='127.0.0.1',port=6379, db=0)
+redis_ip = getSingleValue(YAML_FILE,"redis_ip")
+redis_port = getSingleValue(YAML_FILE,"redis_port")
+print("[pipe] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
+r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
 
 ################################################
 ## Compute the coefficients for butterworth filtering
@@ -20,20 +32,32 @@ r = redis.Redis(host='127.0.0.1',port=6379, db=0)
 
 # TODO: READ THIS FROM YAML FILE
 
-nyq      = 0.5 * 1000
-butOrder = 4
-butLow   = 78
-butHigh  = 200
+fs       = getSingleValue(YAML_FILE, 'sampling_frequency')
+butOrder = getSingleValue(YAML_FILE, 'butterworth_order')
+butLow   = getSingleValue(YAML_FILE, 'butterworth_lowercutoff')
+butHigh  = getSingleValue(YAML_FILE, 'butterworth_uppercutoff')
+
+nyq      = 0.5 * fs
 b,a      = scipy.signal.butter(butOrder,[butLow/nyq, butHigh/nyq], btype='bandpass', analog=False)
 
 print("[pipe] Butterworth coefficients: Order: %d, [%f, %f]..." % (butOrder, butLow, butHigh))
 
-r.set("pipe_working",0)
+################################################
+## Read from YAML file
+################################################
+
+cdef int samples_per_cycle = getSingleValue(YAML_FILE,"samples_per_cycle")
+cdef int num_channels      = getSingleValue(YAML_FILE,"num_channels")
+
+# cdef int c_matrix[samples_per_cycle][num_channels]
+
+
 
 ################################################
 ## Main loop
 ################################################
 
+r.set("pipe_working",0)
 
 print("[pipe] Entering while loop...")
 

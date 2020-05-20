@@ -1,0 +1,3 @@
+cython3 --embed pipe2.pyx -o pipe.c 
+gcc pipe.c -o pipe -I/home/david/code/anaconda3/envs/data/include/python3.7m/ -I/home/david/code/anaconda3/lib/python3.7/site-packages/numpy/core/include -L /home/david/code/anaconda3/envs/data/lib/  -Wl,-rpath=/home/david/code/anaconda3/envs/data/lib/ -lpython3.7m -lpthread -lm -lutil -ldl
+Makefile:9: recipe for target 'all' failed
