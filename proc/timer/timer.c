@@ -302,9 +302,6 @@ void initialize_processes() {
 
     for (int i = 0; i < num_children; i++) {
 
-        if ((timer_child[i].pid = fork()) == -1) {
-            die("[timer] fork failed \n");
-        }
 
         char child_name[16] = {0};
         char reddis_command[64] = {0};
@@ -316,13 +313,21 @@ void initialize_processes() {
         char initializeCommand[64] = {0};
         sprintf(initializeCommand, "./%s", child_name);
 
+        printf("[timer] Forking and executing: %s\n", initializeCommand);
+
+        if ((timer_child[i].pid = fork()) == -1) {
+            die("[timer] fork failed \n");
+        }
+
         if (timer_child[i].pid == 0) { // child process
 
             char* argv[2] = {initializeCommand, NULL}; // file to load
 
             execvp(argv[0],argv);
-            printf("[timer] network exec error. %s \n", strerror(errno));
+            /* if (system(initializeCommand)) { */
+            printf("[timer] system fail: %s %s \n", initializeCommand, strerror(errno));
             exit(1);
+            /* } */
             //in case execvp fails
         }
 
@@ -435,7 +440,7 @@ void check_children() {
     }
 
     char publish[64] = {0};
-    sprintf(publish, "publish timer_step %d", timer_step);
+    sprintf(publish, "xadd timer * step %d", timer_step);
     redis_succeed(redis_context,publish);
 
     timer_step++;

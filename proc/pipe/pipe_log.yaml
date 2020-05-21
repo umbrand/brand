@@ -1,0 +1,15 @@
+stream:
+ - stream_key: pipe
+   table_name: pipe
+   data:
+    - key: power0
+      type: real
+    - key: power1
+      type: real
+
+file:
+ - file_name: Makefile
+   table_name: pipe_makefile
+ - file_name: pipe.yaml
+   table_name: pipe_parameters
+

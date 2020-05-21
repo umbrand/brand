@@ -3,6 +3,8 @@
 
 {-
 
+This code interacts with a REST API and then allows the user to interact with the Redis server
+
 This code is designed to query a REST API and then get a list of variables
 that are publically exposed by that process
 Then they can be manipulated and sent back to the process accordingly

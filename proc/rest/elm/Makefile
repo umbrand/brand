@@ -1,7 +1,7 @@
 
-OUTPUT=../js/variableInspector.js
+OUTPUT=../static/js/main.js
 
 all:
-	elm make VariableInspector.elm --output $(OUTPUT)
+	elm make Main.elm --output $(OUTPUT)
 
 

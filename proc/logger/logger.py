@@ -1,213 +1,144 @@
 # Logger.py
-# This function makes multiple connections to various Redis databases and subscribes to variables of interest
-# It then contains the logic it needs to parse it nicely into a table
-#
-# David Brandman, April 2020
-#
-#
-# Each process is designed to have its own Redis server, with its own IP and port.
-# IPC occurs with a process publishing its available data.
-# The point of the Logger is to capture all of the published data in one place
-# It's designed so that there is one Class -- Listener -- which contains the important
-# information for connecting to a Redis server and for handling a sqlite3 connection
-#
-# Because I can't write to SQLite in threads, I needed to implement a queuing system to get things to work.
-# It's a bit convoluted, but:
-#
-# 1) There is a listener object for each of the different Redis server I want to listen to
-# 2) Each listener object gets its own queue
-# 3) Each listener object listens and has its own callback. It launches the callback when a message is published
-# 4) Each callback creates a string that is the SQL message to execute
-# 5) Each thread then sends the message down the queue, which is then executed
-#
-# audio OL object --> callback after published message --> queue ---
-#                                                                   |--> combined queue --> executes command
-# rawData object  --> callback after published message --> queue ---
-#
-# Hence, a thread for each object, and then each object has a handleFunction that is handleded in a thread.
-# The advantage of this approach is that each process now how its own listener objects, which compartimentalizes
-# things nicely. There are more efficient ways this could have been done; for example, by having each
-# listener have its own :memory: database and then copying the tables as part of the write step.
-# However, I think this approach is easiest for iterating, since in order to listen to a new variable
-#
-# To listen to a new variable, you need to do three things:
-# 1) Decide if you need a new table when the Listener is declared
-# 2) Tell the Redis pipe to subscribe to a new variable name
-# 3) Define the handler for that variable name
-#
-#
-# TODO: Sqlite3 has multiple thread modes. The default enfoced by python wrapper
-# is to disallow writing to database through thread other than the one used
-# to make connection. The alternative it sot set the check_same_thread clause in the
-# connection to make it so taht multiple threads can write. If this logger
-# turns out to be too slow, then it's worth looking into
-# It also turns out that multiple connections can happen to a single
-# in memory database, https://sqlite.org/inmemorydb.html
-# 
-
+# When we're done with our session, we want to summarize data from multiple sources
 
 import sqlite3
 from sqlite3 import Error
 import redis
 import time
-import threading
-import queue
+import datetime
+import yaml
+import sys
 
+# Pathway to get redisTools.py
+sys.path.insert(1, '../../lib/redisTools/')
+from redisTools import getSingleValue
+
+YAML_FILE = "logger.yaml"
 
 ##########################################
 ## Helper function for working with SQL
 ##########################################
-def sqlConnect():
+def sql_connect(filename):
+
+    datetime_string = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H.%M.%S')
+    sql_filename = filename + "." + datetime_string + ".sqlite3"
+
     try:
-        con = sqlite3.connect(':memory:')
+        con = sqlite3.connect(sql_filename)
     except Error:
         print(Error)
     finally:
         return con
 
 ##########################################
-## Base listener class
+## Helper function for working with Redis
 ##########################################
+def redis_connect():
 
-class Listener:
-    def __init__(self, name, con, queue, redisIP='127.0.0.1', redisPort=6379):
-
-        self.redisIP   = redisIP
-        self.redisPort = redisPort
-        self.name      = name
-        self.r         = redis.Redis(host = redisIP, port = redisPort, db = 0)
-        self.con       = con # Con here refers to the sqlite3 con
-        self.queue     = queue
-        self.p         = self.r.pubsub()
-
-    def listenAndParse(self):
-
-        for m in self.p.listen(): # Blocks here. Each listener has its own subscriptions
-            pass
-
-    def display(self, val):
-        print("[logger][%s] %s" % (self.name, val))
-
-##########################################
-## Listener for RawData
-##########################################
-
-class ListenerRawData(Listener):
-    def __init__(self, con, queue, redisIP, redisPort):
-
-        Listener.__init__(self, 'rawData', con, queue, redisIP, redisPort)
-        con.execute("CREATE TABLE if not exists rawData(timestamp TEXT, value TEXT)")
-
-        self.p.subscribe(**{'rawData'    : self.handlerRawData})
-
-    def handlerRawData(self, msg):
-        data = msg['data'].decode('utf-8').split(",", 1)
-        sqlStr = "INSERT INTO rawData values ('%s', '%s')" % tuple(data)
-        self.queue.put(sqlStr)
-
-##########################################
-## Listener for audioOL
-##########################################
-
-class ListenerAudioOL(Listener):
-    def __init__(self, con, queue, redisIP, redisPort):
-
-        Listener.__init__(self, 'audioOL', con, queue, redisIP, redisPort)
-        con.execute("CREATE TABLE if not exists audioOL(timestamp TEXT, value TEXT)")
-
-        self.p.subscribe(**{'audioOL' : self.handlerSoundStatus})
-
-    def handlerSoundStatus(self, msg):
-        data = msg['data'].decode('utf-8').split(",", 1)
-        sqlStr = "INSERT INTO audioOL values ('%s', '%s')" % tuple(data)
-        self.queue.put(sqlStr)
+    redis_ip = getSingleValue(YAML_FILE,"redis_ip")
+    redis_port = getSingleValue(YAML_FILE,"redis_port")
+    print("[logger] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
+    r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
+    return r
 
 
 ##########################################
-## Write database to disk
+## Helper function for working with yaml
 ##########################################
+def load_process_log_yaml(process):
+    try:
+        filename = "yaml/" + process + "_log.yaml"
+        with open(filename, 'r') as f:
+            yaml_data = yaml.safe_load(f)
 
-def writeDatabaseToDisk(con):
+    except IOError:
+        return ""
 
-    # def progress(status, remaining, total):
-    #     print(f'Copied {total-remaining} of {total} pages...')
+    return yaml_data
 
-    print("Backing up")
 
-    bck = sqlite3.connect('backup.db')
-    with bck:
-        con.backup(bck, pages=0) #, progress = progress)
+##########################################
+## stream_to_sql
+##########################################
+def stream_to_sql(con, process_name, stream_list):
 
-    bck.close()
+    for stream in stream_list:
 
-def backupTimer(queue):
-    while True:
-        time.sleep(1)
-        queue.put(1)
+        col_names = [(x['key'] + " " + x['type']) for x in stream['data']]
+        col_names = ",".join(col_names)
+        col_names = "(id text," + col_names + ")"
+        sqlStr = "CREATE TABLE IF NOT EXISTS %s %s" % (stream['table_name'], col_names)
+
+        print("[logger] Creating table: " , stream['table_name'])
+        con.execute(sqlStr)
+
+        print("[logger] Loading data into: " , stream['table_name'])
+
+        data_list = r.xrange(stream['stream_key'])
+        for data in data_list:
+            vals = [data[0].decode('utf-8')]
+            vals += [value.decode('utf-8') for value in data[1].values()]
+            # vals = ",".join(vals)
+            # vals = "(" + id + "," + vals + ")"
+
+            cols = ["?"] * (len(vals))
+            cols = ",".join(cols)
+            cols = "(" + cols + ")"
+
+            sqlStr = "INSERT INTO %s values %s" % (stream['table_name'], cols)
+            con.execute(sqlStr, tuple(vals))
+            con.commit()
+
+
+
+
+##########################################
+## stream_to_sql
+##########################################
+def file_to_sql(con, process_name, file_list):
+
+    for file in file_list:
+
+        print("[logger] Creating table: " , file['table_name'])
+            
+        sqlStr = "CREATE TABLE IF NOT EXISTS %s (value TEXT)" % (file['table_name'])
+        con.execute(sqlStr)
+
+        file_path = "../" + process_name + "/" + file['file_name']
+
+        print("[logger] Reading file: " , file_path)
+        file_fd = open(file_path, "r") 
+        file_contents = file_fd.read() 
+
+        print("[logger] Inserting data from: " , file_path)
+        sqlStr = "INSERT INTO %s values (?)" % (file['table_name'])
+        con.execute(sqlStr, (file_contents,))
+
+        con.commit()
 
 
 ##########################################
 ## Main event
 ##########################################
 
-if __name__ == '__main__':
-    con = sqlConnect()
+if __name__ == "__main__":
 
-    rawDataQueue  = queue.Queue(maxsize = 0)
-    audioOLQueue  = queue.Queue(maxsize = 0)
-    combinedQueue = queue.Queue(maxsize = 0)
-    backupQueue   = queue.Queue(maxsize = 0)
-    
-    def listen_and_forward(queue):
-        while True:
-            combinedQueue.put((queue, queue.get()))
+    r            = redis_connect()
+    sql_filename = getSingleValue(YAML_FILE,"filename")
+    con          = sql_connect(sql_filename)
 
-    l1 = ListenerRawData(con,rawDataQueue, redisIP='127.0.0.1', redisPort=6379)
-    l2 = ListenerAudioOL(con,audioOLQueue, redisIP='127.0.0.1', redisPort=6000)
+# Start by getting a list of the process_list that we want to convert to a SQL table
+# Then go through each process, and check to see if it logger.py knows how to handle
+# The type of data it's presented with
 
-    threading.Thread(target=l1.listenAndParse).start()
-    threading.Thread(target=l2.listenAndParse).start()
-    threading.Thread(target=lambda: backupTimer(backupQueue)).start()
+    process_list = getSingleValue(YAML_FILE,"process_list")
 
-    t = threading.Thread(target=listen_and_forward, args=(rawDataQueue,))
-    t.daemon = True
-    t.start()
-    t = threading.Thread(target=listen_and_forward, args=(audioOLQueue,))
-    t.daemon = True
-    t.start()
+    for process_name in process_list:
 
+        yaml_data = load_process_log_yaml(process_name)
 
-    while True:
-        which, message = combinedQueue.get()
-        con.execute(message)
+        if "stream" in yaml_data:
+            stream_to_sql(con, process_name, yaml_data['stream'])
 
-        if not backupQueue.empty():
-            con.commit()
-            writeDatabaseToDisk(con)
-            backupQueue.queue.clear()
-
-
-
-
-
-
-
-
-
-
-        # print('---------Raw Data----------')
-        # for row in con.execute("select * from rawData"):
-        #     print(row)
-
-        # print('---------AUDIOOOL----------')
-        # for row in con.execute("select * from audioOL"):
-        #     print(row)
-
-
-
-
-
-    # def handlerSoundSTOP(self, msg):
-    #     data = msg['data'].decode('utf-8').split(",", 1)
-    #     sqlStr = "INSERT INTO audioOL values ('%s', '%s')" % tuple(data)
-    #     self.queue.put(sqlStr)
+        if "file" in yaml_data:
+            file_to_sql(con, process_name, yaml_data['file'])
