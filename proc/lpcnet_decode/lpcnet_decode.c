@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     /* kill(ppid, SIGUSR2); */
 
 
-    printf("[%s] Entering loop...\n", PROCESS);
+    /* printf("[%s] Entering loop...\n", PROCESS); */
 
     while (1) {
 
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 
 void initialize_redis() {
 
-    printf("[%s] Initializing Redis...\n", PROCESS);
+    /* printf("[%s] Initializing Redis...\n", PROCESS); */
 
     char redis_ip[16]       = {0};
     char redis_port[16]     = {0};
@@ -130,9 +130,9 @@ void initialize_redis() {
     load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
     load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
 
-    printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
+    /* printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port); */
 
-    printf("[%s] Trying to connect to redis.\n", PROCESS);
+    /* printf("[%s] Trying to connect to redis.\n", PROCESS); */
 
     redis_context = redisConnect(redis_ip, atoi(redis_port));
     if (redis_context->err) {
@@ -140,18 +140,18 @@ void initialize_redis() {
         exit(1);
     }
 
-    printf("[%s] Redis initialized.\n", PROCESS);
+    /* printf("[%s] Redis initialized.\n", PROCESS); */
      
 }
 
 void initialize_signals() {
 
-    printf("[%s] Attempting to initialize signal handlers.\n", PROCESS);
+    /* printf("[%s] Attempting to initialize signal handlers.\n", PROCESS); */
 
     /* signal(SIGINT, &ignore_exit); */
     signal(SIGUSR1, &handle_exit);
 
-    printf("[%s] Signal handlers installed.\n", PROCESS);
+    /* printf("[%s] Signal handlers installed.\n", PROCESS); */
 }
 
 //
