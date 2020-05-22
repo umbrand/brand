@@ -1,5 +1,10 @@
 
-# Some configuration options for streamUDP.c 
+# Some configuration options for lpcnet_encode.c 
+# NOte that the program expects that the sound is saved as a .pcm file format saved as:
+# - Signed 16 bit numbers, little endian
+# - Sample rate of 16k
+# - Single channel of sound
+# This results in the ffmpeg/ffplay flags : -ar 16k -ac 1 -f s16le 
 
 - name: redis_ip
   value: 127.0.0.1
@@ -12,6 +17,6 @@
   static: true
 
 - name: filename
-  value: gentle.pcm
-  description: What sound file that we are going to be playing
+  value: birch.pcm
+  description: What sound file that we are going to be playing. Should be a .pcm format.
   static: true

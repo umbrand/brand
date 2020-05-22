@@ -1,20 +1,13 @@
-/* lpcnet_encode.c
- *
- * The goal of this function is to take a sound file (pcm) and encode it into the lpcnet vocoder
- * output. It's designed to run in real-time. There's certainly a role for pre-computing the 
- * vocoder values, but this is an excercise in the whole closed-loop system.
- *
- * David Brandman May 2020
-*/
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include <math.h>
 #include <stdio.h>
-#include <sys/types.h> //getppid()
-#include <unistd.h> //getppid()
 #include <signal.h>
+#include <stdlib.h>
+
 #include "arch.h"
 #include "lpcnet.h"
 #include "freq.h"
@@ -27,9 +20,10 @@ int initialize_buffer(int16_t  **buffer);
 
 void handle_exit(int exitStatus);
 void ignore_exit(int exitStatus);
-char PROCESS[] = "lpcnet_encode";
+char PROCESS[] = "lpcnet_decode";
 
 redisContext *redis_context;
+redisReply *reply;
 
 
 // From the LPCNet code base: these are the default values:
@@ -38,6 +32,16 @@ redisContext *redis_context;
 // LPCNET_PACKET_SAMPLES -> lpcnet.h = 4*160
 // Number of audio samples in a packet
 
+    /*     LPCNetDecState *net; */
+    /*     net = lpcnet_decoder_create(); */
+    /*     while (1) { */
+    /*         unsigned char buf[LPCNET_COMPRESSED_SIZE]; */
+    /*         short pcm[LPCNET_PACKET_SAMPLES]; */
+    /*         fread(buf, sizeof(buf[0]), LPCNET_COMPRESSED_SIZE, fin); */
+    /*         if (feof(fin)) break; */
+    /*         lpcnet_decode(net, buf, pcm); */
+    /*         fwrite(pcm, sizeof(pcm[0]), LPCNET_PACKET_SAMPLES, fout); */
+    /*     } */
 
 int main(int argc, char **argv) {
 
@@ -46,57 +50,65 @@ int main(int argc, char **argv) {
 
     initialize_signals();
 
-    // The buffer contains a pointer to the s16le pcm formatted sound file
-    int16_t *buffer;
-    int num_packets = initialize_buffer(&buffer);
-
     // State initialization for LPCnet
-    LPCNetEncState *net = lpcnet_encoder_create();
-
-    printf("[%s] Initiating For loop. Running for %d seconds...\n",PROCESS, (40*num_packets/1000));
+    LPCNetDecState *net = lpcnet_decoder_create();
 
     /* Sending kill causes tmux to close */
     /* pid_t ppid = getppid(); */
     /* kill(ppid, SIGUSR2); */
 
-    for (int i = 0; i < num_packets; i++) {
 
-        // Block until we have a timer input
-        /* redis_succeed(redis_context, "xread block 0 streams timer $"); */
+    printf("[%s] Entering loop...\n", PROCESS);
 
-        unsigned char output_buffer[LPCNET_COMPRESSED_SIZE] = {0};
-        int buffer_index = i * LPCNET_PACKET_SAMPLES;
-        lpcnet_encode(net, &buffer[buffer_index], output_buffer);
+    while (1) {
 
+        reply = redisCommand(redis_context, "xread count 1 block 0 streams lpcnet_encode $");
+        if (reply == NULL || reply->type == REDIS_REPLY_ERROR || reply->type == REDIS_REPLY_NIL) {
+            printf("[%s] Error running redis command",PROCESS);
+            exit(1);
+        }
 
-        char buffer_string[128] = {0};
-        unsigned long *l = (unsigned long*) output_buffer;
-        sprintf(buffer_string, "XADD lpcnet_encode * sound_compressed %lu", *l);
+        // The xread value is rather nested
+        // 1. [0] The stream we're getting data from
+        // 2. [1] The data content from the stream
+        // 3. [0] The first element of the data content of the stream
+        // 4. [1] The data associated with the ID
+        // 5. [1] The data associated with the key
+        char *string = reply->element[0]->element[1]->element[0]->element[1]->element[1]->str;
 
-        printf("%d %s\n",i, buffer_string);
-        redis_succeed(redis_context, buffer_string);
+        /* unsigned char buf[LPCNET_COMPRESSED_SIZE] = {0}; */
 
-        usleep(40000); 
-        /* usleep(100000); */ 
+        unsigned long encoded;
+        sscanf(string, "%lu", &encoded);
 
-        // Convert the encoded value to a string
+        /* printf("%lu\n",encoded); */
 
-        /* int index = 0; */
-        /* char buffer_string[64] = {0}; */
-        /* index += sprintf(buffer_string, "XADD lpcnet_encode * sound_compressed "); */
-        /* for (int j=LPCNET_COMPRESSED_SIZE; j >= 0; j--) */
-        /*    index += sprintf(&buffer_string[index], "%02x", output_buffer[j]); */
+        /* unsigned char buf[LPCNET_COMPRESSED_SIZE]; */
+        short pcm[LPCNET_PACKET_SAMPLES];
 
-        // Push the string to Redis
+        /* memcpy(buf, &encoded, LPCNET_COMPRESSED_SIZE); */
+
+        /* lpcnet_decode(net, buf, pcm); */
+        lpcnet_decode(net, (unsigned char*) &encoded, pcm);
+
+        fwrite(pcm, sizeof(pcm[0]), LPCNET_PACKET_SAMPLES, stdout);
         
-        /* unsigned long *l = (unsigned long*) output_buffer; */
-        /* printf("%d %s, %lu\n",i, buffer_string, *l); */
-        /* redis_succeed(redis_context, buffer_string); */
+
+
+    /*     while (1) { */
+    /*         unsigned char buf[LPCNET_COMPRESSED_SIZE]; */
+    /*         short pcm[LPCNET_PACKET_SAMPLES]; */
+    /*         fread(buf, sizeof(buf[0]), LPCNET_COMPRESSED_SIZE, fin); */
+    /*         if (feof(fin)) break; */
+    /*         lpcnet_decode(net, buf, pcm); */
+    /*         fwrite(pcm, sizeof(pcm[0]), LPCNET_PACKET_SAMPLES, fout); */
+    /*     } */
+        freeReplyObject(reply);
     }
-    printf("[%s] Loop is finished. Freeing memory...\n",PROCESS);
-    lpcnet_encoder_destroy(net);
+
+
+    lpcnet_decoder_destroy(net);
     redisFree(redis_context);
-    free(buffer);
     printf("[%s] Shutting down.\n",PROCESS);
     return 0;
 
@@ -142,40 +154,6 @@ void initialize_signals() {
     printf("[%s] Signal handlers installed.\n", PROCESS);
 }
 
-int initialize_buffer(int16_t  **buffer) {
-
-    char filename[16] = {0};
-    load_YAML_variable_string(PROCESS, "filename", filename, sizeof(filename));
-
-    printf("[%s] Finding the file %s to load into memory...\n", PROCESS, filename);
-    FILE *dataFILE;
-    if ((dataFILE = fopen(filename, "rb")) == NULL) {
-        perror("Fopen: ");
-        exit(1);
-    }
-    
-    // First, how big is this file? Go to end and then rewind
-    fseek(dataFILE, 0L, SEEK_END);
-    int dataSize = ftell(dataFILE);
-    rewind(dataFILE);
-
-    printf("[%s] File size: %d bytes\n",PROCESS, dataSize);
-
-    // Num_packets: size in bytes, divided by size of sample, divided by size of data (uint16_t)
-    int num_packets = dataSize / LPCNET_PACKET_SAMPLES / sizeof(uint16_t);
-
-    // Now load the file in memory. 
-	*buffer =  malloc(dataSize * sizeof(uint16_t));
-    int readLength;
-    if ( (readLength = fread(*buffer, 1, dataSize, dataFILE)) < 0) {
-        printf("[%s] Could not read file. Aborting.\n", PROCESS);
-        exit(1);
-    }
-
-    // Now that the data is in memory we're done
-    fclose(dataFILE);
-    return num_packets;
-}
 //
 //------------------------------------
 //------------------------------------

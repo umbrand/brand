@@ -131,9 +131,12 @@ int redis_int(redisContext *redis_context, char *command, int *value) {
 
 }
 
+/* Helper function that provides no feedback and just does the job asked */
+
 int redis_succeed(redisContext *redis_context, char *command) {
 
     freeReplyObject(redisCommand(redis_context, command));
     return 0;
 }
+
 
