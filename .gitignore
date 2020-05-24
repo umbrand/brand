@@ -2,3 +2,7 @@ tmp/
 
 # vim swap files
 *.swp
+
+# python compiles
+__pycache__
+*.pyc
