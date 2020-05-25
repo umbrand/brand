@@ -25,6 +25,10 @@ all: $(SUBDIRS) hiredis redis
 $(SUBDIRS): hiredis redis
 	$(MAKE) -C $@
 
+# Linking to hiredis seems to have a bug, where make
+# attempt to link to an so filename with the full ver.
+# ldconfig to automatically creates that file, and
+# a tmp cache is specified to avoid requiring root perms.
 hiredis: redis
 	$(MAKE) -C $(HIREDIS_PATH)
 	ldconfig -C /tmp/cache $(HIREDIS_PATH)
