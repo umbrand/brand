@@ -42,4 +42,9 @@ fi
 info "Updating real-time conda env"
 conda env update --file environment.yaml --prune
 checkStatus $? "conda update failed"
+info "conda env succesfully updated"
+
+info "Updating git submodules"
+git submodule update --init --recursive
+checkStatus $? "failed to update git submodules"
 info "Your environment is ready!"
