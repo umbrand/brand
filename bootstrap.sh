@@ -42,11 +42,10 @@ fi
 info "Updating real-time conda env"
 conda env update --file environment.yaml --prune
 checkStatus $? "conda update failed"
-conda activate rt
-checkStatus $? "failed to activate rt env"
 info "conda env succesfully updated"
 
 info "Updating git submodules"
 git submodule update --init --recursive
 checkStatus $? "failed to update git submodules"
 info "Your environment is ready!"
+info "Run \`conda activate rt\` before running make"
