@@ -1,4 +1,7 @@
-
+# Code to play a sound recording
+# The idea is that we send a stream output whenever the file starts, stops, and then ends
+#
+# David Brandman, May 2020
 
 import subprocess
 import redis
@@ -9,13 +12,15 @@ import signal
 import os
 import curses
 
-sys.path.insert(1, '../../../lib/')
-from redisTools import *
+# Pathway to get redisTools.py
+sys.path.insert(1, '../../lib/redisTools/')
+from redisTools import getSingleValue
 
 
 # https://stackoverflow.com/questions/4789837/how-to-terminate-a-python-subprocess-launched-with-shell-true
 # https://stackoverflow.com/questions/34497323/what-is-the-easiest-way-to-detect-key-presses-in-python-3-on-a-linux-machine
 
+YAML_FILE = "audioOL.yaml"
 
 def main(stdscr):
     """checking for keypress"""
@@ -24,22 +29,44 @@ def main(stdscr):
 
 if __name__ == "__main__":
 
-    r = initializeRedisFromYAML('audioOL')
-    fileName = getString(r, "fileName")
+# First, get the redis_ip and redis_port information to instantiate our instance
+
+    redis_ip = getSingleValue(YAML_FILE,"redis_ip")
+    redis_port = getSingleValue(YAML_FILE,"redis_port")
+    print("[audioOL] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
+    r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
+
+# Next get the filename we want to load
+
+    filename = getSingleValue(YAML_FILE, "filename")
+    print("[audioOL] Attempted to play file: ", filename)
+    
+# Populate the command we want to send to ffplay.
+# autoexit : exit when the file has finished playing
+# hide_banner : Hide the intro material 
+# loglevel panic : Don't display anything unless there's an issue
 
     ffplayString = ["ffplay" \
             , "-autoexit -nodisp -hide_banner -loglevel panic" \
-            , fileName]
-
+            , filename]
     ffplayString = " ".join(ffplayString)
-    print("[AudioOL] Executing: ", ffplayString)
-
-    # Launch the subprocess ffplay for playing the sound
+    print("[audioOL] Executing: ", ffplayString)
     h_ffplay = subprocess.Popen(ffplayString, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
-    publish(r, "audioOL", fileName + " START")
+
+# Prepopulate the various states we can be in
+
+    audioOL_start = { "status" : ("start " + filename)}
+    audioOL_end   = { "status" : ("end "   + filename)}
+    audioOL_stop  = { "status" : ("stop "  + filename)}
+    audioOL_cont  = { "status" : ("cont "  + filename)}
+
+
+# The main event
+
+    print("[audioOL] Entering polling loop...")
+    r.xadd("audioOL", audioOL_start)
 
     isPlaying = True
-    
 
     while h_ffplay.poll() is None:
 
@@ -47,13 +74,14 @@ if __name__ == "__main__":
         if curses.wrapper(main) == 32:
             if isPlaying:
                 os.killpg(os.getpgid(h_ffplay.pid), signal.SIGSTOP)
-                publish(r, "audioOL", fileName + " STOP")
+                r.xadd("audioOL", audioOL_stop) #(r, "audioOL", fileName + " STOP")
             else:
                 os.killpg(os.getpgid(h_ffplay.pid), signal.SIGCONT)
-                publish(r, "audioOL", fileName + " CONT")
+                r.xadd("audioOL", audioOL_cont) #(r, "audioOL", fileName + " STOP")
             isPlaying = not isPlaying
 
-    publish(r, "audioOL", fileName + " END")
+    r.xadd("audioOL", audioOL_end)
+    print("[audioOL] Done!")
 
 
 

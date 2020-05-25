@@ -1,26 +1,20 @@
 # Configuration for audioOL experiment
 
-- name: redisIP
+- name: redis_ip
   value: 127.0.0.1
   description: What is the IP of our Redis instance
   static: true
 
-- name: redisPort
+- name: redis_port
   value: 6379
   description: What is the IP of our Redis instance
   static: true
 
-- name: enable
-  value: true
-  description: Start/stop the audio recording
+# - name: enable
+#   value: true
+#   description: Start/stop the audio recording
 
-- name: fileName
+- name: filename
   value: /home/david/code/github/LPCNet/wav/birch.wav
   description: Name of audio file to play
   static: true
-
-- name: timestampFrequency
-  value: 30
-  description: Period (ms) that packets are read from pipe and pushed onto redis
-  static: true
-
