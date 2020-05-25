@@ -1,7 +1,4 @@
-
-ROOT=../..
-
-HIREDIS_PATH=$(ROOT)/lib/hiredis/
+PROJECT=ecog
 
 CFILES = $(ROOT)/lib/alarmTools/AlarmTools.c \
          $(ROOT)/lib/nxjson/nxjson.c
@@ -13,11 +10,14 @@ INCLUDES= -I$(ROOT)/lib/alarmTools/ \
 		  -I$(ROOT)/lib/nxjson/ \
 		  -I$(HIREDIS_PATH)
 
-
 LINKS= -L$(HIREDIS_PATH)
+TARGET=$(BIN_PATH)/$(PROJECT)
 
 all:
-	gcc generator.c $(CFILES) $(INCLUDES) $(LINKS) -o generator -Wl,-rpath=$(HIREDIS_PATH) -lpthread -lrt -lhiredis
+	gcc generator.c $(CFILES) $(INCLUDES) $(LINKS) -o $(TARGET) -Wl,-rpath=$(HIREDIS_PATH) -lpthread -lrt -lhiredis
 
 pi:
 	gcc generator.c AlarmTools.c -o generator -lpthread -lrt
+
+clean:
+	$(RM) $(TARGET)
