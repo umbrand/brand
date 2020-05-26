@@ -1,10 +1,24 @@
+PROJECT=pipe
 
-LIBPYTHON = /home/david/code/anaconda3/envs/data/lib/
-INCPYTHON = /home/david/code/anaconda3/envs/data/include/python3.7m/
+ifneq ($(CONDA_DEFAULT_ENV),rt)
+$(error real-time conda env (rt) not active)
+endif
+
+PYTHON_VERSION=3.8 # This works for rt env
+PYTHON_LIB=python$(PYTHON_VERSION)
+
+LIBPYTHON=$(CONDA_PREFIX)/lib/
+INCPYTHON=$(CONDA_PREFIX)/include/$(PYTHON_LIB)
+
+TARGET=$(BIN_PATH)/$(PROJECT)
+CYTHON_TARGET=$(GENERATED_PATH)/pipe.c
 
 all:
-	cython3 --embed pipe.pyx -o pipe.c
-	gcc pipe.c -o pipe -I $(INCPYTHON) -L $(LIBPYTHON)  -Wl,-rpath=$(LIBPYTHON) -lpython3.7m -lpthread -lm -lutil -ldl
+	cython --embed pipe.pyx -o $(CYTHON_TARGET)
+	gcc $(CYTHON_TARGET) -o $(TARGET) -I $(INCPYTHON) -L $(LIBPYTHON)  -Wl,-rpath=$(LIBPYTHON) -l$(PYTHON_LIB) -lpthread -lm -lutil -ldl
+
+clean:
+	$(RM) $(TARGET) $(CYTHON_TARGET)
 
 # TO RUN THE FILE:
 # PYTHONHOME=/home/david/code/anaconda3 ./hello

@@ -1,1 +1,14 @@
 tmp/
+
+# vim swap files
+*.swp
+
+# python compiles
+__pycache__
+*.pyc
+
+# binaries, compiled objects, and generated code
+bin/
+
+# should be in bin, but no compiled c objects
+*.o
