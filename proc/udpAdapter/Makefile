@@ -1,11 +1,11 @@
+PROJECT=udpAdapter
+
 CC = gcc
 ROOT = ../../
 DEFAULTFLAGS = -Wall 
 CFLAGS = -O2 $(DEFAULTFLAGS)
 CFLAGSUNOPT = -O0 $(DEFAULTFLAGS)
 CFLAGS+ = -g -O2 $(DEFAULTFLAGS)
-
-HIREDIS_PATH=$(ROOT)/lib/hiredis/
 
 LINKS= -L$(HIREDIS_PATH)
 LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
@@ -19,8 +19,12 @@ CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ \
 CFILES = $(ROOT)/lib/utilityFunctions/utilityFunctions.c \
 		 $(ROOT)/lib/redisTools/redisTools.c
 
+TARGET=$(BIN_PATH)/$(PROJECT)
+
 all: udpAdapter
 
 udpAdapter: udpAdapter.c
-	$(CC) $(CFLAGS) $(CINCLUDE) udpAdapter.c $(CFILES) -o udpAdapter $(LDFLAGS)
+	$(CC) $(CFLAGS) $(CINCLUDE) udpAdapter.c $(CFILES) -o $(TARGET) $(LDFLAGS)
 
+clean:
+	$(RM) $(TARGET)
