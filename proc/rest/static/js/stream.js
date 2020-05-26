@@ -5500,7 +5500,7 @@ var $author$project$Stream$emptyModel = {
 var $author$project$Stream$ParseStreamList = function (a) {
 	return {$: 'ParseStreamList', a: a};
 };
-var $author$project$Stream$baseURL = 'http://192.168.0.2:5000';
+var $author$project$Stream$baseURL = 'http://localhost:5000';
 var $elm$http$Http$BadStatus_ = F2(
 	function (a, b) {
 		return {$: 'BadStatus_', a: a, b: b};

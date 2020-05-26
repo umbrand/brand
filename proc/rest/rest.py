@@ -164,7 +164,7 @@ def udpStream(key):
 
 
 
-app.run(host='192.168.0.2',debug=True)
+app.run(host='localhost',debug=True)
 
 
 

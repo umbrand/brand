@@ -1,0 +1,7 @@
+[submodule "third-party/hiredis"]
+	path = third-party/hiredis
+	url = git@github.com:redis/hiredis.git
+	ignore = untracked
+[submodule "third-party/redis"]
+	path = third-party/redis
+	url = git@github.com:antirez/redis.git
