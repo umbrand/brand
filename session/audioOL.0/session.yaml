@@ -2,21 +2,21 @@ modules:
   start:
    - name: rest
      links: 
-      - proc/rest/rest
+      - bin/rest
       - proc/rest/static
-      - proc/rest/rest.yaml 
+      - session/audioOL.0/rest.yaml 
    - name: streamUDP
      links: 
-      - proc/streamUDP/streamUDP
-      - session/DMB.audioOL.0/streamUDP.yaml
+      - bin/streamUDP
+      - session/audioOL.0/streamUDP.yaml
   main:
    - name: audioOL
      links: 
-      - proc/audioOL/audioOL 
-      - session/DMB.audioOL.0/audioOL.yaml
+      - bin/audioOL 
+      - session/audioOL.0/audioOL.yaml
   end:
    - name: logger
      links: 
-      - proc/logger/logger
-      - session/DMB.audioOL.0/logger.yaml
+      - bin/logger
+      - session/audioOL.0/logger.yaml
 
