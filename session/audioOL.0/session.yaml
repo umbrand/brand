@@ -17,6 +17,6 @@ modules:
   end:
    - name: logger
      links: 
-      - bin/logger
+      - proc/logger/logger.py
       - session/audioOL.0/logger.yaml
 
