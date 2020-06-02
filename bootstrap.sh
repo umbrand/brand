@@ -25,13 +25,42 @@ checkStatus () {
     [ "$1" == "0" ] || error "$2"
 }
 
-# install dependencies - so far only libsqlite3
-if ! dpkg --get-selections | grep -q libsqlite3-dev; then
-    info "Installing libsqlite3"
-    sudo apt-get update
-    sudo apt-get -y install libsqlite3-dev
-    checkStatus $? "failed to install dependencies"
-    info "Successfully install libsqlite3"
+# List of apt packages to install as dependencies.
+# All of these should be found in Ubuntu 18.04 default repos.
+# To add a dependency, just add the pkg name to the list.
+dependencies=(
+libsqlite3-dev
+redis-server
+automake
+libtool
+)
+
+# install pkgs in $dependencies
+for dep in ${dependencies[@]}; do
+    if ! dpkg --get-selections | grep -q ${dep}; then
+        info "Installing ${dep}"
+        sudo apt-get update
+        sudo apt-get -y install ${dep}
+        checkStatus $? "failed to install ${dep}"
+        info "Successfully installed ${dep}"
+    fi
+done
+
+# check if elm command is available. If not prompt user for installation.
+install_elm=false
+ROOT=`dirname "$0"`
+elmPath=${ROOT}/bin
+[ -d "${elmPath}" ] || mkdir -p "${elmPath}" # make bin/ sense it will be used by make anyway
+[ -x "${elmPath}/elm" ] || install_elm=true
+
+# install elm to the project bin path
+if ${install_elm}; then
+    info "Installing elm to ${elmPath}"
+    pushd ${elmPath}
+    curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+    gunzip elm.gz
+    chmod +x elm
+    popd
 fi
 
 # check conda is installed

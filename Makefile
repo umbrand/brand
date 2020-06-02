@@ -1,56 +1,50 @@
-export ROOT=$(shell pwd)
-THIRD_PARTY=$(ROOT)/third-party
-REDIS_PATH=$(THIRD_PARTY)/redis
-REDIS_SERVER_FULL_PATH=$(REDIS_PATH)/src/redis-server
+export ROOT ?= $(shell pwd)
+include $(ROOT)/setenv.mk
 
-export HIREDIS_PATH=$(THIRD_PARTY)/hiredis
-export BIN_PATH=$(ROOT)/bin
-export GENERATED_PATH=$(BIN_PATH)/generated
-$(shell mkdir -p $(GENERATED_PATH))
+# Get all directories in proc/ that contain a Makefile
+SUBDIR_BASE_PATH=proc
+SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
 
-PROC_PATH=proc/
-SUBDIRS= \
-	$(PROC_PATH)generator \
-	$(PROC_PATH)pipe \
-	$(PROC_PATH)streamUDP \
-	$(PROC_PATH)timer \
-
+# make some clean targets for all subdirs
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
-all: $(SUBDIRS) hiredis redis
+all: $(SUBDIRS) hiredis lpcnet
 
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
 
-$(SUBDIRS): hiredis redis
-	$(MAKE) -C $@
+# make targets for all relevant paths under proc/
+$(SUBDIRS): hiredis lpcnet
+	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
 
 # Linking to hiredis seems to have a bug, where make
 # attempt to link to an so filename with the full ver.
 # ldconfig to automatically creates that file, and
 # a tmp cache is specified to avoid requiring root perms.
-hiredis: redis
+hiredis:
 	$(MAKE) -C $(HIREDIS_PATH)
 	ldconfig -C /tmp/cache $(HIREDIS_PATH)
 	$(RM) /tmp/cache
 
-redis:
-	$(MAKE) -C $(REDIS_PATH)
-	cp $(REDIS_SERVER_FULL_PATH) $(BIN_PATH)
+lpcnet: export CFLAGS = -O3 -g -mavx2 -mfma
+lpcnet:
+# if Makefile hasn't been generated run autogen and configure
+ifeq ($(wildcard $(LPCNET_PATH)/Makefile), )
+	cd $(LPCNET_PATH) && ./autogen.sh
+	cd $(LPCNET_PATH) && ./configure
+endif
+	$(MAKE) -C $(LPCNET_PATH)
 
-test_redis:
-	$(MAKE) -C $(REDIS_PATH) test
-
-clean_all: clean clean_redis clean_hiredis
+clean-all: clean clean-hiredis clean-lpcnet
 
 clean: $(CLEANDIRS)
 
 $(CLEANDIRS):
 	$(MAKE) -C $(@:clean-%=%) clean
 
-clean_redis:
-	$(MAKE) -C $(REDIS_PATH) clean
-
-clean_hiredis:
+clean-hiredis:
 	$(MAKE) -C $(HIREDIS_PATH) clean
 	$(RM) $(HIREDIS_PATH)/*.so*
+
+clean-lpcnet:
+	$(MAKE) -C $(LPCNET_PATH) clean
