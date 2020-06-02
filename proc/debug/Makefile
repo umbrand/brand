@@ -1,7 +1,9 @@
 PROJECT=debug
 
+ROOT ?= ../..
+include $(ROOT)/setenv.mk
+
 CC = gcc
-ROOT = ../../
 DEFAULTFLAGS = -Wall 
 CFLAGS = -O2 $(DEFAULTFLAGS)
 CFLAGSUNOPT = -O0 $(DEFAULTFLAGS)

@@ -2,9 +2,7 @@
 	path = lib/hiredis
 	url = git@github.com:redis/hiredis.git
 	ignore = untracked
-[submodule "lib/redis"]
-	path = lib/redis
-	url = git@github.com:antirez/redis.git
 [submodule "lib/LPCNet"]
 	path = lib/LPCNet
 	url = git@github.com:mozilla/LPCNet.git
+	ignore = untracked

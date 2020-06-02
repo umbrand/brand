@@ -1,5 +1,8 @@
 PROJECT=ecog
 
+ROOT ?= ../..
+include $(ROOT)/setenv.mk
+
 CFILES = $(ROOT)/lib/alarmTools/AlarmTools.c \
          $(ROOT)/lib/nxjson/nxjson.c
 
