@@ -11,6 +11,9 @@ import sys
 import cmd
 import os
 import yaml
+import subprocess
+import signal
+import time
 
 #################################################
 ## Global variables
@@ -25,6 +28,23 @@ VERSION      = 0.1
 #################################################
 ## Helpers
 #################################################
+
+# Catching CTRL-C and exiting gracefully
+def signal_handler(sig, frame):
+    print('You pressed Ctrl+C!')
+
+# A dictionary definining how to execute files based on extension
+def run_string(module_name):
+
+    if ".py" in module_name:
+        return "python " + module_name
+
+    elif ".pyx" in module_name:
+        return "python " + module_name
+
+    else:
+        return "./" + module_name
+
 
 # Return a list of the folders in the directory
 def folders_list(filepath):
@@ -67,7 +87,7 @@ def load_session_yaml(filename):
             yaml_data = yaml.safe_load(f)
 
     except IOError:
-        print("Could not find: ", filename, ". Exiting")
+        print("[rig] Could not find: ", filename, ". Exiting")
         exit(1)
 
     return yaml_data
@@ -139,10 +159,10 @@ def initialize_session():
             for link in module['links']:
                 link_module(link)
 
-    # for entry in yaml_data['modules']['start']:
-    #     for link in entry['links']:
-    #         link_module(link)
+# Now go through and link the files listed
 
+    for file in yaml_data['files']:
+        link_module(file)
 
 #################################################
 ## Run session
@@ -150,8 +170,74 @@ def initialize_session():
 
 def run_session():
 
+# Does the run folder exist?
 
-    print("RUN")
+    if not os.path.isdir(RUN_PATH):
+        print("[rig] There is no run/ folder. Try initializing a session first.")
+        exit(1)
+
+    os.chdir(RUN_PATH)
+
+    yaml_data = load_session_yaml("session.yaml")
+
+    # signal.signal(signal.SIGINT, signal_handler)
+
+
+############## START MODULES ###################
+
+    start_module_fid_list = []
+    for i, module in enumerate(yaml_data['modules']['start']):
+    
+        bash_string = run_string(module['name'])
+
+        start_module_fid_list += [subprocess.Popen(
+                bash_string,
+                shell=True)]
+                # stdout=subprocess.PIPE, 
+                # preexec_fn=os.setsid)]
+
+        
+############## MAIN MODULES ###################
+
+    main_module_fid_list = []
+    for i, module in enumerate(yaml_data['modules']['main']):
+    
+        bash_string = run_string(module['name'])
+
+        main_module_fid_list += [subprocess.Popen(
+                bash_string,
+                shell=True)]
+
+
+    # exit_codes = [p.wait() for p in main_module_fid_list]
+
+
+
+######## SHUT DOWN START AND MAIN MODULES #####
+
+    time.sleep(2)
+    input("[rig] Press CTRL+C to stop execution...")
+
+    for main_module_fid in main_module_fid_list:
+        os.killpg(os.getpgid(main_module_fid.pid), signal.SIGINT)
+
+    for start_module_fid in start_module_fid_list:
+        print(os.getpgid(start_module_fid.pid))
+        os.killpg(os.getpgid(start_module_fid.pid), signal.SIGINT)
+
+############## END MODULES ###################
+
+    end_module_fid_list = []
+    for i, module in enumerate(yaml_data['modules']['main']):
+    
+        bash_string = run_string(module['name'])
+
+        end_module_fid_list += [subprocess.Popen(
+                bash_string, 
+                shell=True)]
+
+    exit_codes = [p.wait() for p in end_module_fid_list]
+
 
 
 #################################################

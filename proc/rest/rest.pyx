@@ -7,14 +7,20 @@ import yaml
 import sys
 import redis
 
-VERBOSE = True
+sys.path.insert(1, '../lib/redisTools/')
+from redisTools import get_parameter_value
+
+YAML_FILE = "rest.yaml"
 
 # This is needed so that it doesn't do funky things with serving
-app = Flask(__name__,
-        static_url_path='') 
+app = Flask(__name__, static_url_path='') 
 cors = CORS(app)
 
-r = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_ip = get_parameter_value(YAML_FILE,"redis_ip")
+redis_port = get_parameter_value(YAML_FILE,"redis_port")
+print("[rest] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
+r = redis.StrictRedis(host = redis_ip, port = redis_port, db = 0)
+
 
 ###############################################
 ## Deliver static site
@@ -28,8 +34,31 @@ def deliverStatic():
 ## Return information about variables stored in Redis
 ###############################################
 
+@app.route('/procs', methods=['GET'])
+def get_proc_list():
+
+    modules = get_parameter_value('rest.yaml', 'modules')
+
+    return json.dumps({"modules" : modules})
+
+
+@app.route('/procs/<proc>', methods=['GET'])
+def get_single_proc(proc):
+
+    fileName = proc + ".yaml"
+    try:
+        
+        with open(fileName, 'r') as f:
+            yamlData = yaml.safe_load(f)
+
+    except IOError:
+        return ""
+
+    return json.dumps(yamlData['parameters'])
+
+
 @app.route('/procs/<proc>/<name>', methods=['POST'])
-def test(proc, name):
+def set_proc_value(proc, name):
 
     content = request.json
     print(content['name'],content['value'])
@@ -51,39 +80,44 @@ def test(proc, name):
 @app.route('/streams', methods=['GET'])
 def getStreams():
 
+    streams = []
     
-    streamUDP_result = r.xinfo_stream("streamUDP")
-    streamUDP_keys   = [x.decode('utf-8') for x in streamUDP_result['last-entry'][1].keys()]
-    streamUDP        = {
-            "name"       : "streamUDP",
-            "keys"       : streamUDP_keys,
-            "parameters" : ["downsample"]
-            }
+    if r.exists("streamUDP"):
+        streamUDP_result = r.xinfo_stream("streamUDP")
+        streamUDP_keys   = [x.decode('utf-8') for x in streamUDP_result['last-entry'][1].keys()]
+        streamUDP        = {
+                "name"       : "streamUDP",
+                "keys"       : streamUDP_keys,
+                "parameters" : ["downsample"]
+                }
+        streams = streams + [streamUDP]
             
-    pipe_result = r.xinfo_stream("pipe")
-    pipe_keys   = [x.decode('utf-8') for x in pipe_result['last-entry'][1].keys()]
-    pipe = {
-            "name" : "pipe",
-            "keys" : pipe_keys,
-            "parameters" : ["downsample"]
-            }
+    if r.exists("pipe"):
+        pipe_result = r.xinfo_stream("pipe")
+        pipe_keys   = [x.decode('utf-8') for x in pipe_result['last-entry'][1].keys()]
+        pipe = {
+                "name" : "pipe",
+                "keys" : pipe_keys,
+                "parameters" : ["downsample"]
+                }
+        streams = streams + [pipe]
             
 
 
-    output = { "streams" : [streamUDP, pipe] }
+    output = { "streams" : streams }
 
     return json.dumps(output)
             
 
 
 ###########################################################
-## /streams/streamUDP
+## /streams/pipe
 ###########################################################
 
 @app.route('/streams/pipe/<key>', methods=['GET'])
 def pipe(key):
 
-    downsample = request.args.get('downsample', 1, type=int)
+    downsample = request.args.get('downsample', 10, type=int)
 
     key = key.encode('utf-8')
 
@@ -121,13 +155,16 @@ def pipe(key):
 
     return json.dumps(output)
 
+###########################################################
+## /streams/streamUDP
+###########################################################
 
 @app.route('/streams/streamUDP/<key>', methods=['GET'])
 def udpStream(key):
 
     key = key.encode('utf-8')
 
-    downsample = request.args.get('downsample', 1, type=int)
+    downsample = request.args.get('downsample', 200, type=int)
 
 
     # This will return an array of entries

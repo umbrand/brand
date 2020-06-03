@@ -1,6 +1,21 @@
+{-
+
+Main function for interacting with the real-time rig
+David Brandman
+
+The goal of this code is to provide an interface with the user interacting with the real-time system.
+Elm uses a model-view-controller architecture. The model is the type alias Model, the view is the view function, and the controller is the logic in update
+
+Here, the idea is that Main's Model will contain a series of encapsulated models from each of the different types of views possible. For instance, the logic of how to handle the viewing of live Streams will be sent to the Stream code.
+
+
+
+-}
+
 module Main exposing (..)
 
 import Stream exposing (Stream)
+import Yaml exposing (Yaml)
 
 import Browser
 import Browser.Dom
@@ -34,6 +49,9 @@ main =
     , view = view
     }
 
+-- Subscription depends on which tab we're currently looking at
+-- TabStream: Query the database every getRefreshRate 
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model.tab of
@@ -41,33 +59,45 @@ subscriptions model =
             case (Stream.getRefreshRate model.stream) of
                 Nothing -> Sub.none
                 Just val -> Time.every val Tick
+        _ ->
+            Sub.none
             
 
 --------------------------------------------------
 -- MODEL and INIT
 --------------------------------------------------
 
+-- Contains a list of tabs that the user can select from
+
 type Tab =
-    TabStream
+      TabStream
+    | TabYaml
 
 type alias Model =
-    { tab        : Tab
-    , stream     : Stream
-    , burgerFlag : Bool
+    { tab        : Tab    -- Which tab is currently being presented to the user
+    , stream     : Stream -- Module for plotting streaming variables
+    , yaml       : Yaml   -- Module for inspecting yaml parameters
+    , burgerFlag : Bool   -- Is the burger expanded
     }
 
 emptyModel : Model
 emptyModel =
-    { tab        = TabStream
+    { tab        = TabYaml
     , stream     = Stream.initializeStream
+    , yaml       = Yaml.initializeYaml
     , burgerFlag = False
     }
 
 
 init : () -> (Model, Cmd Msg)
 init _ =
-    (emptyModel, Cmd.batch [Stream.initializeStreamCommand] |> Cmd.map SetStream)
+    (emptyModel, runCommand emptyModel.tab)
 
+runCommand : Tab -> Cmd Msg
+runCommand tab = 
+    case tab of
+        TabStream -> Stream.initializeStreamCommand |> Cmd.map SetStream
+        TabYaml   -> Yaml.initializeYamlCommand     |> Cmd.map SetYaml
 
 --------------------------------------------------
 -- UPDATE
@@ -75,9 +105,11 @@ init _ =
 
 type Msg = 
       SetStream Stream.Msg
+    | SetYaml Yaml.Msg
     | SetTab Tab
     | Tick Time.Posix
     | ToggleBurger
+    | PostYamlCommand Yaml.Msg
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -86,8 +118,11 @@ update msg model =
         SetStream subMsg -> 
             (setStream subMsg model, Cmd.none)
 
+        SetYaml subMsg ->
+            (setYaml subMsg model, Yaml.runCommand subMsg |> Cmd.map PostYamlCommand)
+
         SetTab tab ->
-            (setTab tab model, Cmd.none)
+            (setTab tab model, runCommand tab)
 
         Tick _ ->
             (model, Stream.streamTick model.stream |> Cmd.map SetStream)
@@ -95,9 +130,16 @@ update msg model =
         ToggleBurger ->
             (toggleBurger model, Cmd.none)
 
+        PostYamlCommand subMsg ->
+            (setYaml subMsg model, Cmd.none)
+
 setStream : Stream.Msg -> Model -> Model
 setStream subMsg model =
     {model | stream = Stream.updateStream subMsg model.stream}
+
+setYaml : Yaml.Msg -> Model -> Model
+setYaml subMsg model =
+    {model | yaml = Yaml.updateYaml subMsg model.yaml}
 
 toggleBurger : Model -> Model
 toggleBurger model =
@@ -173,11 +215,17 @@ displayContent : Model -> Html Msg
 displayContent model =
     case model.tab of
         TabStream -> displayStream model
+        TabYaml -> displayYaml model
 
 displayStream : Model -> Html Msg
 displayStream model =
     Stream.displayStream model.stream
     |> Html.map SetStream
+
+displayYaml : Model -> Html Msg
+displayYaml model =
+    Yaml.displayYaml model.yaml
+    |> Html.map SetYaml
 
 --------------------------------------------------
 --------------------------------------------------
@@ -187,10 +235,12 @@ displayStream model =
 
 tabList : List Tab
 tabList =
-    [TabStream]
+    [TabStream, TabYaml]
 
 tabString : Tab -> String
 tabString tab =
     case tab of
         TabStream -> "Streams"
+        TabYaml -> "Parameter inspector"
+
 

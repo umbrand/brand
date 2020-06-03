@@ -7,8 +7,8 @@ CC = gcc
 DEFAULTFLAGS = -Wall 
 CFLAGS = $(DEFAULTFLAGS) -O3 -g -mavx2 -mfma
 
-LINKS= -L$(HIREDIS_PATH) -L$(LPCNET_PATH)
-LDPATH = -Wl,-rpath=$(HIREDIS_PATH) -Wl,-rpath=$(LPCNET_PATH)
+LINKS= -L$(HIREDIS_PATH) -L$(LPCNET_LIB_PATH)
+LDPATH = -Wl,-rpath=$(HIREDIS_PATH) -Wl,-rpath=$(LPCNET_LIB_PATH)
 LDFLAGS = -lrt -pthread -lhiredis -llpcnet
 
 CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ \

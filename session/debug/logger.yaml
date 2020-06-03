@@ -1,0 +1,39 @@
+
+# Some configuration options for logger.py
+
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: filename
+  value: debug
+  description: The prefix of SQL table filename. This will proceeded by a timestamp
+  static: true
+
+streams:
+ - stream_key: streamUDP
+   table_name: streamUDP
+   data:
+    - key: chan0
+      type: real
+    - key: chan1
+      type: real
+    - key: chan2
+      type: real
+
+files:
+ - table_name: yaml
+   files:
+    - streamUDP.yaml
+    - generator.yaml
+ - table_name: readme
+   files:
+    - README.md
+

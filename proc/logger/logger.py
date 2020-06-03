@@ -1,6 +1,16 @@
 # Logger.py
 # When we're done with our session, we want to summarize data from multiple sources
 
+# Sqlite3 types:
+
+# NULL. The value is a NULL value.
+# INTEGER. The value is a signed integer, stored in 1, 2, 3, 4, 6, or 8 bytes
+# REAL. The value is a floating point value, stored as an 8-byte IEEE floating point number.
+# TEXT. The value is a text string, stored using the database encoding (UTF-8, UTF-16BE or UTF-16LE).
+# BLOB. The value is a blob of data, stored exactly as it was input.
+
+
+
 import sqlite3
 from sqlite3 import Error
 import redis
@@ -10,8 +20,8 @@ import yaml
 import sys
 
 # Pathway to get redisTools.py
-sys.path.insert(1, '../../lib/redisTools/')
-from redisTools import getSingleValue
+sys.path.insert(1, '../lib/redisTools/')
+from redisTools import get_parameter_value
 
 YAML_FILE = "logger.yaml"
 
@@ -35,8 +45,9 @@ def sql_connect(filename):
 ##########################################
 def redis_connect():
 
-    redis_ip = getSingleValue(YAML_FILE,"redis_ip")
-    redis_port = getSingleValue(YAML_FILE,"redis_port")
+    redis_ip   = get_parameter_value(YAML_FILE,"redis_ip")
+    redis_port = get_parameter_value(YAML_FILE,"redis_port")
+
     print("[logger] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
     r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
     return r
@@ -45,14 +56,14 @@ def redis_connect():
 ##########################################
 ## Helper function for working with yaml
 ##########################################
-def load_process_log_yaml(process):
+def load_yaml():
     try:
-        filename = "yaml/" + process + "_log.yaml"
-        with open(filename, 'r') as f:
+        with open(YAML_FILE, 'r') as f:
             yaml_data = yaml.safe_load(f)
 
     except IOError:
-        return ""
+        print("[logger] Could not load logger.yaml")
+        os.exit(1)
 
     return yaml_data
 
@@ -60,14 +71,19 @@ def load_process_log_yaml(process):
 ##########################################
 ## stream_to_sql
 ##########################################
-def stream_to_sql(con, process_name, stream_list):
+def streams_to_sql(con, r, stream_list): 
 
     for stream in stream_list:
+
+        if r.exists(stream['stream_key']) == 0:
+            print("[logger] Could not find stream key ", stream['stream_key'])
+            continue
 
         col_names = [(x['key'] + " " + x['type']) for x in stream['data']]
         col_names = ",".join(col_names)
         col_names = "(id text," + col_names + ")"
         sqlStr = "CREATE TABLE IF NOT EXISTS %s %s" % (stream['table_name'], col_names)
+
 
         print("[logger] Creating table: " , stream['table_name'])
         con.execute(sqlStr)
@@ -77,7 +93,12 @@ def stream_to_sql(con, process_name, stream_list):
         data_list = r.xrange(stream['stream_key'])
         for data in data_list:
             vals = [data[0].decode('utf-8')]
-            vals += [value.decode('utf-8') for value in data[1].values()]
+            for single_data in stream['data']:
+                thisVal = data_list[1][1][single_data['key'].encode('utf-8')]
+                thisVal = thisVal.decode('utf-8')
+                vals   += thisVal
+
+            # vals += [value.decode('utf-8') for value in data[1].values()]
             # vals = ",".join(vals)
             # vals = "(" + id + "," + vals + ")"
 
@@ -95,24 +116,23 @@ def stream_to_sql(con, process_name, stream_list):
 ##########################################
 ## stream_to_sql
 ##########################################
-def file_to_sql(con, process_name, file_list):
+def files_to_sql(con, table_list):
 
-    for file in file_list:
+    for table in table_list:
 
-        print("[logger] Creating table: " , file['table_name'])
+        print("[logger] Creating table: " , table['table_name'])
             
-        sqlStr = "CREATE TABLE IF NOT EXISTS %s (value TEXT)" % (file['table_name'])
+        sqlStr = "CREATE TABLE IF NOT EXISTS %s (name TEXT, value TEXT)" % (table['table_name'])
         con.execute(sqlStr)
 
-        file_path = "../" + process_name + "/" + file['file_name']
+        for filename in table['files']:
 
-        print("[logger] Reading file: " , file_path)
-        file_fd = open(file_path, "r") 
-        file_contents = file_fd.read() 
+            print("[logger] Adding file: " , filename, " to table: ", table['table_name'])
+            file_fd = open(filename, "r") 
+            file_contents = file_fd.read() 
 
-        print("[logger] Inserting data from: " , file_path)
-        sqlStr = "INSERT INTO %s values (?)" % (file['table_name'])
-        con.execute(sqlStr, (file_contents,))
+            sqlStr = "INSERT INTO %s values (?,?)" % (table['table_name'])
+            con.execute(sqlStr, (filename, file_contents,))
 
         con.commit()
 
@@ -124,21 +144,12 @@ def file_to_sql(con, process_name, file_list):
 if __name__ == "__main__":
 
     r            = redis_connect()
-    sql_filename = getSingleValue(YAML_FILE,"filename")
+    sql_filename = get_parameter_value(YAML_FILE,"filename")
     con          = sql_connect(sql_filename)
 
-# Start by getting a list of the process_list that we want to convert to a SQL table
-# Then go through each process, and check to see if it logger.py knows how to handle
-# The type of data it's presented with
+    yaml_data = load_yaml()
+    
+    streams_to_sql(con, r, yaml_data['streams'])
 
-    process_list = getSingleValue(YAML_FILE,"process_list")
+    files_to_sql(con, yaml_data['files'])
 
-    for process_name in process_list:
-
-        yaml_data = load_process_log_yaml(process_name)
-
-        if "stream" in yaml_data:
-            stream_to_sql(con, process_name, yaml_data['stream'])
-
-        if "file" in yaml_data:
-            file_to_sql(con, process_name, yaml_data['file'])

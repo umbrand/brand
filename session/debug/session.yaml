@@ -1,0 +1,34 @@
+modules:
+  start:
+   - name: rest.pyx
+     links: 
+      - proc/rest/rest.pyx
+      - proc/rest/static
+      - session/debug/rest.yaml 
+  main:
+   - name: timer
+     links: 
+      - bin/timer 
+      - session/debug/timer.yaml
+      - bin/generator
+      - session/debug/generator.yaml
+      - bin/streamUDP
+      - session/debug/streamUDP.yaml
+  end:
+   - name: logger.py
+     links: 
+      - proc/logger/logger.py
+      - session/debug/logger.yaml
+
+files:
+ - session/debug/README.md
+ - session/debug/session.yaml
+  
+   # - name: generator
+   #   links: 
+   #    - bin/generator
+   #    - session/debug/generator.yaml
+   # - name: streamUDP
+   #   links: 
+   #    - bin/streamUDP
+   #    - session/debug/streamUDP.yaml

@@ -18,7 +18,7 @@ import argparse
 # going to be reading the output of the stream. So it shouts
 # no errors. Probably shouldn't use this code in pythonesque code
 
-def getSingleValue(fileName, field):
+def get_parameter_value(fileName, field):
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
@@ -26,7 +26,7 @@ def getSingleValue(fileName, field):
     except IOError:
         return ""
 
-    for record in yamlData:
+    for record in yamlData['parameters']:
         if record['name'] == field:
             return record['value']
 
@@ -51,7 +51,7 @@ def initializeRedisFromYAML(fileName):
 
     redisIP = ""
     redisPort = ""
-    for record in yamlData:
+    for record in yamlData['parameters']:
         if record['name'] == "redis_ip":
             redisIP = record['value']
         if record['name'] == "redis_port":
@@ -73,7 +73,7 @@ def initializeRedisFromYAML(fileName):
     # Get the name of the process based on the filename. Expect: /path/to/processName.yaml
     processName = fileName.split("/")[-1].split(".")[0]
 
-    for record in yamlData:
+    for record in yamlData['parameters']:
 
         record['name'] = processName + "_" + record['name']
 
@@ -152,7 +152,7 @@ def main():
     args = parser.parse_args()
 
     if args.name:
-        print(getSingleValue(args.file, args.name), end="")
+        print(get_parameter_value(args.file, args.name), end="")
     else:
         initializeRedisFromYAML(args.file)
 

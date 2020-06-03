@@ -14,7 +14,7 @@ import curses
 
 # Pathway to get redisTools.py
 sys.path.insert(1, '../../lib/redisTools/')
-from redisTools import getSingleValue
+from redisTools import get_parameter_value
 
 
 # https://stackoverflow.com/questions/4789837/how-to-terminate-a-python-subprocess-launched-with-shell-true
@@ -31,14 +31,14 @@ if __name__ == "__main__":
 
 # First, get the redis_ip and redis_port information to instantiate our instance
 
-    redis_ip = getSingleValue(YAML_FILE,"redis_ip")
-    redis_port = getSingleValue(YAML_FILE,"redis_port")
+    redis_ip = get_parameter_value(YAML_FILE,"redis_ip")
+    redis_port = get_parameter_value(YAML_FILE,"redis_port")
     print("[audioOL] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
     r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
 
 # Next get the filename we want to load
 
-    filename = getSingleValue(YAML_FILE, "filename")
+    filename = get_parameter_value(YAML_FILE, "filename")
     print("[audioOL] Attempted to play file: ", filename)
     
 # Populate the command we want to send to ffplay.

@@ -1,5 +1,6 @@
 tmp/
 run/
+proc/rest/elm-stuff/
 
 # vim swap files
 *.swp

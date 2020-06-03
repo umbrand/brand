@@ -19,7 +19,7 @@ int load_YAML_variable_string(char *process, char *value, char *buffer, int n) {
     FILE *fp;
 
     sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
-    sprintf(configurationFile, "%s/yaml/%s.yaml", ROOT_PATH, process);
+    sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
     
@@ -52,7 +52,7 @@ int initialize_redis_from_YAML(char *process) {
     FILE *fp;
 
     sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
-    sprintf(configurationFile, "%s/yaml/%s.yaml", ROOT_PATH, process);
+    sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
     
