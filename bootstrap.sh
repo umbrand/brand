@@ -39,6 +39,7 @@ libtool
 for dep in ${dependencies[@]}; do
     if ! dpkg --get-selections | grep -q ${dep}; then
         info "Installing ${dep}"
+        [ "${dep}" == "redis-server" ] && sudo add-apt-repository -y ppa:chris-lea/redis-server
         sudo apt-get update
         sudo apt-get -y install ${dep}
         checkStatus $? "failed to install ${dep}"

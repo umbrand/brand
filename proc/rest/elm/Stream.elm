@@ -1,3 +1,31 @@
+{-
+
+View the live streaming of parameters in the system
+
+David Brandman
+
+
+This code begins by asking the rest server for information of what streams are available:
+
+/streams
+
+This will return a JSON which indicates the streams, and for each stream a list of keys and parameters accepted by the server. It then generates HTML selects pre-populated with this JSON list, giving the user the opportunity to select a specific stream. Next, the code asks for:
+
+/streams/[stream]/[stream key]?parameters
+
+And then gets a JSON back with the data
+
+Data that are exported:
+
+- Stream : The type that contains the encapsulated information used by Main's model
+- Msg    : Since Main has to pass messages around, it has to know about Stream's Msg
+
+
+TODO: 
+1. the way empty streams are handled is quite lazy. It would be better if it were a Maybe rather than just relying on checking if the records match an empty
+
+-}
+
 port module Stream exposing (Stream, Msg, displayStream, updateStream, initializeStream, initializeStreamCommand, streamTick, getRefreshRate )
 
 import Browser
@@ -26,16 +54,22 @@ baseURL = "http://localhost:5000"
 --------------------------------------------------
 --------------------------------------------------
 
+-- The encapsulated Model around type Stream.
+
 initializeStream : Stream
 initializeStream =
     init ()
     |> Tuple.first
     |> Stream
 
+-- You give me the Stream, and I render it
+
 displayStream : Stream -> Html Msg
 displayStream stream = 
     case stream of
         Stream model -> view model
+
+-- You give me a Stream.Msg, and then I update the model
 
 updateStream : Msg -> Stream -> Stream
 updateStream msg stream =
@@ -45,14 +79,21 @@ updateStream msg stream =
             |> Tuple.first
             |> Stream
 
+-- Code for dealing with HTTP Get /streams
+
 initializeStreamCommand : Cmd Msg
 initializeStreamCommand =
     getStreamList 
+
+-- Managing the results of a subscription update
 
 streamTick : Stream -> Cmd Msg
 streamTick stream =
     case stream of
         Stream model -> tick model
+
+
+-- Return the model refresh rate
 
 getRefreshRate: Stream -> Maybe Float
 getRefreshRate stream =
@@ -76,9 +117,10 @@ main =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model.refreshRate of
-        Nothing -> Sub.none
-        Just val -> Time.every val Tick
+    Sub.none
+    -- case model.refreshRate of
+    --     Nothing -> Sub.none
+    --     Just val -> Time.every val Tick
 
 port toJS_plotly : List Json.Encode.Value -> Cmd msg
 
@@ -95,6 +137,7 @@ portJson model =
 -- MODEL and INIT
 --------------------------------------------------
 --------------------------------------------------
+
 
 type Stream = Stream Model
 
@@ -151,9 +194,9 @@ type SelectedStreamType =
 
 emptySelectedStream : SelectedStream
 emptySelectedStream =
-    { name = "streamUDP"
-    , key  = "chan0"
-    , parameters = Dict.empty |> Dict.insert "downsample" "10" 
+    { name = ""
+    , key  = ""
+    , parameters = Dict.empty 
     }
 
 type alias Model =
@@ -229,7 +272,6 @@ setSelectedStream selectedStreamType model =
                      {selectedStream | parameters = Dict.update key (\_ -> Just val) selectedStream.parameters}
     in
         { model | selectedStream = newSelectedStream}
-        |> Debug.log ""
 
 setRefreshRate : String -> Model -> Model
 setRefreshRate val model =
@@ -237,10 +279,13 @@ setRefreshRate val model =
 
 tick : Model -> Cmd Msg
 tick model =
-    Cmd.batch 
-    [ getStreamData model
-    , portJson model
-    ]
+    if model.selectedStream == emptySelectedStream then
+        Cmd.none
+    else
+        Cmd.batch 
+        [ getStreamData model
+        , portJson model
+        ]
 
 
 --------------------------------------------------
@@ -299,6 +344,20 @@ streamDataDecoder =
        |> Json.Decode.Pipeline.optional "yTitle" Json.Decode.string "Y axis"
        |> Json.Decode.Pipeline.optional "maxID" Json.Decode.string "0-0"
 
+setFirstStreamIfLengthOne: Model -> Model
+setFirstStreamIfLengthOne model =
+    if List.length model.streamList == 1 then
+        case List.head model.streamList of
+            Nothing -> model
+            Just streamList ->
+                case List.head streamList.keys of
+                    Nothing -> model
+                    Just streamKey ->
+                        model 
+                        |> setSelectedStream (SelectedStreamName streamList.name)
+                        |> setSelectedStream (SelectedStreamKey streamKey)
+    else
+        model
 
 parseStreamList : (Result Http.Error String) -> Model -> Model
 parseStreamList result model =
@@ -307,7 +366,7 @@ parseStreamList result model =
             case Json.Decode.decodeString streamListDecoder jsonText of
                 Ok theData -> 
                     {model | streamList = theData.streams } 
-                    |> Debug.log ""
+                    |> setFirstStreamIfLengthOne
                 Err e -> 
                     model |> Debug.log ("[Plot.elm] Json streamList error: " ++ (Json.Decode.errorToString e))
 
@@ -348,6 +407,7 @@ plotlyJsonData model =
             [ ("x",    Json.Encode.list Json.Encode.float streamData.x)
             , ("y",    Json.Encode.list Json.Encode.float streamData.y)
             , ("type", Json.Encode.string "scatter")
+            , ("mode", Json.Encode.string "markers")
             , ("name", Json.Encode.string streamData.name)
             , ("hoverinfo", Json.Encode.string "skip")
             ] 

@@ -12,25 +12,55 @@
 </head>
 <body>
 
-	<div id="elm"></div>
-   <script>
-		var app = Elm.Main.init({
-		  node: document.getElementById('elm')
-		});
+<div id="elm"></div>
+<script>
 
-        app.ports.toJS_plotly.subscribe(function(msg) {
+    var app = Elm.Main.init({
+      node: document.getElementById('elm')
+    });
 
-            config = {responsive: true}
-            data   = msg[0];
-            layout = msg[1];
+    var firstRun = true;
 
+    app.ports.toJS_plotly.subscribe(function(msg) {
 
-            Plotly.react('plotly-div',  {
-                data: data ,
-                layout: layout,
-                config: config
+        config     = {responsive: true}
+        transition = {duration: 0}
+        frame      = {duration: 0, redraw: false}
+        data       = msg[0];
+        layout     = msg[1];
+
+        if (firstRun) {
+
+            Plotly.newPlot('plotly-div',  {
+                data       : data,
+                layout     : layout,
+                config     : config
             });
-        });
+
+            firstRun = false;
+
+        } else {
+            
+            requestAnimationFrame(function() {
+
+                config     = {responsive: true}
+                transition = {duration: 0}
+                frame      = {duration: 0, redraw: false}
+                data       = msg[0];
+                layout     = msg[1];
+
+                console.log(data);
+
+                Plotly.animate('plotly-div',  {
+                    data       : data,
+                    layout     : layout,
+                    transition : transition,
+                    frame      : frame,
+                    config     : config
+                });
+            });
+        }
+    });
 
 
 

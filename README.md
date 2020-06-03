@@ -14,30 +14,90 @@ conda activate rt
 make
 ```
 
+# Sessions
+
+The real-time rig has the concept of a "session", which is short for experimental session. A session folder contains all of the information needed to run an experiment. Suppose we call our session "tracking." Then, the first folder will have the name `session/tracking.0`. The `0` refers to the version of the experiment. For the purposes of session development, a new version of a session should be created whenever any of the folder contents have been altered after having been run in the wild. 
+
+The information about running a session is defined in the `session.yaml` file. Here's an example of a configuration for the `tracking.0` session: 
+
+```
+modules:
+  start:
+   - name: rest.pyx
+     links: 
+      - proc/rest/rest.pyx
+      - proc/rest/static
+      - session/tracking.0/rest.yaml 
+  main:
+   - name: timer
+     links: 
+      - bin/timer 
+      - session/tracking.0/timer.yaml
+      - bin/generator
+      - session/tracking.0/generator.yaml
+      - bin/streamUDP
+      - session/tracking.0/streamUDP.yaml
+  end:
+   - name: logger.py
+     links: 
+      - proc/logger/logger.py
+      - session/tracking.0/logger.yaml
+
+files:
+ - session/debug/README.md
+ - session/debug/session.yaml
+```
+
+A session has three stages: `start`, `main`, and `end`. Modules run in the `start` stage should be supportive. For example, these modules may handle incoming UDP information, recreate previously collected data, manage a rest server, etc. The modules in the `main` stage do the bulk of the work. Finally, when the program exits, it first shuts down `main` and `start` modules, and then runs the `end` modules.
+
+The modules have a name and then series of links. The links refer to the source files needed to run the modules. For example, the `rest.pyx` module will symbolically link the following files to `run/`: `proc/rest/rest.pyx`, `proc/rest/static`,`session/tracking.0/rest.yaml`.
+
+By looking at the list of links, one gets a sense of dependencies and where they're coming from. Good coding practice is to define all of the .yaml files needed to run modules within the session folder. 
+
+### Running a session
+
+After running `make`, there will be binaries located in the `bin/` folder. The next step is to initialize the files needed to run a session. Continuing with our example:
+
+```
+python rig.py initialize tracking.0
+```
+
+Will then copy the files defined in `session/tracking.0/session.yaml` to the `run/` folder. To run an experiment, type:
+
+```
+python rig.py run
+```
+
+This will look at `run/session.yaml` (which was linked to `session/tracking.0/session.yaml`) and then run the appropriate scripts to start the experiment.
+
 # Folder organization
 
 The primary organization of the rig is:
 
 ```
+bin/
 lib/
 proc/
 session/
 run/
 ```
 
+### bin/
 
-## lib/
+`bin/` contains the compiled output of the various processes. To compile a process, run `make [process]` from the root directory.
 
-lib/ contains a series of libraries or helper functions needed to make the system work. For instance, here's an example of two folders:
+### lib/
+
+lib/ contains a series of libraries or helper functions needed to make the system work. Here's are examples of two folders:
 
 ```
 lib/hiredis
-lib/utilityFunctions
+lib/redisTools
 ```
 
-hiredis is a submodule that links to a different git respository. utilityFunctions is an in-house folder.
+`hiredis` is a submodule that links to a different git respository. `redisTools` is an in-house folder that has some wrapper functions for working with redis.
 
-## proc/
+### proc/
 
 A module is designed to solve a specific task. The `proc/` folder contains the modules used for the rig. Suppose we call our module `foo`. Then, the contents of the foo module should have, at minimum, the following:
 
@@ -47,9 +107,7 @@ proc/foo/foo.yaml
 proc/foo/README.md
 ```
 
-`proc/foo/foo` is an executable that runs the module; the `foo.yaml` contains configuration information for the process, and the README.md contains information (describing the purpose of the module, what it produces and what it consumes, how data can be interpreted, etc.)
-
-The rig assumes that `foo` will be executable as `./foo`. However, it's language agonistic, so if you want to write a process in C, python, bash, etc., it doesn't matter, as long as it can be executed with a ./foo command (if you're not compiling your code, just make sure to add the appropriate shebang).
+`proc/foo/foo` is an executable that runs the module; the `foo.yaml` contains configuration information for the process, and the README.md contains information describing the purpose of the module, what it produces and what it consumes, how data can be interpreted, etc.
 
 The root-level YAML structure can contain whatever sub-headings are needed, but at minimum should contain an entry called parameters with the following structure:
 
@@ -61,7 +119,7 @@ parameters:
   static: true
 ```
 
-The name of the parameter is called bar, and it has value 12345 (N.B. This can be a string or a number). The description is a text-field that describes how the variable is used (and potentially common values). 
+The name of the parameter is called `bar`, and it has value `12345` (N.B. This can be a string or a number). The description is a text-field that describes how the variable is used (and potentially common values). 
 
 Parameters can be "static" or "non-static." A static variable is one that is set during initialization and is not changed thereafter. A non-static is one that can be changed while the module is running. For instance, the host address of the Redis instance will likely be a static, whereas a boolean flag indicating whether a matrix multiplication does or doesn't occur during a module's run-cycle can be static: false. 
 
@@ -84,29 +142,6 @@ When a module wants to share data with others, it does so using a stream. There 
 2. Adding new data to the strema is cheap, since it's stored internally as a linked-list
 3. It makes it easy to have a pub/sub approach to IPC, since modules can simply call the `xread` command 
 4. It makes it easy to query previously collected data using the xrange/xrevrange command
-
-
-
-
-
-## session/
-
-The rig has the concept of a "session", which is short for experimental session or just experiment. That is, it contains all of the conceptual information to run a specific kind of experiment.
-
-Suppose we call our session "tracking." Then, the first folder will have the name `session/tracking.0`
-
-Where 0 refers to the version of the experiment. For the purposes of session development, a new version of a session should be created whenever any of the folder contents have been altered after having been run in the wild. For instance, if JS ran a "tracking" experiment on day 1, and then had to revise some parameters or even create a new module for day 2 (but the goals of the experiments haven't changed) then that would call for the creation of a new folder: JS.tracking.1. 
-
-Continuing on with this example, the folder will have the following contents:
-
-```
-session/tracking.0/session.yaml
-session/tracking.0/logger.yaml
-session/tracking.0/streamUDP.yaml
-```
-
-Immediately, you can see that there are custom configuration files for the logger and streamUDP modules, hinting that both will be used as part of the session. The session.yaml file keeps a list of the modules to be used for the session.
-
 
 
 Logging data

@@ -13,7 +13,7 @@ parameters:
   static: true
 
 - name: filename
-  value: Session
+  value: audioOL
   description: The prefix of SQL table filename. This will proceeded by a timestamp
   static: true
 
