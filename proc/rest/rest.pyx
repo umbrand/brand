@@ -6,6 +6,7 @@ from flask_cors import CORS, cross_origin
 import yaml
 import sys
 import redis
+import numpy as np
 
 sys.path.insert(1, '../lib/redisTools/')
 from redisTools import get_parameter_value
@@ -199,22 +200,52 @@ def udpStream(key):
 
     return json.dumps(output)
 
+###############################################
+## Return information about variables stored in Redis
+###############################################
+
+@app.route('/runtimes', methods=['GET'])
+def get_runtimes():
+
+    modules = get_parameter_value('rest.yaml', 'runtimes')
+
+    return json.dumps({"runtimes" : modules})
 
 
-app.run(host='localhost',debug=True)
+@app.route('/runtimes/<proc>', methods=['GET'])
+def get_single_runtime(proc):
+
+    proc = proc.encode('utf-8')
+
+
+    # This will return an array of entries
+    # Each entry has [0] --> timestamp
+    data = r.xrevrange(proc, count=1000)
+
+    # For each of the timepoints, turn them into utf-8 strings
+    # and then take the part that is before the dash
+    # And then reverse the list and compute the diffs
+
+    y      = [int(x[0].decode('utf-8').split("-")[0]) for x in data]
+    diffs  = np.diff(y[::-1])
+
+
+    output = { "name"   : proc.decode('utf-8')
+             , "length" : len(diffs)
+             , "mean"   : diffs.mean()
+             , "std"    : diffs.std()
+             }
+
+
+    return json.dumps({"data" : output})
 
 
 
-# @app.route('/user')
-# def user():
-#     output = { "data" : {"name":'Alice',"email":'alice@email.com',"age":10, "id":1}}
-      
-#     return output
+###############################################
+## Run the script
+###############################################
 
-# @app.route('/error')
-# def myError():
-#     return {"errors" : [ { "email" : "taken"} , {"age": "> 16"}]}
-    # OK, get the dictionary and find the key called 'raw'. Turn it into
-    # a string and then split it at the first comma, use only the first
-    # entry of this split and then turn all of the numbers into a float
-    # y =[float(x[1][b'raw'].decode('utf-8').split(',',1)[0]) for x in data]
+app.run(host='0.0.0.0',debug=True)
+
+
+

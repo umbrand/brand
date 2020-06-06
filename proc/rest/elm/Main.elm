@@ -16,6 +16,7 @@ module Main exposing (..)
 
 import Stream exposing (Stream)
 import Yaml exposing (Yaml)
+import Runtime exposing (Runtime)
 
 import Browser
 import Browser.Dom
@@ -58,7 +59,12 @@ subscriptions model =
         TabStream -> 
             case (Stream.getRefreshRate model.stream) of
                 Nothing -> Sub.none
-                Just val -> Time.every val Tick
+                Just val -> Time.every val TickStream
+        TabRuntime ->
+            case (Runtime.getRefreshRate model.runtime) of
+                Nothing -> Sub.none
+                Just val -> Time.every val TickRuntime
+
         _ ->
             Sub.none
             
@@ -72,19 +78,22 @@ subscriptions model =
 type Tab =
       TabStream
     | TabYaml
+    | TabRuntime
 
 type alias Model =
-    { tab        : Tab    -- Which tab is currently being presented to the user
-    , stream     : Stream -- Module for plotting streaming variables
-    , yaml       : Yaml   -- Module for inspecting yaml parameters
-    , burgerFlag : Bool   -- Is the burger expanded
+    { tab        : Tab     -- Which tab is currently being presented to the user
+    , stream     : Stream  -- Module for plotting streaming variables
+    , yaml       : Yaml    -- Module for inspecting yaml parameters
+    , runtime    : Runtime -- Module for interoggating module runtimes
+    , burgerFlag : Bool    -- Is the burger expanded
     }
 
 emptyModel : Model
 emptyModel =
-    { tab        = TabYaml
+    { tab        = TabRuntime
     , stream     = Stream.initializeStream
     , yaml       = Yaml.initializeYaml
+    , runtime    = Runtime.initializeRuntime
     , burgerFlag = False
     }
 
@@ -96,8 +105,9 @@ init _ =
 runCommand : Tab -> Cmd Msg
 runCommand tab = 
     case tab of
-        TabStream -> Stream.initializeStreamCommand |> Cmd.map SetStream
-        TabYaml   -> Yaml.initializeYamlCommand     |> Cmd.map SetYaml
+        TabStream  -> Stream.initializeStreamCommand   |> Cmd.map SetStream
+        TabYaml    -> Yaml.initializeYamlCommand       |> Cmd.map SetYaml
+        TabRuntime -> Runtime.initializeRuntimeCommand |> Cmd.map SetRuntime
 
 --------------------------------------------------
 -- UPDATE
@@ -106,10 +116,13 @@ runCommand tab =
 type Msg = 
       SetStream Stream.Msg
     | SetYaml Yaml.Msg
+    | SetRuntime Runtime.Msg
     | SetTab Tab
-    | Tick Time.Posix
+    | TickStream Time.Posix
+    | TickRuntime Time.Posix
     | ToggleBurger
     | PostYamlCommand Yaml.Msg
+    | PostRuntimeCommand Runtime.Msg
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -121,17 +134,26 @@ update msg model =
         SetYaml subMsg ->
             (setYaml subMsg model, Yaml.runCommand subMsg |> Cmd.map PostYamlCommand)
 
+        SetRuntime subMsg ->
+            (setRuntime subMsg model, Runtime.runCommand subMsg |> Cmd.map PostRuntimeCommand)
+
         SetTab tab ->
             (setTab tab model, runCommand tab)
 
-        Tick _ ->
+        TickStream _ ->
             (model, Stream.streamTick model.stream |> Cmd.map SetStream)
+
+        TickRuntime _ ->
+            (model, Runtime.runtimeTick model.runtime |> Cmd.map SetRuntime)
 
         ToggleBurger ->
             (toggleBurger model, Cmd.none)
 
         PostYamlCommand subMsg ->
             (setYaml subMsg model, Cmd.none)
+
+        PostRuntimeCommand subMsg ->
+            (setRuntime subMsg model, Cmd.none)
 
 setStream : Stream.Msg -> Model -> Model
 setStream subMsg model =
@@ -140,6 +162,10 @@ setStream subMsg model =
 setYaml : Yaml.Msg -> Model -> Model
 setYaml subMsg model =
     {model | yaml = Yaml.updateYaml subMsg model.yaml}
+
+setRuntime : Runtime.Msg -> Model -> Model
+setRuntime subMsg model =
+    {model | runtime = Runtime.updateRuntime subMsg model.runtime}
 
 toggleBurger : Model -> Model
 toggleBurger model =
@@ -211,21 +237,25 @@ displayBurger model =
             ]
           ]
         ]
+
 displayContent : Model -> Html Msg
 displayContent model =
-    case model.tab of
-        TabStream -> displayStream model
-        TabYaml -> displayYaml model
+    let
+        displayStream = 
+            Stream.displayStream model.stream |> Html.map SetStream
 
-displayStream : Model -> Html Msg
-displayStream model =
-    Stream.displayStream model.stream
-    |> Html.map SetStream
+        displayYaml = 
+            Yaml.displayYaml model.yaml |> Html.map SetYaml
 
-displayYaml : Model -> Html Msg
-displayYaml model =
-    Yaml.displayYaml model.yaml
-    |> Html.map SetYaml
+        displayRuntime = 
+            Runtime.displayRuntime model.runtime |> Html.map SetRuntime
+
+    in
+        case model.tab of
+            TabStream     -> displayStream
+            TabYaml       -> displayYaml
+            TabRuntime    -> displayRuntime
+
 
 --------------------------------------------------
 --------------------------------------------------
@@ -235,12 +265,13 @@ displayYaml model =
 
 tabList : List Tab
 tabList =
-    [TabStream, TabYaml]
+    [TabStream, TabYaml, TabRuntime]
 
 tabString : Tab -> String
 tabString tab =
     case tab of
         TabStream -> "Streams"
         TabYaml -> "Parameter inspector"
+        TabRuntime -> "Process Runtimes"
 
 
