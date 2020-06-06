@@ -5,7 +5,9 @@ ELM=$(ELM_PATH)/elm
 OUTPUT=../static/js/main.js
 
 all:
-	$(ELM) $(MAKE) Main.elm --output $(OUTPUT)
+	# $(ELM) $(MAKE) Main.elm --output $(OUTPUT)
+	elm $(MAKE) Main.elm --output $(OUTPUT)
 
 clean:
 	$(RM) $(OUTPUT)
+
