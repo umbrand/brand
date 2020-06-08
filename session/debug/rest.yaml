@@ -15,6 +15,6 @@ parameters:
   static: true
 
 - name: runtimes
-  value: [ streamUDP]
+  value: [streamUDP]
   description: What modules do we want to present the runtime information for?
   static: true
