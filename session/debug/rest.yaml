@@ -13,3 +13,8 @@ parameters:
   value: [generator, streamUDP]
   description: What modules do we want to present the parameters for?
   static: true
+
+- name: runtimes
+  value: [streamUDP]
+  description: What modules do we want to present the runtime information for?
+  static: true

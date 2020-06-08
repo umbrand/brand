@@ -9,3 +9,4 @@ all:
 
 clean:
 	$(RM) $(OUTPUT)
+
