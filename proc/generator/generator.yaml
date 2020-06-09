@@ -1,5 +1,6 @@
 # Here are the configuration parameters for the C code that generates data
 
+parameters:
 - name: redis_ip
   value: 127.0.0.1
   description: What is the IP of our Redis instance
@@ -21,8 +22,13 @@
   static: true
 
 - name: broadcast_rate
-  value: 1
-  description: Time, in milliseconds, for broadcasting data
+  value: 500
+  description: Time, in microseconds, for broadcasting data
+  static: true
+
+- name: sampling_frequency
+  value: 30000
+  description: Frequency, in seconds, at which artificial data is sampled
   static: true
 
 - name: use_ramp
@@ -31,6 +37,16 @@
   static: true
 
 - name: num_channels
-  value: 48
+  value: 96
   description: Number of channels associated with the binary file, or for creating a ramp function
+  static: true
+
+- name: ramp_max
+  value: 2000
+  description: Count from 0 to ramp_max for producing data
+  static: true
+
+- name: cerebus_packet_size
+  value: 200
+  description: Size in bytes of the cerebus_packet
   static: true
