@@ -28,7 +28,7 @@ typedef struct cerebus_packet_t {
     uint16_t chid;
     uint8_t type;
     uint8_t dlen;
-    int16_t data[96];
+    uint16_t data[96];
 } cerebus_packet_t;
 
 // List of parameters read from the yaml file, facilitates function definition of initialize_parameters
@@ -43,6 +43,7 @@ int initialize_socket();
 void initialize_parameters(yaml_parameters_t *p);
 void handle_exit(int exitStatus);
 void ignore_exit(int exitStatus);
+void print_argv(int, char **, size_t *);
 
 char PROCESS[] = "cerebusAdapter";
 
@@ -137,15 +138,15 @@ int main (int argc_main, char **argv_main) {
     // Start by adding xadd cerebusAdapter *
     // And then add the keys for num_samples, timestamps, and all of the channels
 
-    argvlen[0] = (size_t) strcpy(argv[0],  "xadd");
-    argvlen[1] = (size_t) strcpy(argv[1],  "cerebusAdapter");
-    argvlen[2] = (size_t) strcpy(argv[2],  "*");
+    argvlen[0] = sprintf(argv[0], "%s", "xadd");
+    argvlen[1] = sprintf(argv[1], "%s", "cerebusAdapter");
+    argvlen[2] = sprintf(argv[2], "%s", "*");
     
-    argvlen[ind_num_samples] = (size_t) strcpy(argv[ind_num_samples] , "num_samples");
-    argvlen[ind_timestamps]  = (size_t) strcpy(argv[ind_timestamps]  , "timestamps");
+    argvlen[ind_num_samples] = sprintf(argv[ind_num_samples] ,"%s", "num_samples");
+    argvlen[ind_timestamps]  = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
 
     for (int i = 0; i < num_channels; i++) {
-        argvlen[ind_samples + 2*i] = (size_t) sprintf(argv[ind_samples + 2*i], "chan%01d", i);
+        argvlen[ind_samples + 2*i] = sprintf(argv[ind_samples + 2*i], "chan%01d", i);
     }
 
 
@@ -166,12 +167,11 @@ int main (int argc_main, char **argv_main) {
 
         int read_bytes = recv(udp_fd, cerebus_packets, sizeof(cerebus_packets), 0); 
 
+
         // Check to see if something went wrong. TODO: Add more checks
-        if (read_bytes <= 0 || read_bytes % sizeof(cerebus_packets) != 0) {
+        if (read_bytes <= 0 || read_bytes % sizeof(cerebus_packet_t) != 0) {
             continue;
         }
-
-
 
         // We expect that the data will arrive as a series of cerebus packets concatenated in a UDP packet
         // Let's first compute how many cerebus_packets_t we've received
@@ -208,10 +208,15 @@ int main (int argc_main, char **argv_main) {
             }
 
             argvlen[ind_timestamps + 1] = sizeof(int32_t) * n;
-            argvlen[ind_samples + 1]    = sprintf(argv[ind_samples+1], "%d", n);
+            argvlen[ind_num_samples + 1]    = sprintf(argv[ind_num_samples+1], "%d", n);
             
+            /* printf("n = %d\n", n); */
+            /* print_argv(argc, argv, argvlen); */
+            /* return 0; */
+
             // Everything we've done is just to get to this one line. Whew!
-            freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) &argv, argvlen));
+            freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argv, argvlen));
+
             
             n = 0;
         }
@@ -308,7 +313,7 @@ void initialize_parameters(yaml_parameters_t *p) {
     char samples_per_redis_stream_string[16] = {0};
 
     load_YAML_variable_string(PROCESS, "num_channels", num_channels_string,   sizeof(num_channels_string));
-    load_YAML_variable_string(PROCESS, "num_channels", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
+    load_YAML_variable_string(PROCESS, "samples_per_redis_stream", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
 
     p->num_channels             = atoi(num_channels_string);
     p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);
@@ -328,4 +333,36 @@ void ignore_exit(int exitStatus) {
     printf("[%s] Terminates through SIGUSR1!\n", PROCESS);
 }
 
+//------------------------------------
+// Helper function
+//------------------------------------
 
+void print_argv(int argc, char **argv, size_t *argvlen) {
+    printf("argc = %d\n", argc);
+
+    for (int i = 0; i < 5; i++){
+        printf("%02d. (%s) - [%ld]\n", i, argv[i], argvlen[i]);
+    }
+
+    for (int i = 5; i < 7; i+=2){
+        printf("%02d. (%s) [%ld] - [", i, argv[i], argvlen[i+1]);
+
+        for (int j = 0; j < argvlen[i+1]; j+= sizeof(uint32_t)) {
+            printf("%u,",  (uint32_t) argv[i+1][j]);
+        }
+
+        printf("]\n");
+    }
+
+
+    for (int i = 7; i < argc; i+=2){
+        printf("%02d. (%s) [%ld] - [", i, argv[i], argvlen[i+1]);
+
+        for (int j = 0; j < argvlen[i+1]; j+= sizeof(uint16_t)) {
+            printf("%u,",  (uint16_t) argv[i+1][j]);
+        }
+
+        printf("]\n");
+    }
+
+}
