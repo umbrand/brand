@@ -62,7 +62,7 @@ typedef struct cerebus_packet_t {
     uint16_t chid;
     uint8_t type;
     uint8_t dlen;
-    int16_t data[96];
+    uint16_t data[96];
 } cerebus_packet_t;
 
 typedef struct yaml_parameters_t {
