@@ -23,13 +23,13 @@
 // https://github.com/neurosuite/libcbsdk. Note initial definition does not include
 // the int16_t data[96] component. I added that for convenience
 
-typedef struct cerebus_packet_t {
+typedef struct cerebus_packet_header_t {
     uint32_t time;
     uint16_t chid;
     uint8_t type;
     uint8_t dlen;
-    uint16_t data[96];
-} cerebus_packet_t;
+} cerebus_packet_header_t;
+
 
 // List of parameters read from the yaml file, facilitates function definition of initialize_parameters
 typedef struct yaml_parameters_t {
@@ -155,76 +155,90 @@ int main (int argc_main, char **argv_main) {
     /* kill(ppid, SIGUSR2); */
 
 
-    // we will copy the UDP packet buffer directly into an array of cerebus_packet_t arrays
-    // n -> keep track of how many cerebus_packets we have copied
-
-    cerebus_packet_t cerebus_packets[7] = {0};
+    // How many samples have we copied for argv?
     int n = 0;
 
     printf("[%s] Entering loop...\n", PROCESS);
 
+    char *udp_packet_payload = malloc(65535);
+    int udp_packet_size;
+
     while (1) {
 
-        int read_bytes = recv(udp_fd, cerebus_packets, sizeof(cerebus_packets), 0); 
-
+        udp_packet_size = recv(udp_fd, udp_packet_payload, 65535, 0); 
 
         // Check to see if something went wrong. TODO: Add more checks
-        if (read_bytes <= 0 || read_bytes % sizeof(cerebus_packet_t) != 0) {
+        if (udp_packet_size <= 0) {
+            printf("ERROR SIZE: %d\n", udp_packet_size);
             continue;
         }
 
-        // We expect that the data will arrive as a series of cerebus packets concatenated in a UDP packet
-        // Let's first compute how many cerebus_packets_t we've received
+        // We know that the UDP packet is organized as a series
+        // of cerebus packets, so we're going to read them in sequence and decide what to do
+        // cb_packet_ind is the index of the start of the cerebus packet we're reading from.
 
-        int num_cerebus_packets = read_bytes / sizeof(cerebus_packet_t);
+        
+        int cb_packet_ind = 0;
+        while (cb_packet_ind <= udp_packet_size) {
 
+            // Begin by copying the header of the cerebus packet. Note that a faster way would not be to
+            // copy the data here, and to be clever about pointers, but that's OK -- it's cleaner this way.
 
+            cerebus_packet_header_t cerebus_packet_header;
+            memcpy(&cerebus_packet_header, &udp_packet_payload[cb_packet_ind], sizeof(cerebus_packet_header_t));
 
-        // Now for each of the cerebrus packets, copy the samples from the cerebus_packet_t data field.
-        // We want to set up the argv immediately. The +1 offset is for the data associated with a key
-        // Since we're storing all voltage data as int16, and the timestamps as int32, we need to be careful
-        // argv has dimensions [keys][samples]. So that means...
-        // ind_samples + j*2 + 1 : start at ind_samples, and then jump to index corresponding to value for key j*2
-        // n * sizeof(in16_t) : we're expecting data of size int16_t, so offset based on how many samples we have
+            if (cerebus_packet_header.type == 6) {
 
-        for (int i = 0; i < num_cerebus_packets; i++) {
-            for(int j = 0; j < num_channels; j++) {
-
-                memcpy(&argv[ind_samples + j*2 + 1][n * sizeof(int16_t)], &cerebus_packets[i].data[j], sizeof(int16_t));
-                memcpy(&argv[ind_timestamps + 1][n * sizeof(int32_t)]   , &cerebus_packets[i].data   , sizeof(int32_t));
-            }
-            n++;
-        }
+                // Copy the timestamp information into argv
+                memcpy(&argv[ind_timestamps + 1][n * sizeof(int32_t)], &cerebus_packet_header.time, sizeof(int32_t));
 
 
-        // Now, if we are at the point of transfering data to Redis, we will do so.
-        // Begin by assigning argvlen for the channel and timestamp data
-        // And then write to num_samples the string instructing just hwo much data we have
 
-        if (n >= samples_per_redis_stream) {
+                int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
 
-            for (int i = 0; i < num_channels; i++) {
-                argvlen[ind_samples + i*2 + 1] = sizeof(int16_t) * n;
+                for(int i = 0; i < cerebus_packet_header.dlen * 2; i++) {
+                    memcpy(&argv[ind_samples + i*2 + 1][n * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
+                }
+                n++;
             }
 
-            argvlen[ind_timestamps + 1] = sizeof(int32_t) * n;
-            argvlen[ind_num_samples + 1]    = sprintf(argv[ind_num_samples+1], "%d", n);
-            
-            /* printf("n = %d\n", n); */
-            /* print_argv(argc, argv, argvlen); */
-            /* return 0; */
+            // Advance to the next cerebus packet start location
 
-            // Everything we've done is just to get to this one line. Whew!
-            freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argv, argvlen));
+            cb_packet_ind = cb_packet_ind + sizeof(cerebus_packet_header_t) + (4 * cerebus_packet_header.dlen);
 
-            
-            n = 0;
+
+            // Now, if we are at the point of transfering data to Redis, we will do so.
+            // Begin by assigning argvlen for the channel and timestamp data
+            // And then write to num_samples the string instructing just hwo much data we have
+
+            if (n >= samples_per_redis_stream) {
+
+                for (int i = 0; i < num_channels; i++) {
+                    argvlen[ind_samples + i*2 + 1] = sizeof(int16_t) * n;
+                }
+
+                argvlen[ind_timestamps + 1]   = sizeof(int32_t) * n;
+                argvlen[ind_num_samples + 1]  = sprintf(argv[ind_num_samples+1], "%d", n);
+                
+                /* printf("n = %d\n", n); */
+                /* print_argv(argc, argv, argvlen); */
+                /* return 0; */
+
+                // Everything we've done is just to get to this one line. Whew!
+                freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argv, argvlen));
+
+                
+                n = 0;
+            }
         }
     }
+
+    // We should never get here, but we should clean our data anyway.
     for (int i = 0; i < argc; i++) {
         free(argv[i]);
     }
     free(argvlen);
+    free(udp_packet_payload);
     return 0;
 }
 
@@ -366,3 +380,28 @@ void print_argv(int argc, char **argv, size_t *argvlen) {
     }
 
 }
+
+/*         // We expect that the data will arrive as a series of cerebus packets concatenated in a UDP packet */
+/*         // Let's first compute how many cerebus_packets_t we've received */
+
+/*         int num_cerebus_packets = udp_packet_size / sizeof(cerebus_packet_data_t); */
+
+
+
+/*         // Now for each of the cerebrus packets, copy the samples from the cerebus_packet_data_t data field. */
+/*         // We want to set up the argv immediately. The +1 offset is for the data associated with a key */
+/*         // Since we're storing all voltage data as int16, and the timestamps as int32, we need to be careful */
+/*         // argv has dimensions [keys][samples]. So that means... */
+/*         // ind_samples + j*2 + 1 : start at ind_samples, and then jump to index corresponding to value for key j*2 */
+/*         // n * sizeof(in16_t) : we're expecting data of size int16_t, so offset based on how many samples we have */
+
+/*         for (int i = 0; i < num_cerebus_packets; i++) { */
+/*             for(int j = 0; j < num_channels; j++) { */
+
+/*                 memcpy(&argv[ind_samples + j*2 + 1][n * sizeof(int16_t)], &udp_packet_payload[i].data[j], sizeof(int16_t)); */
+/*                 memcpy(&argv[ind_timestamps + 1][n * sizeof(int32_t)]   , &udp_packet_payload[i].data   , sizeof(int32_t)); */
+/*             } */
+/*             n++; */
+/*         } */
+
+

@@ -22,7 +22,7 @@ parameters:
   static: true
 
 - name: broadcast_rate
-  value: 500
+  value: 1000
   description: Time, in microseconds, for broadcasting data
   static: true
 
