@@ -309,6 +309,10 @@ int initialize_ramp(char  **buffer, int num_channels) {
         
         cerebus_packet_t cerebus_packet = {0};
         cerebus_packet.time = i;
+        cerebus_packet.chid = 0;
+        cerebus_packet.dlen = num_channels / 2;
+        cerebus_packet.type = 6;
+
         for (int j = 0; j < num_channels; j++) {
             cerebus_packet.data[j] = i;
         }
