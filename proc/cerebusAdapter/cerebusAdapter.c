@@ -11,9 +11,10 @@
  * Here, argc is the number of strings being sent. argv is the content of the string, and argvlen is the string lengths
  * for the strings. Note that Redis is binary safe, so we can store raw binaries nicely if we want.
  *
- * This function sits and blocks on a udp socket. When it then creates a pointer to the point of the 
- * UDP payload that we would expect to be a cerebus packet header. If it has the right data type,
- * it copies the data from the UDP payload to populate argv on the fly.
+ * This function sits and blocks on a udp socket. When a new packet arrives it then creates a pointer
+ * to the point of the UDP payload that we would expect to be a cerebus packet header. 
+ * If it has the right data type, it copies the data from the UDP payload to populate argv on the fly.
+ * It has to keep track of argvlen prior to submission to Redis.
  *
  * When sufficient samples have been collected (defined in the cerebusAdapter.yaml file) it then
  * writes the collected argv to Redis and then starts again.
@@ -96,7 +97,7 @@ int main (int argc_main, char **argv_main) {
     size_t *argvlen = malloc(argc * sizeof(size_t));
 
 
-    // argv : This contains the number of arguments to be executed by redis. 
+    // argv : This contains the arguments to be executed by redis. 
     //        the argv has the form:
     //        xadd cerebusAdapter * num_samples [string] timestamps [int32] chan0 [int16] chan1 [int16] ...
     //        We begin by populating the entries manually
@@ -140,7 +141,7 @@ int main (int argc_main, char **argv_main) {
     //////////////////////////////////////////
 
 
-    // At this point we start populating argv
+    // At this point we start populating argv strings
     // Start by adding xadd cerebusAdapter *
     // And then add the keys for num_samples, timestamps, and all of the channels
 
@@ -157,8 +158,8 @@ int main (int argc_main, char **argv_main) {
 
 
     // Sending kill causes tmux to close
-    /* pid_t ppid = getppid(); */
-    /* kill(ppid, SIGUSR2); */
+    pid_t ppid = getppid();
+    kill(ppid, SIGUSR2);
 
 
 
@@ -167,13 +168,13 @@ int main (int argc_main, char **argv_main) {
     // How many samples have we copied for argv?
     int n = 0;
 
-    char *udp_packet_payload = malloc(65535);
+    char *udp_packet_payload = malloc(65535); // max size of conceivable packet
 
     while (1) {
 
         int udp_packet_size= recv(udp_fd, udp_packet_payload, 65535, 0); 
 
-        // Check to see if something went wrong. TODO: Add more checks
+        // Check to see if something went wrong. TODO: How else can we handle this?
         if (udp_packet_size <= 0) {
             printf("ERROR SIZE: %d\n", udp_packet_size);
             continue;
@@ -183,7 +184,7 @@ int main (int argc_main, char **argv_main) {
         // of cerebus packets, so we're going to read them in sequence and decide what to do
         // cb_packet_ind is the index of the start of the cerebus packet we're reading from.
         
-        int cb_packet_ind = 0;
+        int cb_packet_ind = 0; 
         while (cb_packet_ind <= udp_packet_size) {
 
             // First check: can we safely read the remaining payload content. We should
@@ -213,7 +214,7 @@ int main (int argc_main, char **argv_main) {
                 n++;
             }
 
-            // Advance to the next cerebus packet start location
+            // Regardless of what type of packet we got, advance to the next cerebus packet start location
             cb_packet_ind = cb_packet_ind + sizeof(cerebus_packet_header_t) + (4 * cerebus_packet_header->dlen);
 
 
