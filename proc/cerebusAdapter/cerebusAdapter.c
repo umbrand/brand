@@ -87,13 +87,13 @@ int main (int argc_main, char **argv_main) {
 
 
     // argc    : The number of arguments in argv. The calculation is:
-    //           int argc = 3 + 2 * (2 + num_channels);
+    //           int argc = 3 + 2 * (4 + num_channels);
     //           3                  -> xadd cerebusAdapter *
-    //           (2 + num_channels) -> num_samples (+1) , timestamps (+1) , channels (+num_channels)
+    //           (4 + num_channels) -> metadata + num_channels
     //           2 * ()             -> (key, value) pairs
     // argvlen : The length of the strings in each argument of argv
     
-    int argc        = 3 + 2 * (2 + num_channels);
+    int argc        = 3 + 2 * (4 + num_channels);
     size_t *argvlen = malloc(argc * sizeof(size_t));
 
 
@@ -107,10 +107,13 @@ int main (int argc_main, char **argv_main) {
     // We keep track of the indexes. Each ind_ variable keeps track of where the (key value) begins
      
 
-    int ind_xadd        = 0;                   // xadd cerebusAdapter *
-    int ind_num_samples = ind_xadd + 3;        // num_samples string
-    int ind_timestamps  = ind_num_samples + 2; // timestamps [data]
-    int ind_samples     = ind_timestamps + 2;  // chan0 [data] chan1 [data] ...
+    int ind_xadd              = 0;                         // xadd cerebusAdapter *
+    int ind_num_samples       = ind_xadd + 3;              // num_samples string
+    int ind_timestamps        = ind_num_samples + 2;       // timestamps [data]
+    int ind_current_time      = ind_timestamps + 2;        // current_time [data]
+    int ind_udp_received_time = ind_current_time + 2;      // udp_received_time [data]
+    int ind_samples           = ind_udp_received_time + 2; // chan0 [data] chan1 [data] ...
+
 
 
     //////////////////////////////////////////
@@ -133,11 +136,21 @@ int main (int argc_main, char **argv_main) {
     argv[ind_timestamps]     = malloc(len);
     argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * samples_per_redis_stream);
     
+    // allocating memory for current_time [data]
+    argv[ind_current_time]     = malloc(len);
+    argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * samples_per_redis_stream);
+    
+    // allocating memory for udp_received_time [data]
+    argv[ind_udp_received_time]     = malloc(len);
+    argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * samples_per_redis_stream);
+    
     // allocating memory for chan0 [data] chan1 [data] ...
     for(int i = 0; i < num_channels; i++) {
         argv[ind_samples + 2*i] = malloc(len);
         argv[ind_samples + 2*i + 1] = malloc(sizeof(int16_t) * samples_per_redis_stream);
     }
+
+
     //////////////////////////////////////////
 
 
@@ -149,8 +162,10 @@ int main (int argc_main, char **argv_main) {
     argvlen[1] = sprintf(argv[1], "%s", "cerebusAdapter");
     argvlen[2] = sprintf(argv[2], "%s", "*");
     
-    argvlen[ind_num_samples] = sprintf(argv[ind_num_samples] ,"%s", "num_samples");
-    argvlen[ind_timestamps]  = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
+    argvlen[ind_num_samples]       = sprintf(argv[ind_num_samples] ,"%s", "num_samples");
+    argvlen[ind_timestamps]        = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
+    argvlen[ind_current_time]      = sprintf(argv[ind_current_time]  , "%s", "current_time");
+    argvlen[ind_udp_received_time] = sprintf(argv[ind_udp_received_time]  , "%s", "udp_received_time");
 
     for (int i = 0; i < num_channels; i++) {
         argvlen[ind_samples + 2*i] = sprintf(argv[ind_samples + 2*i], "chan%01d", i);
@@ -158,8 +173,8 @@ int main (int argc_main, char **argv_main) {
 
 
     // Sending kill causes tmux to close
-    pid_t ppid = getppid();
-    kill(ppid, SIGUSR2);
+    /* pid_t ppid = getppid(); */
+    /* kill(ppid, SIGUSR2); */
 
 
 
@@ -168,17 +183,43 @@ int main (int argc_main, char **argv_main) {
     // How many samples have we copied for argv?
     int n = 0;
 
-    char *udp_packet_payload = malloc(65535); // max size of conceivable packet
+    char *buffer = malloc(65535); // max size of conceivable packet
+    char msg_control_buffer[2000] = {0};
+    
+    struct iovec message_iovec = {0};
+    message_iovec.iov_base = buffer;
+    message_iovec.iov_len  = 65535;
+
+    struct msghdr message_header = {0};
+    message_header.msg_name       = NULL;
+    message_header.msg_iov        = &message_iovec;
+    message_header.msg_iovlen     = 1;
+    message_header.msg_control    = msg_control_buffer;
+    message_header.msg_controllen = 2000;
+
+    struct timeval current_time;
+    struct timeval udp_received_time;
+    struct cmsghdr *cmsg_header;
 
     while (1) {
 
-        int udp_packet_size= recv(udp_fd, udp_packet_payload, 65535, 0); 
+        int udp_packet_size = recvmsg(udp_fd, &message_header, 0);
+
 
         // Check to see if something went wrong. TODO: How else can we handle this?
         if (udp_packet_size <= 0) {
             printf("ERROR SIZE: %d\n", udp_packet_size);
             continue;
         }
+
+        // For convenience, makes it much easier to reason about
+        char *udp_packet_payload = (char*) message_header.msg_iov->iov_base;
+        
+        // These two lines of code get the time the UDP packet was received
+        cmsg_header = CMSG_FIRSTHDR(&message_header); 
+        memcpy(&udp_received_time, CMSG_DATA(cmsg_header), sizeof(struct timeval));
+
+
 
         // We know that the UDP packet is organized as a series
         // of cerebus packets, so we're going to read them in sequence and decide what to do
@@ -195,14 +236,20 @@ int main (int argc_main, char **argv_main) {
                 break;
             }
 
+
             // Create a pointer to the cerebus packet at the current location of the udp payload
             cerebus_packet_header_t *cerebus_packet_header = (cerebus_packet_header_t*) &udp_packet_payload[cb_packet_ind];
 
             // Now check to see if we're getting a type 6 packet, which should contain our sampled Utah array voltage data
             if (cerebus_packet_header->type == 6) {
+                
+                // This gets the current system time
+                gettimeofday(&current_time,NULL);
 
                 // Copy the timestamp information into argv
-                memcpy(&argv[ind_timestamps + 1][n * sizeof(int32_t)], &cerebus_packet_header->time, sizeof(int32_t));
+                memcpy(&argv[ind_timestamps        + 1][n * sizeof(int32_t)       ], &cerebus_packet_header->time, sizeof(int32_t));
+                memcpy(&argv[ind_current_time      + 1][n * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
+                memcpy(&argv[ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
 
                 // The index where the data starts in the UDP payload
                 int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
@@ -218,6 +265,7 @@ int main (int argc_main, char **argv_main) {
             cb_packet_ind = cb_packet_ind + sizeof(cerebus_packet_header_t) + (4 * cerebus_packet_header->dlen);
 
 
+
             // Now, if we are at the point of transfering data to Redis, we will do so.
             // Begin by assigning argvlen for the channel and timestamp data
             // And then write to num_samples the string instructing just hwo much data we have
@@ -228,8 +276,10 @@ int main (int argc_main, char **argv_main) {
                     argvlen[ind_samples + i*2 + 1] = sizeof(int16_t) * n;
                 }
 
-                argvlen[ind_timestamps + 1]   = sizeof(int32_t) * n;
-                argvlen[ind_num_samples + 1]  = sprintf(argv[ind_num_samples+1], "%d", n);
+                argvlen[ind_timestamps + 1]        = sizeof(int32_t) * n;
+                argvlen[ind_current_time + 1]      = sizeof(struct timeval) * n;
+                argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * n;
+                argvlen[ind_num_samples + 1]       = sprintf(argv[ind_num_samples+1], "%d", n);
                 
                 /* printf("n = %d\n", n); */
                 /* print_argv(argc, argv, argvlen); */
@@ -250,7 +300,7 @@ int main (int argc_main, char **argv_main) {
         free(argv[i]);
     }
     free(argvlen);
-    free(udp_packet_payload);
+    free(buffer);
     return 0;
 }
 
@@ -301,10 +351,17 @@ int initialize_socket() {
         perror("[cerebusAdapter] socket failed"); 
         exit(EXIT_FAILURE); 
     }
+    int one = 1;
+    
     //Set socket permissions so that we can listen to broadcasted packets
-    int broadcastPermission = 1;
-    if (setsockopt(fd,SOL_SOCKET,SO_BROADCAST, (void *) &broadcastPermission, sizeof(broadcastPermission)) < 0) {
+    if (setsockopt(fd,SOL_SOCKET,SO_BROADCAST, (void *) &one, sizeof(one)) < 0) {
         perror("[cerebusAdapter] socket permission failure"); 
+        exit(EXIT_FAILURE); 
+    }
+
+    //Set socket permissions that we get a timestamp from when UDP was received
+    if (setsockopt(fd,SOL_SOCKET,SO_TIMESTAMP , (void *) &one, sizeof(one)) < 0) {
+        perror("socket timestampns failure"); 
         exit(EXIT_FAILURE); 
     }
 
@@ -380,8 +437,22 @@ void print_argv(int argc, char **argv, size_t *argvlen) {
         printf("]\n");
     }
 
+    for (int i = 7; i < 11; i+=2){
+        printf("%02d. (%s) [%ld] - [", i, argv[i], argvlen[i+1]);
 
-    for (int i = 7; i < argc; i+=2){
+        for (int j = 0; j < argvlen[i+1]; j+= sizeof(struct timeval)) {
+            struct timeval time;
+            memcpy(&time,&argv[i+1][j], sizeof(struct timeval));
+            long milliseconds = time.tv_sec * 1000 + time.tv_usec / 1000;
+            long microseconds = time.tv_usec % 1000;
+            printf("%ld.%03ld,", milliseconds,microseconds);
+        }
+
+        printf("]\n");
+    }
+
+
+    for (int i = 11; i < argc; i+=2){
         printf("%02d. (%s) [%ld] - [", i, argv[i], argvlen[i+1]);
 
         for (int j = 0; j < argvlen[i+1]; j+= sizeof(uint16_t)) {

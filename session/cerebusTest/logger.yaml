@@ -31,6 +31,10 @@ streams:
       type: INTEGER
     - key: timestamps
       type: BLOB
+    - key: current_time
+      type: BLOB
+    - key: udp_received_time
+      type: BLOB
     - key: chan0
       type: BLOB
     - key: chan1
