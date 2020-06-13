@@ -134,14 +134,19 @@ int main(int argc, char *argv[])
     int n = 0;
     int num_cerebus_packets_on_udp_packet = 0;
 
+    uint32_t time = 0;
 	while(sem_wait(&sem_timer) == 0) {
 
 		for(int i = 0; i < num_cerebus_packets_per_signal; i++) {
 
+            cerebus_packet_t *cb_packet = (cerebus_packet_t *) &buffer[n*cerebus_packet_size];
+            cb_packet->time = time;
+
 			// Write the data
-			write(fd, &buffer[n*cerebus_packet_size], cerebus_packet_size);
+			write(fd, cb_packet, cerebus_packet_size);
             num_cerebus_packets_on_udp_packet++;
             n++;
+            time++;
             n = n % nRows;
 
 			if( (num_cerebus_packets_on_udp_packet+1) * cerebus_packet_size >= 1472) {
