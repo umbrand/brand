@@ -72,83 +72,99 @@ def load_yaml():
 ## stream_to_sql
 ##########################################
 
-# Streams have the following format:
+#######################################################
+# This segment of code is a little confusing, because of the number of layers of nested
+# source of informations, and needing to cross-reference YAML with Redis streams
+# yaml_stream_list is directly from the YAML file. YAML-defined streams have the following format:
+
 # - stream_key: cerebusAdapter
 #   table_name: cerebusAdapter
 #   data:
 #    - key: stream_key
 #      type: sqlite3 type
-# So stream_list is just the yaml configuration file
-# converted to a python dictionary
 
-def streams_to_sql(con, r, stream_list): 
+# So we go through each of the different streams we want to move to SQL
+# Next we construct a table
+# Then we load pagination_number of entries from Redis, and then
+# for each of the keys defined in YAML, populate a sql_row variable
+# This sql_row is ultimately what will enter into sql.
 
-# Start by loading the stream of interest according to yaml file
+def streams_to_sql(con, r, yaml_stream_list): 
 
-    for stream in stream_list:
+    for yaml_stream in yaml_stream_list:
 
 
-# Does the stream exist?
+# Does the yaml_stream exist?
 
-        if r.exists(stream['stream_key']) == 0:
-            print("[logger] Could not find stream key ", stream['stream_key'])
+        if r.exists(yaml_stream['stream_key']) == 0:
+            print("[logger] Could not find stream key ", yaml_stream['stream_key'])
             continue
 
 # Begin by building the SQL table. The table name is the same
-# as the stream. The columns are the (key type) list in the dictionary
-# the final text is (id text, key type, key type, ...)
+# as the yaml_stream. The columns are the (key type) list in the dictionary
+# the final text is:
+# CREATE TABLE IF NOT EXISTS [TABLE] (id text, key type, key type, ...)
 
-        col_names = [(x['key'] + " " + x['type']) for x in stream['data']]
+        col_names = [(x['key'] + " " + x['type']) for x in yaml_stream['data']]
         col_names = ",".join(col_names)
         col_names = "(id text," + col_names + ")"
-        sqlStr = "CREATE TABLE IF NOT EXISTS %s %s" % (stream['table_name'], col_names)
-        print("[logger] Creating table: " , stream['table_name'])
+        sqlStr = "CREATE TABLE IF NOT EXISTS %s %s" % (yaml_stream['table_name'], col_names)
+        print("[logger] Creating table: " , yaml_stream['table_name'])
         con.execute(sqlStr)
 
 # Now the table has been created, we start loading data into it
 # Since the streams are potentially very big we're going to
-# need some nice pagination. 
+# need some pagination. 
 
-        pagination_number = 100
+        pagination_number = 1000
 
-        total_entries = r.xinfo_stream(stream['stream_key'])['length']
-        id_start      = r.xinfo_stream(stream['stream_key'])['first-entry'][0]
-        print("[logger] Stream " , stream['stream_key'] , " has", total_entries, " entries")
+        total_entries = r.xinfo_stream(yaml_stream['stream_key'])['length']
+        print("[logger] Stream " , yaml_stream['stream_key'] , "has", total_entries, "entries")
 
+
+#entries_read : keep track of how many entries have been read from the yaml_stream
+# xrange_output is the output of Redis. It has the following form:
+# xrange_output[0] : ID
+# xrange_output[1] : {key, value}
+# We are going to be generating a sql_row that will be inserted using INSERT INTO ...
+# ID --> data[0] 
+# The instructions here (https://redis.io/commands/xrange) recommend the strategy of
+# runing xrange from incrementing the -0 part, since xrange returns closed sets of data
 
         entries_read = 0
-        while entries_read <= total_entries:
-            data_list = r.xrange(stream['stream_key'],min=id_start, max='+', count=pagination_number)
+        id_start = r.xinfo_stream(yaml_stream['stream_key'])['first-entry'][0]
 
-            print("[logger] Loaded {} of {} " % (entries_read, total_entries))
+        while entries_read < total_entries:
+            xrange_output = r.xrange(yaml_stream['stream_key'],min=id_start, max='+', count=pagination_number)
+            entries_read += len(xrange_output)
 
-# data_list is the output of Redis. It has the following form:
-# data[0] : ID
-# data[1] : {key, value}
-
-            for data in data_list:
-                vals = [data[0].decode('utf-8')]
-                for single_data in stream['data']:
-                    thisVal = data_list[1][1][single_data['key'].encode('utf-8')]
-
-                    if single_data['type'] != 'BLOB':
-                        thisVal = thisVal.decode('utf-8')
-                    vals   += thisVal
-
-            # vals += [value.decode('utf-8') for value in data[1].values()]
-            # vals = ",".join(vals)
-            # vals = "(" + id + "," + vals + ")"
-
-            print(tuple(vals))
-
-            cols = ["?"] * (len(stream['data']))
-            cols = ",".join(cols)
-            cols = "(" + cols + ")"
+            print("[logger] Loaded {} of {}".format(entries_read, total_entries))
 
 
-            sqlStr = "INSERT INTO %s values %s" % (stream['table_name'], cols)
-            con.execute(sqlStr, tuple(vals))
+            for xrange_single_output in xrange_output:
+
+                sql_row = [xrange_single_output[0].decode('utf-8')]
+
+                for single_yaml_stream in yaml_stream['data']:
+
+                    raw_data = xrange_single_output[1][single_yaml_stream['key'].encode('utf-8')]
+
+                    if single_yaml_stream['type'] != 'BLOB':
+                        raw_data = raw_data.decode('utf-8')
+
+                    sql_row += [raw_data]
+
+                cols = ["?"] * (len(yaml_stream['data']) + 1)
+                cols = ",".join(cols)
+                cols = "(" + cols + ")"
+
+
+                sqlStr = "INSERT INTO %s values %s" % (yaml_stream['table_name'], cols)
+                con.execute(sqlStr, tuple(sql_row))
             con.commit()
+
+            split_last_id = xrange_output[-1][0].split(b'-')
+            id_start = split_last_id[0].decode('utf-8') + "-" + str(int(split_last_id[1])+1)
 
 
 
