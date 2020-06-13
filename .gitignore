@@ -14,3 +14,6 @@ bin/
 
 # should be in bin, but no compiled c objects
 *.o
+
+# All backup code should be saved in subfolders with "old":
+**/old
