@@ -57,16 +57,37 @@
 #include "redisTools.h"
 
 
+typedef struct cerebus_packet_t {
+    uint32_t time;
+    uint16_t chid;
+    uint8_t type;
+    uint8_t dlen;
+    uint16_t data[96];
+} cerebus_packet_t;
+
+typedef struct yaml_parameters_t {
+    int num_channels;
+    int cerebus_packet_size;
+    int sampling_frequency;
+    int broadcast_rate;
+    int ramp_max;
+
+} yaml_parameters_t;
+
+
+
 int initialize_broadcast_socket();
 void initialize_alarm();
 void initialize_realtime();
-int initialize_from_file(int16_t **, int);
-int initialize_ramp(int16_t **, int);
-int initialize_num_channels();
-int initialize_buffer(int16_t **, int);
-void readYAML();
+int initialize_from_file(char **, int);
+int initialize_ramp(char **, int);
+void initialize_parameters(yaml_parameters_t *);
+int initialize_buffer(char **, int);
 
 char PROCESS[] = "generator";
+
+// For corking
+int one = 1, zero = 0;
 
 // The seamphore that blocks until the alarm goes off
 sem_t sem_timer;
@@ -83,30 +104,58 @@ int main(int argc, char *argv[])
     
     initialize_realtime();
 
-    int num_channels = initialize_num_channels();
+    yaml_parameters_t yaml_parameters;
+    initialize_parameters(&yaml_parameters);
 
-    int16_t *buffer;
+    int num_channels        = yaml_parameters.num_channels;
+    int sampling_frequency  = yaml_parameters.sampling_frequency;
+    int cerebus_packet_size = yaml_parameters.cerebus_packet_size;
+    int broadcast_rate      = yaml_parameters.broadcast_rate;
+
+
+    char *buffer;
     int nRows = initialize_buffer(&buffer, num_channels);
 
     
 	printf("[%s] Entering loop...\n", PROCESS);
-    int index = 0;
 
-    /* Sending kill causes tmux to close */
-    pid_t ppid = getppid();
-    kill(ppid, SIGUSR2);
+    //Sending kill causes tmux to close
+    /* pid_t ppid = getppid(); */
+    /* kill(ppid, SIGUSR2); */
+
+    // sampling_frequency is in microseconds. So we add 1e-6 as scaling to get to seconds
+    int num_cerebus_packets_per_signal = broadcast_rate * (0.000001 * sampling_frequency);
+
+    printf("[%s] Broadcasting %d packets per %d microseconds...\n", PROCESS, num_cerebus_packets_per_signal, broadcast_rate);
+    
+
+    printf("[%s] Entering generator loop...\n", PROCESS);
+
+    int n = 0;
+    int num_cerebus_packets_on_udp_packet = 0;
 
 	while(sem_wait(&sem_timer) == 0) {
 
-        int startInd = (index % nRows) * num_channels;
+		for(int i = 0; i < num_cerebus_packets_per_signal; i++) {
 
-        if (send(fd, &buffer[startInd], num_channels * sizeof(int16_t), 0) < 0) {
-            perror("sendto");
-            exit(1);
-        }
-        index++;
+			// Write the data
+			write(fd, &buffer[n*cerebus_packet_size], cerebus_packet_size);
+            num_cerebus_packets_on_udp_packet++;
+            n++;
+            n = n % nRows;
 
-	}
+			if( (num_cerebus_packets_on_udp_packet+1) * cerebus_packet_size >= 1472) {
+				setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
+				setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
+                num_cerebus_packets_on_udp_packet = 0;
+			}
+		}
+
+		// Now that we've sent all of the packets we're going to send, uncork and then cork
+		setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
+		setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
+        num_cerebus_packets_on_udp_packet = 0;
+    }
 
     free(buffer);
     return 0;
@@ -158,6 +207,10 @@ int initialize_broadcast_socket() {
     // I connect here instead of using sentto because it's faster; kernel doesn't need to make
     // the necessary checks because it already has a valid file descriptor for the socket
 
+
+	setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one)); // CORK
+
+
     if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         perror("[generator] connect error");
         exit(EXIT_FAILURE);
@@ -169,22 +222,23 @@ int initialize_broadcast_socket() {
 void initialize_alarm(){
 
     printf("[%s] Initializing alarm...\n", PROCESS);
-    //
+    
 	// Initialize the Semaphore used to indicate new data should be sent
 	if (sem_init(&sem_timer, 0, 0) < 0) {
-		printf("Could not initialize Semaphore! Exiting.\n");
+		printf("[%s] Could not initialize Semaphore! Exiting.\n", PROCESS);
 		exit(1);
 	}
 
-    // We want to specify out rate in milliseconds from YAML
+    // We want to specify out rate in microseconds from YAML
     
-    char num_milliseconds_string[16] = {0};
-    load_YAML_variable_string(PROCESS, "broadcast_rate", num_milliseconds_string, sizeof(num_milliseconds_string));
-    int num_milliseconds = atoi(num_milliseconds_string);
-    printf("[%s] Setting the broadcast rate to %d milliseconds...\n", PROCESS, num_milliseconds);
+    char num_microseconds_string[16] = {0};
+    load_YAML_variable_string(PROCESS, "broadcast_rate", num_microseconds_string, sizeof(num_microseconds_string));
+    int num_microseconds = atoi(num_microseconds_string);
 
-	// How many nanoseconds do we wait between reads. Note:  1000000 nanoseconds = 1ms
-	InitializeAlarm(handlerAlarm, 0, num_milliseconds * 1000000);
+    printf("[%s] Setting the broadcast rate to %d microseconds...\n", PROCESS, num_microseconds);
+
+	// How many nanoseconds do we wait between reads. Note:  1000 nanoseconds = 1us
+	InitializeAlarm(handlerAlarm, 0, num_microseconds * 1000);
 
 }
 
@@ -195,7 +249,80 @@ void initialize_realtime() {
     sched_setscheduler(0, SCHED_FIFO, &sched);
 }
 
-int initialize_from_file(int16_t  **buffer, int numChannels) {
+void initialize_parameters(yaml_parameters_t *p) {
+
+    char string[16];
+   
+    memset(string, 0, 16 * sizeof(char));
+    load_YAML_variable_string(PROCESS, "num_channels", string, sizeof(string));
+    p->num_channels = atoi(string);
+
+    memset(string, 0, 16 * sizeof(char));
+    load_YAML_variable_string(PROCESS, "sampling_frequency", string, sizeof(string));
+    p->sampling_frequency = atoi(string);
+
+    memset(string, 0, 16 * sizeof(char));
+    load_YAML_variable_string(PROCESS, "cerebus_packet_size", string, sizeof(string));
+    p->cerebus_packet_size = atoi(string);
+
+    memset(string, 0, 16 * sizeof(char));
+    load_YAML_variable_string(PROCESS, "broadcast_rate", string, sizeof(string));
+    p->broadcast_rate = atoi(string);
+
+    memset(string, 0, 16 * sizeof(char));
+    load_YAML_variable_string(PROCESS, "ramp_max", string, sizeof(string));
+    p->ramp_max = atoi(string);
+}
+
+//---------------------------------------------------------
+// Buffer initialization functions
+//---------------------------------------------------------
+
+int initialize_buffer(char **buffer, int numChannels) {
+
+    char use_ramp_string[16] = {0};
+    load_YAML_variable_string(PROCESS, "use_ramp", use_ramp_string, sizeof(use_ramp_string));
+
+    if (strcmp(use_ramp_string, "True") == 0) {
+        printf("[%s] Generating data from a ramp.\n", PROCESS);
+        return initialize_ramp(buffer, numChannels);
+    } else {
+        printf("[%s] Generating data from a file.\n", PROCESS);
+        return initialize_from_file(buffer, numChannels);
+    }
+
+}
+
+int initialize_ramp(char  **buffer, int num_channels) {
+
+    printf("[%s] Initializing ramp function...\n", PROCESS);
+
+    char ramp_max_string[16] = {0};
+    load_YAML_variable_string(PROCESS, "ramp_max", ramp_max_string, sizeof(ramp_max_string));
+    int ramp_max = atoi(ramp_max_string);
+    printf("[%s] Ramp goes from 0 to %d.\n", PROCESS, ramp_max);
+
+    
+    *buffer = malloc(sizeof(cerebus_packet_t) * ramp_max);
+
+    for (int i = 0; i < ramp_max; i++) {
+        
+        cerebus_packet_t cerebus_packet = {0};
+        cerebus_packet.time = i;
+        cerebus_packet.chid = 0;
+        cerebus_packet.dlen = num_channels / 2;
+        cerebus_packet.type = 6;
+
+        for (int j = 0; j < num_channels; j++) {
+            cerebus_packet.data[j] = i;
+        }
+        memcpy(&(*buffer)[i*sizeof(cerebus_packet_t)], &cerebus_packet, sizeof(cerebus_packet_t));
+    }
+
+    return ramp_max;
+
+}
+int initialize_from_file(char **buffer, int numChannels) {
 
 
     char filename[16] = {0};
@@ -231,184 +358,14 @@ int initialize_from_file(int16_t  **buffer, int numChannels) {
     return nRows;
 }
 
-int initialize_ramp(int16_t  **buffer, int numChannels) {
 
-    printf("[%s] Initializing ramp function...\n", PROCESS);
+    /* int nRows = maxValue * numChannels * sizeof(int16_t); */
+    /* *buffer =  (int16_t *) malloc(nRows); */
 
-    int maxValue = 2000;
-
-    int nRows = maxValue * numChannels * sizeof(int16_t);
-    *buffer =  (int16_t *) malloc(nRows);
-
-    int index = 0;
-    for (int i = 0; i < maxValue; i++) {
-        for (int j = 0; j < numChannels; j++) {
-            (*buffer)[index] = i;
-            index++;
-        }
-    }
-
-    return maxValue;
-
-}
-
-int initialize_num_channels() {
-
-    char num_channels_string[16] = {0};
-    load_YAML_variable_string(PROCESS, "num_channels", num_channels_string, sizeof(num_channels_string));
-
-    return atoi(num_channels_string);
-
-}
-int initialize_buffer(int16_t **buffer, int numChannels) {
-
-    char use_ramp_string[16] = {0};
-    load_YAML_variable_string(PROCESS, "use_ramp", use_ramp_string, sizeof(use_ramp_string));
-
-    if (strcmp(use_ramp_string, "True") == 0) {
-        printf("[%s] Generating data from a ramp.\n", PROCESS);
-        return initialize_ramp(buffer, numChannels);
-    } else {
-        printf("[%s] Generating data from a file.\n", PROCESS);
-        return initialize_from_file(buffer, numChannels);
-    }
-
-}
-
-            /* if(item->type == NX_JSON_OBJECT) { */
-            /*     printf("I AM AN OBJECT\n"); */
-            /* } */
-
-            // Get the name of this variable
-            /* sprintf(nameBuffer, "%s", nx_json_get(variable, "name")->text_value); */ 
-            /* sprintf(stringList[i], "%s", nameString); */
-
-            /* int l = strlen(nameString) + 1; */
-
-            /* sprintf(redisBuffer, "%s %s", item->key, valueBuffer); */
-            /* printf("LINE: %s\n", redisBuffer); */
-
-            /* switch (value->type) { */
-            /*     case NX_JSON_INTEGER : sprintf(valueBuffer, "%lld", value->int_value ); break; */
-            /*     case NX_JSON_BOOL    : sprintf(valueBuffer, "%lld", value->int_value ); break; */
-            /*     case NX_JSON_STRING  : sprintf(valueBuffer, "%s",   value->text_value); break; */
-            /*     case NX_JSON_DOUBLE  : sprintf(valueBuffer, "%f",   value->dbl_value ); break; */
-            /* } */
-
-            /* sprintf(stringList[i], "%s %s", nameBuffer, valueBuffer); */
-
-/* static void HandlerInt(int sig) */
-/* { */
-/* 	fprintf("Interrupt called... Freeing memory!"); */
-/* 	Display("Exiting Writer!"); */
-/* 	exit(1); */
-/* } */
-
-/* THIS CODE TOOK ME AN ENTIRE DAY TO GET TO WORK, AND NOW ITS NO LONGER NEEDED */
-/* void readYAML(){ */
-/*     //begin by reading the YAML file and convert it to JSON */
-/*     //The popen() command is used to run a one line python script that converts YAML to JSON */
-/*     //The libraries for JSON are more robust than those for YAML for C */
-
-/*     FILE *fp; */
-/* 	char *jsonBuffer = malloc(4096); */
-
-/*     fp = popen("python -c \"import sys, yaml, json; f=open('generator.yaml','r'); print(json.dumps(yaml.safe_load(f)))\"", "r"); */
-/*     if (fp == NULL) { */
-/*         perror("Failed to convert YAML to JSON.\n" ); */
-/*         exit(1); */
-/*     } */
-/*     fread (jsonBuffer, 1, 4096, fp); */
-
-/*     // Now I have a jsonBuffer containing JSON. I am going to parse it for useful information */
-/*     // This is based on the nxjson library which I chose because the API was so simple and I found it intuitive */
-/*     // So you get the pointer to the JSON buffer and then ask how many variables there are */
-/*     // You go through each variable and cover it to a string */
-/*     // Then you write the string and name to Redis */
-/*     //https://bitbucket.org/yarosla/nxjson/src/default/ */
-
-/*     printf("Trying to parse JSON buffer...\n"); */
-/*     const nx_json* json = nx_json_parse_utf8(jsonBuffer); */
-/*     if (json->type != NX_JSON_ARRAY) { */
-/*         printf("Something went wrong parsing the Json array. Barfing.\n"); */
-/*         exit(1); */
-/*     } */
-
-/*     int numVariables = json->length; */
-/*     char *nameList[numVariables]; */
-/*     char *valueList[numVariables]; */
-    
-/*     printf("Found %d variables in the JSON buffer...\n", numVariables); */
-/*     for (int i = 0; i < numVariables; i++) { */
-
-/*         // Find the name of the variable, create memory and then copy the value */
-/*         const nx_json* variable = nx_json_item(json, i); */
-/*         const char *nameString = nx_json_get(variable, "name")->text_value; */ 
-/*         nameList[i] = malloc(strlen(nameString)); */
-/*         strcpy(nameList[i], nameString); */
-
-/*         // Find the value of the variable, create memory and then copy the value. TODO: Do this better */
-/*         const nx_json* value = nx_json_get(variable, "value"); */
-/*         valueList[i] = malloc(256); */
-
-/*         switch (value->type) { */
-/*             case NX_JSON_INTEGER : sprintf(valueList[i], "%lld",  value->int_value ); break; */
-/*             case NX_JSON_BOOL    : sprintf(valueList[i], "%lld",  value->int_value ); break; */
-/*             case NX_JSON_STRING  : sprintf(valueList[i], "%s",    value->text_value); break; */
-/*             case NX_JSON_DOUBLE  : sprintf(valueList[i], "%f",    value->dbl_value ); break; */
-/*         } */
-/*     } */
-
-/*     // At this point I have an array of strings, which contain the information that will be */
-/*     // used to initialize Redis. Now I need to find out Redis IP and port */
-        
-/*     char *redisIP; */
-/*     char *redisPort; */
-
-/*     for (int i = 0; i < numVariables; i++) { */
-
-/*         if (strcmp(nameList[i], "redisIP") == 0) { */
-/*             redisIP = valueList[i]; */
-/*         } */
-/*         if (strcmp(nameList[i], "redisPort") == 0) { */
-/*             redisPort = valueList[i]; */
-/*         } */
-/*     } */
-/*     printf("From Json, I have redis ip: %s, port: %s\n", redisIP, redisPort); */
-
-/*     //Now I connect to the server with this IP and port information */
-
-/*     const char *hostname = redisIP; */
-/*     int port = atoi(redisPort); */
-/*     struct timeval timeout = { 1, 500000 }; // 1.5 seconds */
-
-/*     c = redisConnectWithTimeout(hostname, port, timeout); // Global variable */
-/*     if (c == NULL || c->err) { */
-/*         if (c) { */
-/*             printf("Connection error: %s\n", c->errstr); */
-/*             redisFree(c); */
-/*         } else { */
-/*             printf("Connection error: can't allocate redis context\n"); */
-/*         } */
-/*         exit(1); */
-/*     } */
-
-/*     // Having initialized Redis connection, I will add each of the varibles */
-
-
-/*     for (int i = 0; i < numVariables; i++) { */
-/*         freeReplyObject(redisCommand(c, "set %s %s", nameList[i], valueList[i])); */
-/*     } */
-
-/*     /1* printf("Redis Initialization Complete!\n"); *1/ */
-        
-/*     for (int i = 0; i < numVariables; i++) { */
-/*         free(nameList[i]); */
-/*         free(valueList[i]); */
-/*     } */
-
-/*     nx_json_free(json); */
-/*     free(jsonBuffer); */
-
-/* } */
-
+    /* int index = 0; */
+    /* for (int i = 0; i < maxValue; i++) { */
+    /*     for (int j = 0; j < numChannels; j++) { */
+    /*         (*buffer)[index] = i; */
+    /*         index++; */
+    /*     } */
+    /* } */

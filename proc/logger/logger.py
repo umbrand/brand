@@ -71,40 +71,80 @@ def load_yaml():
 ##########################################
 ## stream_to_sql
 ##########################################
+
+# Streams have the following format:
+# - stream_key: cerebusAdapter
+#   table_name: cerebusAdapter
+#   data:
+#    - key: stream_key
+#      type: sqlite3 type
+# So stream_list is just the yaml configuration file
+# converted to a python dictionary
+
 def streams_to_sql(con, r, stream_list): 
 
+# Start by loading the stream of interest according to yaml file
+
     for stream in stream_list:
+
+
+# Does the stream exist?
 
         if r.exists(stream['stream_key']) == 0:
             print("[logger] Could not find stream key ", stream['stream_key'])
             continue
 
+# Begin by building the SQL table. The table name is the same
+# as the stream. The columns are the (key type) list in the dictionary
+# the final text is (id text, key type, key type, ...)
+
         col_names = [(x['key'] + " " + x['type']) for x in stream['data']]
         col_names = ",".join(col_names)
         col_names = "(id text," + col_names + ")"
         sqlStr = "CREATE TABLE IF NOT EXISTS %s %s" % (stream['table_name'], col_names)
-
-
         print("[logger] Creating table: " , stream['table_name'])
         con.execute(sqlStr)
 
-        print("[logger] Loading data into: " , stream['table_name'])
+# Now the table has been created, we start loading data into it
+# Since the streams are potentially very big we're going to
+# need some nice pagination. 
 
-        data_list = r.xrange(stream['stream_key'])
-        for data in data_list:
-            vals = [data[0].decode('utf-8')]
-            for single_data in stream['data']:
-                thisVal = data_list[1][1][single_data['key'].encode('utf-8')]
-                thisVal = thisVal.decode('utf-8')
-                vals   += thisVal
+        pagination_number = 100
+
+        total_entries = r.xinfo_stream(stream['stream_key'])['length']
+        id_start      = r.xinfo_stream(stream['stream_key'])['first-entry'][0]
+        print("[logger] Stream " , stream['stream_key'] , " has", total_entries, " entries")
+
+
+        entries_read = 0
+        while entries_read <= total_entries:
+            data_list = r.xrange(stream['stream_key'],min=id_start, max='+', count=pagination_number)
+
+            print("[logger] Loaded {} of {} " % (entries_read, total_entries))
+
+# data_list is the output of Redis. It has the following form:
+# data[0] : ID
+# data[1] : {key, value}
+
+            for data in data_list:
+                vals = [data[0].decode('utf-8')]
+                for single_data in stream['data']:
+                    thisVal = data_list[1][1][single_data['key'].encode('utf-8')]
+
+                    if single_data['type'] != 'BLOB':
+                        thisVal = thisVal.decode('utf-8')
+                    vals   += thisVal
 
             # vals += [value.decode('utf-8') for value in data[1].values()]
             # vals = ",".join(vals)
             # vals = "(" + id + "," + vals + ")"
 
-            cols = ["?"] * (len(vals))
+            print(tuple(vals))
+
+            cols = ["?"] * (len(stream['data']))
             cols = ",".join(cols)
             cols = "(" + cols + ")"
+
 
             sqlStr = "INSERT INTO %s values %s" % (stream['table_name'], cols)
             con.execute(sqlStr, tuple(vals))
