@@ -10,14 +10,10 @@ modules:
       - bin/cerebusAdapter
       - session/cerebusTest/cerebusAdapter.yaml
   main:
-   - name: timer
+   - name: monitor
      links: 
-      - bin/timer 
-      - session/cerebusTest/timer.yaml
-      - bin/generator
-      - session/cerebusTest/generator.yaml
-      - bin/streamUDP
-      - session/cerebusTest/streamUDP.yaml
+      - bin/monitor 
+      - session/cerebusTest/monitor.yaml
   end:
    - name: logger.py
      links: 

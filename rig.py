@@ -132,17 +132,18 @@ def initialize_session():
 # Begin by checking to see if the run folder exists.
 # If the folder exists, abort. This is a safety measure
 # to make sure we're not accidentally deleting something useful
+# This code is commented out for now, until we know where data should be stored.
 
     if not os.path.isdir(RUN_PATH):
         print("[rig] Creating run/ folder")
         os.makedirs(RUN_PATH)
-    else:
-        for (path, dirs, files) in os.walk(RUN_PATH):
-            for file in files:
-                if not os.path.islink(RUN_PATH + file):
-                    print("The folder contains a file that is not a sym link. Remove this and try again.")
-                    print(file)
-                    exit(1)
+    # else:
+    #     for (path, dirs, files) in os.walk(RUN_PATH):
+    #         for file in files:
+    #             if not os.path.islink(RUN_PATH + file):
+    #                 print("The folder contains a file that is not a sym link. Remove this and try again.")
+    #                 print(file)
+    #                 exit(1)
 
 # Begin by determining if we have been supplied a valid session
 
