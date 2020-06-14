@@ -227,6 +227,13 @@ streams:
       type: BLOB
     - key: chan95
       type: BLOB
+ - stream_key: monitor
+   table_name: monitor
+   data:
+    - key: monitor_time
+      type: INTEGER
+    - key: cerebus_timestamp
+      type: INTEGER
 
 files:
  - table_name: yaml
