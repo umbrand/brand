@@ -7,10 +7,13 @@
 #include "redisTools.h"
 #include "hiredis.h"
 #include "AlarmTools.h"
+#include <unistd.h>
+#include <pthread.h> 
 
 void initialize_redis();
 void initialize_signals();
 void initialize_alarm();
+void initialize_realtime();
 
 void handle_exit(int exitStatus);
 void ignore_exit(int exitStatus);
@@ -34,6 +37,7 @@ int main(int argc, char **argv) {
 
     initialize_alarm();
 
+    initialize_realtime();
     /* Sending kill causes tmux to close */
     /* pid_t ppid = getppid(); */
     /* kill(ppid, SIGUSR2); */
@@ -151,6 +155,13 @@ void initialize_alarm(){
 	// How many nanoseconds do we wait between reads. Note:  1000 nanoseconds = 1us
 	InitializeAlarm(&alarm_handler, 0, num_microseconds * 1000);
 
+}
+
+// Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80
+void initialize_realtime() {
+    printf("[%s] Setting Real-time scheduler!\n", PROCESS);
+    const struct sched_param sched= {.sched_priority = 80};
+    sched_setscheduler(0, SCHED_FIFO, &sched);
 }
 
 //

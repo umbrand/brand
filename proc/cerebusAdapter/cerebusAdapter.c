@@ -61,6 +61,7 @@ void initialize_redis();
 void initialize_signals();
 int  initialize_socket();
 void initialize_parameters(yaml_parameters_t *p);
+void initialize_realtime();
 void handle_exit(int exitStatus);
 void ignore_exit(int exitStatus);
 void print_argv(int, char **, size_t *);
@@ -76,6 +77,8 @@ int main (int argc_main, char **argv_main) {
     initialize_redis();
 
     initialize_signals();
+
+    initialize_realtime();
 
     int udp_fd = initialize_socket();
 
@@ -402,6 +405,14 @@ void initialize_parameters(yaml_parameters_t *p) {
     p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);
 
 }
+
+// Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80
+void initialize_realtime() {
+    printf("[%s] Setting Real-time scheduler!\n", PROCESS);
+    const struct sched_param sched= {.sched_priority = 80};
+    sched_setscheduler(0, SCHED_FIFO, &sched);
+}
+
 
 //------------------------------------
 // Handler functions
