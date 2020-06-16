@@ -16,9 +16,9 @@ import pathlib
 ## Defining the filename
 ###############################################
 
-sql_filename = "../../run/cerebusTest.2020-06-13_19.28.56.sqlite3"
+sql_filename = "../run/current.sqlite3"
 pagination_limit = 1000
-output_folder = "../../run/sql/"
+output_folder = "../run/sql/"
 
 ###############################################
 ## Loading the SQL table and preliminaries
@@ -53,7 +53,7 @@ fig = plt.figure()
 title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of cerebus timestamps as entered into Redis \n Diffs > 10 are truncated to 10"
 
 diffs = np.diff(timestamps)
-diffs[diffs > 10] = 10
+# diffs[diffs > 10] = 10
 
 plt.plot(diffs, 'o', markersize=2)
 plt.ylabel('Cerebus Timestamp diff (delta int32)', fontsize=12);
@@ -109,7 +109,6 @@ while offset < num_rows:
         t = struct.unpack('ll'*row[0], row[1])
         microseconds = [t[x] * 1000000 + t[x+1] for x in range(0,len(t),2)]
         microseconds = np.unique(microseconds)
-        print(microseconds)
 
         timestamps = np.append(timestamps, np.array(microseconds, dtype='int'))
         offset = offset + 1
@@ -129,26 +128,25 @@ fig.savefig(filename)
 ## Question 4: Cycle runtime
 ###############################################
 
-offset = 0
-timestamps = []
-while offset < num_rows:
-    sqlStr = "SELECT num_samples, current_time FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
-    rows = con.execute(sqlStr).fetchall()
-    print(sqlStr)
+# offset = 0
+# timestamps = []
+# while offset < num_rows:
+#     sqlStr = "SELECT num_samples, current_time FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
+#     rows = con.execute(sqlStr).fetchall()
 
-    for row in rows:
-        t = struct.unpack('ll'*row[0], row[1])
-        microseconds = [t[x] * 1000000 + t[x+1] for x in range(0,len(t),2)]
-        timestamps = np.append(timestamps, np.array(microseconds, dtype='int'))
-        offset = offset + 1
+#     for row in rows:
+#         t = struct.unpack('ll'*row[0], row[1])
+#         microseconds = [t[x] * 1000000 + t[x+1] for x in range(0,len(t),2)]
+#         timestamps = np.append(timestamps, np.array(microseconds, dtype='int'))
+#         offset = offset + 1
 
-fig = plt.figure()
-title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of cerebusAdapter gettimeofday calls"
+# fig = plt.figure()
+# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of cerebusAdapter gettimeofday calls"
 
-plt.plot(np.diff(timestamps), 'o', markersize=2)
-plt.ylabel('cerebusAdapter runtime diff (microseconds)', fontsize=12);
-plt.xlabel('Cerebus packet number', fontsize=12);
-plt.title(title)
+# plt.plot(np.diff(timestamps), 'o', markersize=2)
+# plt.ylabel('cerebusAdapter runtime diff (microseconds)', fontsize=12);
+# plt.xlabel('Cerebus packet number', fontsize=12);
+# plt.title(title)
 
-filename = output_folder + "current_time_timestamp_diffs.png"
-fig.savefig(filename)
+# filename = output_folder + "current_time_timestamp_diffs.png"
+# fig.savefig(filename)
