@@ -12,7 +12,7 @@ Codename:	bionic
 ### Downloading the patch
 There is no RT patch available for kernel version `4.15`, so we will have to use another version from [here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/). I selected version kernel version 5.40 its corresponding `preempt_rt` patch because that is the latest version with long-term support.
 ```
-wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.40.xz  # kernel
+wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.40.tar.xz  # kernel
 wget https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/5.4/older/patch-5.4.40-rt24.patch.xz  # patch
 ```
 
