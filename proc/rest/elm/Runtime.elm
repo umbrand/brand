@@ -1,6 +1,6 @@
 -- Runtime
 
-module Runtime exposing (Runtime, Msg, displayRuntime, updateRuntime, initializeRuntime, initializeRuntimeCommand, runCommand, getRefreshRate, runtimeTick)
+module Runtime exposing (Runtime, Msg, displayRuntime, updateRuntime, initializeRuntime, initializeRuntimeCommand, runCommand, getRefreshRate, tick)
 
 import Browser
 import Browser.Dom
@@ -19,7 +19,6 @@ import Task exposing (Task)
 import List.Extra
 
 
-url = "http://localhost:5000"
 
 --------------------------------------------------
 -- Exported variables
@@ -34,8 +33,7 @@ displayRuntime runtime =
 
 initializeRuntime : Runtime
 initializeRuntime =
-    init ()
-    |> Tuple.first
+    emptyModel
     |> Runtime
 
 updateRuntime : Msg -> Runtime -> Runtime
@@ -46,9 +44,9 @@ updateRuntime msg runtime =
             |> Tuple.first
             |> Runtime
 
-initializeRuntimeCommand : Cmd Msg
-initializeRuntimeCommand =
-    Task.attempt ParseProcessList getProcessInfoListTask
+initializeRuntimeCommand : String -> Cmd Msg
+initializeRuntimeCommand url =
+    Task.attempt ParseProcessList (getProcessInfoListTask url)
 
 
 getRefreshRate : Runtime -> Maybe Float
@@ -56,30 +54,30 @@ getRefreshRate runtime =
     case runtime of
         Runtime model -> model.refreshRate
 
-runCommand : Msg -> Cmd Msg
-runCommand msg =
+runCommand : String -> Msg -> Cmd Msg
+runCommand url msg =
     case msg of
         SetCurrentProcess value ->
-            Task.attempt ParseProcessInfo (getProcessInfoTask value)
+            Task.attempt ParseProcessInfo (getProcessInfoTask url value)
         ParseProcessList result ->
             case result of
                 Ok runtimeFileList -> 
                     case List.head runtimeFileList.modules of
                         Nothing -> Cmd.none
-                        Just head -> Task.attempt ParseProcessInfo (getProcessInfoTask head)
+                        Just head -> Task.attempt ParseProcessInfo (getProcessInfoTask url head)
                 Err e -> Cmd.none
 
         _  -> Cmd.none |> Debug.log "NOTHING"
 
 
-runtimeTick : Runtime -> Cmd Msg
-runtimeTick runtime =
+tick : String -> Runtime -> Cmd Msg
+tick url runtime =
     case runtime of
         Runtime model -> 
             if model.currentProcess == "" then
                 Cmd.none
             else
-                Task.attempt ParseProcessInfo <| getProcessInfoTask (model.currentProcess)
+                Task.attempt ParseProcessInfo <| (getProcessInfoTask url model.currentProcess)
         
 
 
@@ -100,8 +98,8 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.none
 
-getProcessInfoTask : String -> Task Http.Error ProcessInfo
-getProcessInfoTask currentProcess =
+getProcessInfoTask : String -> String -> Task Http.Error ProcessInfo
+getProcessInfoTask url currentProcess =
     Http.task
         { method = "GET"
         , headers = []
@@ -111,8 +109,8 @@ getProcessInfoTask currentProcess =
         , timeout = Nothing
         }
 
-getProcessInfoListTask : Task Http.Error ProcessList
-getProcessInfoListTask =
+getProcessInfoListTask : String -> Task Http.Error ProcessList
+getProcessInfoListTask url =
     Http.task
         { method = "GET"
         , headers = []

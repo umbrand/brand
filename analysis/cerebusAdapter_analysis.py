@@ -5,29 +5,39 @@
 
 import pandas as pd
 import numpy as np
-import sqlite3
-from sqlite3 import Error
 import sys
 import struct
 import matplotlib.pyplot as plt
 import pathlib
+import redis
 
 ###############################################
-## Defining the filename
+## Defining some important variables
 ###############################################
 
-sql_filename = "../run/current.sqlite3"
-pagination_limit = 1000
-output_folder = "../run/sql/"
+pagination_limit = 100000
+output_folder = "./"
+
+r = redis.Redis()
+num_rows = r.xinfo_stream('cerebusAdapter')['length']
 
 ###############################################
-## Loading the SQL table and preliminaries
+## Pagination
 ###############################################
 
-con = sqlite3.connect(sql_filename)
+# stream -> string
+# key -> string
+# min_ID -> Binary string
+# count -> Number
+# Since there's no way to paginate with Redis, this is a little helper function 
+def xrange_pagination(stream, min_ID, count):
 
-sqlStr = "SELECT COUNT(ID) FROM cerebusAdapter"
-num_rows = con.execute(sqlStr).fetchone()[0]
+    # If we're providing an ID, then increment the part after "-" by 1
+    if min_ID != '-':
+        split_last_id = min_ID.split(b'-')
+        min_ID = split_last_id[0].decode('utf-8') + "-" + str(int(split_last_id[1])+1)
+
+    return r.xrange(stream, min=min_ID, max='+', count=count)
 
 ###############################################
 ## Question 1: Plotting cerebus timestamp diffs
@@ -36,24 +46,27 @@ num_rows = con.execute(sqlStr).fetchone()[0]
 # We begin by counting the number of rows
 # struct's definition of Unsigned int32: I
 
+print('[cerebusAdapter] Examining cerebus packet differences')
+
 offset = 0
 timestamps = []
+min_ID = '-'
 while offset < num_rows:
-    sqlStr = "SELECT num_samples, timestamps FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
-    rows = con.execute(sqlStr).fetchall()
-    print(sqlStr)
+    rows = xrange_pagination('cerebusAdapter',min_ID, pagination_limit)
 
     for row in rows:
-        unpack_str = 'I' * row[0]
-        t = struct.unpack(unpack_str, row[1])
-        timestamps = np.append(timestamps, np.array(t))
+        t = struct.unpack('I' * int(row[1][b'num_samples']), row[1][b'timestamps'])
+        timestamps = np.append(timestamps, np.array(t, dtype='uint32'))
         offset = offset + 1
 
+    print('[cerebusAdapter stream]', offset, 'of', num_rows)
+
 fig = plt.figure()
-title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of cerebus timestamps as entered into Redis \n Diffs > 10 are truncated to 10"
+title = "Stream: cerebusAdapter \n Diff of cerebus timestamps as entered into Redis \n Diff changes > 10 are truncated to 10"
 
 diffs = np.diff(timestamps)
-# diffs[diffs > 10] = 10
+diffs[diffs > 10] = 10
+diffs[diffs < -10] = -10
 
 plt.plot(diffs, 'o', markersize=2)
 plt.ylabel('Cerebus Timestamp diff (delta int32)', fontsize=12);
@@ -68,61 +81,68 @@ fig.savefig(filename)
 
 
 ###############################################
-## Question 2: Plotting Redis timestamp diffs
+## Question 2: UDP packet interval
 ###############################################
+
+print('[cerebusAdapter] Examining UDP received interval')
 
 offset = 0
 timestamps = []
+min_ID = '-'
 while offset < num_rows:
-    sqlStr = "SELECT ID  FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
-    rows = con.execute(sqlStr).fetchall()
-    print(sqlStr)
+
+    rows = xrange_pagination('cerebusAdapter',min_ID, pagination_limit)
 
     for row in rows:
-        id = row[0].split('-')[0]
-        timestamps = np.append(timestamps, np.array(id, dtype='int'))
-        offset = offset + 1
-
-fig = plt.figure()
-title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of redis timestamps"
-
-plt.plot(np.diff(timestamps), 'o', markersize=2)
-plt.ylabel('Redis Timestamp diff', fontsize=12);
-plt.xlabel('Redis entry', fontsize=12);
-plt.title(title)
-
-filename = output_folder + "redis_timestamp_diffs.png"
-fig.savefig(filename)
-
-###############################################
-## Question 3: UDP packet interval
-###############################################
-
-offset = 0
-timestamps = []
-while offset < num_rows:
-    sqlStr = "SELECT num_samples, udp_received_time FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
-    rows = con.execute(sqlStr).fetchall()
-    print(sqlStr)
-
-    for row in rows:
-        t = struct.unpack('ll'*row[0], row[1])
+        t = struct.unpack('ll'*int(row[1][b'num_samples']), row[1][b'udp_received_time'])
         microseconds = [t[x] * 1000000 + t[x+1] for x in range(0,len(t),2)]
         microseconds = np.unique(microseconds)
 
         timestamps = np.append(timestamps, np.array(microseconds, dtype='int'))
         offset = offset + 1
 
-fig = plt.figure()
-title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of UDP received timestamps"
+    print('[cerebusAdapter stream]', offset, 'of', num_rows)
 
-plt.plot(np.diff(timestamps), 'o', markersize=2)
+fig = plt.figure()
+title = "\n Stream: cerebusAdapter \n Diff of UDP received timestamps \n Diff changes > 2000us are truncated to 2000us"
+
+diffs = np.diff(timestamps)
+diffs[diffs > 2000] = 1000
+diffs[diffs < -2000] = -1000
+
+plt.plot(diffs, 'o', markersize=2)
 plt.ylabel('UDP timestamp diff (microseconds)', fontsize=12);
 plt.xlabel('Cerebus packet number', fontsize=12);
 plt.title(title)
 
-filename = output_folder + "udp_timestamp_diffs.png"
+filename = output_folder + "cerebus_udp_timestamp_diffs.png"
 fig.savefig(filename)
+
+
+
+###############################################
+#
+#
+#
+# EXIT. Everything beyond here won't create new files
+#
+#
+#
+################################################
+
+
+## Plot the actual samples to see what we're working with
+
+num_cerebusAdapter_entries = 1000
+key = b'chan0'
+rows = r.xrevrange('cerebusAdapter', count=num_cerebusAdapter_entries)
+samples = []
+
+for row in rows:
+    t = struct.unpack('h'*int(row[1][b'num_samples']), row[1][key])
+    samples = np.append(samples, np.array(t, dtype='int'))
+
+
 
 ###############################################
 ## Question 4: Cycle runtime
@@ -150,3 +170,32 @@ fig.savefig(filename)
 
 # filename = output_folder + "current_time_timestamp_diffs.png"
 # fig.savefig(filename)
+
+###############################################
+## Question 2: Plotting Redis timestamp diffs
+###############################################
+
+# offset = 0
+# timestamps = []
+# min_ID = '-'
+# while offset < num_rows:
+#     sqlStr = "SELECT ID  FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
+#     rows = con.execute(sqlStr).fetchall()
+#     print(sqlStr)
+
+#     for row in rows:
+#         id = row[0].split('-')[0]
+#         timestamps = np.append(timestamps, np.array(id, dtype='int'))
+#         offset = offset + 1
+
+# fig = plt.figure()
+# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of redis timestamps"
+
+# plt.plot(np.diff(timestamps), 'o', markersize=2)
+# plt.ylabel('Redis Timestamp diff', fontsize=12);
+# plt.xlabel('Redis entry', fontsize=12);
+# plt.title(title)
+
+# filename = output_folder + "redis_timestamp_diffs.png"
+# fig.savefig(filename)
+

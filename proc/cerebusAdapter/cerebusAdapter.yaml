@@ -26,3 +26,8 @@ parameters:
   value: 30
   description: Number of samples we're expecting to see per Redis stream entry
   static: true
+
+- name: sched_fifo
+  value: false
+  description: Do we want to enable sched_fifo
+  static: true

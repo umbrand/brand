@@ -26,7 +26,7 @@ Here's what you need to change if you want to allow VariableInspector to see a n
 
 
 -}
-module Yaml exposing (Yaml, Msg, displayYaml, updateYaml, initializeYaml, initializeYamlCommand, runCommand)
+module Yaml exposing (Yaml, Msg, init, display, initCommand, command, update)
 
 import Browser
 import Browser.Dom
@@ -45,8 +45,6 @@ import Task exposing (Task)
 import List.Extra
 
 
-url = "http://localhost:5000"
-
 --------------------------------------------------
 -- Exported variables
 --------------------------------------------------
@@ -58,82 +56,54 @@ displayYaml parameterInspector =
     case parameterInspector of
         Yaml model -> view model
 
-initializeYaml : Yaml
-initializeYaml =
-    init ()
-    |> Tuple.first
+init : Yaml
+init =
+    emptyModel
     |> Yaml
 
-updateYaml : Msg -> Yaml -> Yaml
-updateYaml msg parameterInspector =
-    case parameterInspector of
+display : Yaml -> Html Msg
+display yaml = 
+    case yaml of
+        Yaml model -> view model
+
+update : Msg -> Yaml -> Yaml
+update msg yaml =
+    case yaml of
         Yaml model ->
-            update msg model
+            update_ msg model
             |> Tuple.first
             |> Yaml
 
-initializeYamlCommand : Cmd Msg
-initializeYamlCommand =
-    Task.attempt ParseYamlFileList getYamlFileListTask
-            -- getYamlFileListTask
-            -- |> Task.andThen
-            --   (\yamlFileList -> 
-            --       case List.head yamlFileList.modules of
-            --           Nothing -> Task.fail (Http.BadBody "COULD NOT PARSE" )
-            --           Just firstYamlFile -> getRecordListTask firstYamlFile)
-            -- |> Task.attempt ParseRecordList
+initCommand : String -> Cmd Msg
+initCommand url =
+    Task.attempt ParseYamlFileList (getYamlFileListTask url)
+
+command : String -> Msg -> Yaml -> Cmd Msg
+command url msg yaml =
+    case yaml of
+        Yaml model ->
+            case msg of
+                SetCurrentYamlFile value ->
+                    if value == "" then
+                        Cmd.none
+                    else
+                        Task.attempt ParseRecordList (getRecordListTask url value)
 
 
-runCommand : Msg -> Cmd Msg
-runCommand msg =
-    case msg of
-        UpdateCurrentYamlFile value ->
-            Task.attempt ParseRecordList (getRecordListTask value)
-        ParseYamlFileList result ->
-            case result of
-                Ok yamlFileList -> 
-                    case List.head yamlFileList.modules of
-                        Nothing -> Cmd.none
-                        Just head -> Task.attempt ParseRecordList (getRecordListTask head)
-                Err e -> Cmd.none
-        _ -> Cmd.none |> Debug.log "NOTHING"
+                -- PostRecord value -> LOGIC 
 
-
-        
-
+                _ -> Cmd.none
 
 
 --------------------------------------------------
--- MAIN and GETS
+--------------------------------------------------
+-- Tasks
+--------------------------------------------------
 --------------------------------------------------
 
-main =
-  Browser.element
-    { init = init
-    , update = update
-    , subscriptions = subscriptions
-    , view = view
-    }
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  Sub.none
-
--- getRecordList : Model -> Cmd Msg
--- getRecordList model =
---     if model.currentYamlFile == "" then
---         Cmd.none
---         |> Debug.log "COMAND NONE"
---     else
---         Http.get
---         { url = url ++ "/procs/" ++ model.currentYamlFile
---         , expect = Http.expectString ParseRecordList
---         }
---         |> Debug.log "COMAND RUN"
-
-
-getRecordListTask : String -> Task Http.Error (List Record)
-getRecordListTask currentYamlFile =
+getRecordListTask : String -> String -> Task Http.Error (List Record)
+getRecordListTask url currentYamlFile =
     Http.task
         { method = "GET"
         , headers = []
@@ -143,29 +113,28 @@ getRecordListTask currentYamlFile =
         , timeout = Nothing
         }
 
-getYamlFileListTask : Task Http.Error YamlFileList
-getYamlFileListTask =
-    Http.task
-        { method = "GET"
-        , headers = []
-        , url = url ++ "/procs"
-        , body = Http.emptyBody
-        , resolver = Http.stringResolver <| handleJsonResponse <| yamlFileListDecoder
-        , timeout = Nothing
-        }
+getYamlFileListTask : String -> Task Http.Error YamlFileList
+getYamlFileListTask url =
+    let
+        yamlFileListDecoder : Json.Decode.Decoder YamlFileList
+        yamlFileListDecoder =
+            Json.Decode.succeed YamlFileList
+            |> Json.Decode.Pipeline.required "modules" (Json.Decode.list Json.Decode.string)
+    in
+        Http.task
+            { method = "GET"
+            , headers = []
+            , url = url ++ "/procs"
+            , body = Http.emptyBody
+            , resolver = Http.stringResolver <| handleJsonResponse <| yamlFileListDecoder
+            , timeout = Nothing
+            }
 
-
-
-
--- getYamlFileList : Cmd Msg
--- getYamlFileList =
---     Http.get
---     { url = url ++ "/procs"
---     , expect = Http.expectString ParseYamlFileList
---     }
 
 --------------------------------------------------
+--------------------------------------------------
 -- MODEL and INIT
+--------------------------------------------------
 --------------------------------------------------
 
 type alias RecordString =
@@ -214,7 +183,7 @@ type alias PostRecordReply =
 
 type alias Model =
     { recordList      : List Record
-    , yamlFileList    : YamlFileList
+    , yamlFileList    : List String
     , currentYamlFile : String
     , connectionState : ConnectionState
     }
@@ -225,14 +194,10 @@ emptyRecord = WrapperBool  {name = "", value = False, description = "", static =
 emptyModel : Model
 emptyModel =
     { recordList      = []
-    , yamlFileList    = {modules = []}
+    , yamlFileList    = []
     , currentYamlFile = ""
     , connectionState = ConnectionNull
     }
-
-init : () -> (Model, Cmd Msg)
-init _ =
-    (emptyModel, Cmd.none)
 
 
 --------------------------------------------------
@@ -240,87 +205,52 @@ init _ =
 --------------------------------------------------
 
 type Msg = 
-      ParseRecordList (Result Http.Error (List Record))
-    | ParseYamlFileList   (Result Http.Error YamlFileList)
-    | UpdateRecord Int String
-    | UpdateCurrentYamlFile String
-    | PostRecord Int
-    | ParsePostRecordReply (Result Http.Error String)
+      ParseYamlFileList  (Result Http.Error YamlFileList)
+    | ParseRecordList (Result Http.Error (List Record))
+    | SetRecordValue Int String
+    | SetCurrentYamlFile String
+    -- | PostRecord Int
+   -- | ParsePostRecordReply (Result Http.Error String)
 
 
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
+update_ : Msg -> Model -> (Model, Cmd Msg)
+update_ msg model =
     case msg of
-        ParseRecordList result -> 
-            (parseRecordList result model, Cmd.none)
-
         ParseYamlFileList result -> 
             (parseYamlFileList result model, Cmd.none)
 
-        UpdateRecord ind value ->
+        ParseRecordList result -> 
+            (parseRecordList result model, Cmd.none)
+
+        SetRecordValue ind value ->
             (setRecordValue ind value model, Cmd.none)
 
-        UpdateCurrentYamlFile value ->
+        SetCurrentYamlFile value ->
             (setCurrentYamlFile value model, Cmd.none)
 
-        ParsePostRecordReply result ->
-            (parsePostRecordReply result model, Cmd.none)
+        -- ParsePostRecordReply result ->
+        --     (parsePostRecordReply result model, Cmd.none)
 
-        PostRecord ind ->
-            (setConnectionPosting ind model, postRecord ind model )
-
-parseRecordList : (Result Http.Error (List Record)) -> Model -> Model
-parseRecordList result model =
-    case result of
-        Ok jsonText -> 
-            {model | recordList = jsonText}
-        Err e -> 
-            Debug.log ("[ParseRecordList] Json: " ++ (httpErrorType e)) model
-
--- parseRecordList : (Result Http.Error String) -> Model -> Model
--- parseRecordList result model =
---     case result of
---         Ok jsonText -> 
---             case Json.Decode.decodeString recordDecoder jsonText of
---                 Ok theData -> 
---                     {model | recordList = Debug.log "" theData } 
---                 Err e -> 
---                     model |> Debug.log ("[ParseRecordList] Json: " ++ (Json.Decode.errorToString e))
-
---         Err e ->
---             Debug.log ( "[ParseRecordList] Http Error: " ++ (httpErrorType e)) model
+        -- PostRecord ind ->
+        --     (setConnectionPosting ind model, postRecord ind model )
 
 parseYamlFileList : (Result Http.Error YamlFileList) -> Model -> Model
 parseYamlFileList result model =
     case result of
-        Ok jsonText -> 
-            {model | yamlFileList = jsonText}
+        Ok yamlFileList -> 
+            {model | yamlFileList = yamlFileList.modules}
 
         Err e ->
-            Debug.log ( "[ParseYamlList] Http Error: " ++ (httpErrorType e)) model
+            Debug.log ( "[ParseYamlFileList] Http Error: " ++ (httpErrorType e)) model
 
--- parseYamlFileList : (Result Http.Error String) -> Model -> Model
--- parseYamlFileList result model =
---     let
---         setFirstYamlFileIfNoCurrentFile : Model -> Model
---         setFirstYamlFileIfNoCurrentFile m =
---             case List.head m.yamlFileList.modules of
---                 Nothing -> m
---                 Just firstModule -> {m | currentYamlFile = firstModule}
+parseRecordList : (Result Http.Error (List Record)) -> Model -> Model
+parseRecordList result model =
+    case result of
+        Ok recordList -> 
+            {model | recordList = recordList}
+        Err e -> 
+            Debug.log ("[ParseRecordList] Json: " ++ (httpErrorType e)) model
 
---     in
---         case result of
---             Ok jsonText -> 
---                 case Json.Decode.decodeString yamlFileListDecoder jsonText of
---                     Ok theData -> 
---                         {model | yamlFileList = Debug.log "YAML list" theData } 
---                         |> setFirstYamlFileIfNoCurrentFile
---                         |> Debug.log "FIRST"
---                     Err e -> 
---                         model |> Debug.log ("[ParseYamlList] Json: " ++ (Json.Decode.errorToString e))
-
---             Err e ->
---                 Debug.log ( "[ParseYamlList] Http Error: " ++ (httpErrorType e)) model
 
 
 setRecordValue : Int -> String -> Model -> Model
@@ -367,7 +297,12 @@ displayYamlFileListDropdown : Model -> Html Msg
 displayYamlFileListDropdown model =
     div [class "section"]
     [ div [class "container box"]
-      [ select [onInput UpdateCurrentYamlFile] <| List.map (\n -> option [] [text n]) model.yamlFileList.modules]
+      [ List.map 
+            (\n -> option [Html.Attributes.selected (n == model.currentYamlFile)] [text n]) 
+            model.yamlFileList
+       |> List.append [option [] [text ""]]
+       |> select [onInput SetCurrentYamlFile]  
+      ]
     ]
 
 
@@ -408,7 +343,7 @@ displayVariableList model =
               , p [class "help"] [text (getDescription record)]
               , button 
                 [ class (buttonClass ind)
-                , onClick (PostRecord ind)
+                -- , onClick (PostRecord ind)
                 , Html.Attributes.disabled (getStatic record)
                 , id ("PostButton" ++ (String.fromInt ind))] 
                 [text "Submit"]
@@ -472,7 +407,7 @@ displayFloatRecord ind record =
           [ class inputClass
           , value floatValue
           , Html.Attributes.readonly (record.static)
-          , onInput (UpdateRecord ind)] [text floatValue]
+          , onInput (SetRecordValue ind)] [text floatValue]
           , p [class "help"] [text (showMin ++ showMax)]
         ]
 
@@ -516,14 +451,14 @@ displayBoolRecord ind record =
         div []
         [ button 
           [ class classText
-          , onClick (UpdateRecord ind "")
+          , onClick (SetRecordValue ind "")
           , Html.Attributes.disabled (record.static)
           ] [text inputText]
         ]
 
 --------------------------------------------------
 --------------------------------------------------
--- DEALING WITH DOWNLOADING THE AVAILABLE PUBLIC VARIABLES
+-- RECORD DECODING
 --------------------------------------------------
 --------------------------------------------------
 
@@ -568,10 +503,6 @@ recordDecoder =
     in
         Json.Decode.list decoderSelector
 
-yamlFileListDecoder : Json.Decode.Decoder YamlFileList
-yamlFileListDecoder =
-    Json.Decode.succeed YamlFileList
-    |> Json.Decode.Pipeline.required "modules" (Json.Decode.list Json.Decode.string)
 
 --------------------------------------------------
 --------------------------------------------------
@@ -579,60 +510,60 @@ yamlFileListDecoder =
 --------------------------------------------------
 --------------------------------------------------
 
-postRecord : Int -> Model -> Cmd Msg
-postRecord ind model =
-    let
-        jsonName : String
-        jsonName = model |> getRecord ind |> getName
+-- postRecord : Int -> Model -> Cmd Msg
+-- postRecord ind model =
+--     let
+--         jsonName : String
+--         jsonName = model |> getRecord ind |> getName
 
-        jsonValue : String
-        jsonValue = model |> getRecord ind |> getValue
+--         jsonValue : String
+--         jsonValue = model |> getRecord ind |> getValue
 
-        recordJsonString : String
-        recordJsonString =
-            [ ("name" , Json.Encode.string jsonName)
-            , ("value", Json.Encode.string jsonValue) 
-            ]
-            |> Json.Encode.object
-            |> Json.Encode.encode 0
-    in
-        Http.post 
-            { url    = url ++ "/" ++ (model |> getRecord ind |> getName)
-            , body   = Http.stringBody "application/json" recordJsonString
-            , expect = Http.expectString ParsePostRecordReply
-            }
-            |> Debug.log "IRAN"
+--         recordJsonString : String
+--         recordJsonString =
+--             [ ("name" , Json.Encode.string jsonName)
+--             , ("value", Json.Encode.string jsonValue) 
+--             ]
+--             |> Json.Encode.object
+--             |> Json.Encode.encode 0
+--     in
+--         Http.post 
+--             { url    = url ++ "/" ++ (model |> getRecord ind |> getName)
+--             , body   = Http.stringBody "application/json" recordJsonString
+--             , expect = Http.expectString ParsePostRecordReply
+--             }
+--             |> Debug.log "IRAN"
 
 
-parsePostRecordReply : (Result Http.Error String) -> Model -> Model
-parsePostRecordReply result model =
-    let
-        connectionInd : Int
-        connectionInd = getConnectionInd model
+-- parsePostRecordReply : (Result Http.Error String) -> Model -> Model
+-- parsePostRecordReply result model =
+--     let
+--         connectionInd : Int
+--         connectionInd = getConnectionInd model
 
-        postRecordReplyDecoder : Json.Decode.Decoder PostRecordReply
-        postRecordReplyDecoder =
-           Json.Decode.succeed PostRecordReply
-               |> Json.Decode.Pipeline.required "name"   Json.Decode.string
-               |> Json.Decode.Pipeline.required "status" Json.Decode.string
-    in
-        case Debug.log "In ParsePostRecordReply" result of
-            Ok jsonText -> 
-                case Json.Decode.decodeString postRecordReplyDecoder jsonText of
-                    Ok theData -> 
-                        if (Debug.log "status" theData.status ) == "OK" then
-                            setConnectionReceivedOK connectionInd model
-                        else
-                            setConnectionReceivedError connectionInd theData.status model
-                    Err e -> 
-                        model 
-                        |> setConnectionReceivedError connectionInd "Could not parse incoming JSON"
-                        |> Debug.log ("[ParsePostRecord] Json: " ++ (Json.Decode.errorToString e))
+--         postRecordReplyDecoder : Json.Decode.Decoder PostRecordReply
+--         postRecordReplyDecoder =
+--            Json.Decode.succeed PostRecordReply
+--                |> Json.Decode.Pipeline.required "name"   Json.Decode.string
+--                |> Json.Decode.Pipeline.required "status" Json.Decode.string
+--     in
+--         case Debug.log "In ParsePostRecordReply" result of
+--             Ok jsonText -> 
+--                 case Json.Decode.decodeString postRecordReplyDecoder jsonText of
+--                     Ok theData -> 
+--                         if (Debug.log "status" theData.status ) == "OK" then
+--                             setConnectionReceivedOK connectionInd model
+--                         else
+--                             setConnectionReceivedError connectionInd theData.status model
+--                     Err e -> 
+--                         model 
+--                         |> setConnectionReceivedError connectionInd "Could not parse incoming JSON"
+--                         |> Debug.log ("[ParsePostRecord] Json: " ++ (Json.Decode.errorToString e))
 
-            Err e ->
-                model 
-                |> setConnectionReceivedError connectionInd "Error with HTTP connection"
-                |> Debug.log ( "[ParsePostRecord] Http: " ++ (httpErrorType e))
+--             Err e ->
+--                 model 
+--                 |> setConnectionReceivedError connectionInd "Error with HTTP connection"
+--                 |> Debug.log ( "[ParsePostRecord] Http: " ++ (httpErrorType e))
 
 --------------------------------------------------
 --------------------------------------------------
@@ -742,4 +673,78 @@ handleJsonResponse decoder response =
 
                 Ok result ->
                     Ok result
+
+-- getRecordList : Model -> Cmd Msg
+-- getRecordList model =
+--     if model.currentYamlFile == "" then
+--         Cmd.none
+--         |> Debug.log "COMAND NONE"
+--     else
+--         Http.get
+--         { url = url ++ "/procs/" ++ model.currentYamlFile
+--         , expect = Http.expectString ParseRecordList
+--         }
+--         |> Debug.log "COMAND RUN"
+
+-- parseYamlFileList : (Result Http.Error String) -> Model -> Model
+-- parseYamlFileList result model =
+--     let
+--         setFirstYamlFileIfNoCurrentFile : Model -> Model
+--         setFirstYamlFileIfNoCurrentFile m =
+--             case List.head m.yamlFileList.modules of
+--                 Nothing -> m
+--                 Just firstModule -> {m | currentYamlFile = firstModule}
+
+--     in
+--         case result of
+--             Ok jsonText -> 
+--                 case Json.Decode.decodeString yamlFileListDecoder jsonText of
+--                     Ok theData -> 
+--                         {model | yamlFileList = Debug.log "YAML list" theData } 
+--                         |> setFirstYamlFileIfNoCurrentFile
+--                         |> Debug.log "FIRST"
+--                     Err e -> 
+--                         model |> Debug.log ("[ParseYamlList] Json: " ++ (Json.Decode.errorToString e))
+
+--             Err e ->
+--                 Debug.log ( "[ParseYamlList] Http Error: " ++ (httpErrorType e)) model
+
+-- initCommand : String -> Cmd Msg
+-- initCommand url =
+--     Task.attempt ParseYamlFileList (getYamlFileListTask url)
+--         -- getYamlFileListTask
+--         -- |> Task.andThen
+--         --   (\yamlFileList -> 
+--         --       case List.head yamlFileList.modules of
+--         --           Nothing -> Task.fail (Http.BadBody "COULD NOT PARSE" )
+--         --           Just firstYamlFile -> getRecordListTask firstYamlFile)
+--         -- |> Task.attempt ParseRecordList
+
+-- runCommand : String -> Msg -> Yaml -> Cmd Msg
+-- runCommand url msg yaml =
+--     case yaml of
+--         Yaml model ->
+--             case msg of
+--                 SetCurrentYamlFile value ->
+--                     Task.attempt ParseRecordList (getRecordListTask url value)
+--                 ParseYamlFileList result ->
+--                     case result of
+--                         Ok yamlFileList -> 
+--                             case List.head yamlFileList.modules of
+--                                 Nothing -> Cmd.none
+--                                 Just head -> Task.attempt ParseRecordList (getRecordListTask url head)
+--                         Err e -> Cmd.none
+--                 _ -> Cmd.none |> Debug.log "NOTHING"
+-- parseRecordList : (Result Http.Error String) -> Model -> Model
+-- parseRecordList result model =
+--     case result of
+--         Ok jsonText -> 
+--             case Json.Decode.decodeString recordDecoder jsonText of
+--                 Ok theData -> 
+--                     {model | recordList = Debug.log "" theData } 
+--                 Err e -> 
+--                     model |> Debug.log ("[ParseRecordList] Json: " ++ (Json.Decode.errorToString e))
+
+--         Err e ->
+--             Debug.log ( "[ParseRecordList] Http Error: " ++ (httpErrorType e)) model
 

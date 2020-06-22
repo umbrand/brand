@@ -25,16 +25,19 @@ int load_YAML_variable_string(char *process, char *value, char *buffer, int n) {
     
     sprintf(bashCommand, "python %s %s --name %s", redisToolsPythonFile, configurationFile, value);
 
+
     fp = popen(bashCommand, "r");
     if (fp == NULL) {
         perror("popen() failed on python script to load YAML data.\n");
         return -1;
     }
 
-    if((readLength = fread(buffer, 1, n, fp)) < 0) {
+    if((readLength = fread(buffer, 1, 256, fp)) < 0) {
+        printf("BLAHBLAH\n");
         perror("fread could not read variable from python script.\n");
         return -1;
     }
+    fclose(fp);
 
     return readLength;
 }

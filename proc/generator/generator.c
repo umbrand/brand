@@ -52,8 +52,9 @@
 #include <netinet/udp.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <hiredis.h>
 #include <time.h>
+#include <pthread.h>
+
 #include "redisTools.h"
 
 
@@ -76,31 +77,39 @@ typedef struct yaml_parameters_t {
 
 
 
-int initialize_broadcast_socket();
+int  initialize_broadcast_socket();
 void initialize_alarm();
 void initialize_realtime();
-int initialize_from_file(char **, int);
-int initialize_ramp(char **, int);
+int  initialize_from_file(char **, int);
+int  initialize_ramp(char **, int);
 void initialize_parameters(yaml_parameters_t *);
-int initialize_buffer(char **, int);
+int  initialize_buffer(char **, int);
+void initialize_signals();
+void handler_SIGINT(int signum);
+void handler_SIGALRM(int signum);
+void shutdown_process();
 
 char PROCESS[] = "generator";
 
 // For corking
 int one = 1, zero = 0;
 
-// The seamphore that blocks until the alarm goes off
-sem_t sem_timer;
+int flag_SIGINT  = 0;
+int flag_SIGALRM = 0;
 
-// Redis information
-redisContext *c;
-redisReply *reply;
+// For the scheduler
+int baseline_scheduler_priority;
+
+// The seamphore that blocks until the alarm goes off
+//sem_t sem_timer;
+
+// Let's try mutexes now
+//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 int main(int argc, char *argv[])
 {
     int fd = initialize_broadcast_socket();
-
-    initialize_alarm();
     
     initialize_realtime();
 
@@ -111,7 +120,6 @@ int main(int argc, char *argv[])
     int sampling_frequency  = yaml_parameters.sampling_frequency;
     int cerebus_packet_size = yaml_parameters.cerebus_packet_size;
     int broadcast_rate      = yaml_parameters.broadcast_rate;
-
 
     char *buffer;
     int nRows = initialize_buffer(&buffer, num_channels);
@@ -126,7 +134,9 @@ int main(int argc, char *argv[])
     // sampling_frequency is in microseconds. So we add 1e-6 as scaling to get to seconds
     int num_cerebus_packets_per_signal = broadcast_rate * (0.000001 * sampling_frequency);
 
-    printf("[%s] Broadcasting %d packets per %d microseconds...\n", PROCESS, num_cerebus_packets_per_signal, broadcast_rate);
+    printf("[%s] Broadcasting %d packets per %d microseconds...\n", 
+                PROCESS,
+                num_cerebus_packets_per_signal, broadcast_rate);
     
 
     printf("[%s] Entering generator loop...\n", PROCESS);
@@ -134,32 +144,48 @@ int main(int argc, char *argv[])
     int n = 0;
     int num_cerebus_packets_on_udp_packet = 0;
 
+
+    initialize_signals();
+
+    initialize_alarm();
+
     uint32_t time = 0;
-	while(sem_wait(&sem_timer) == 0) {
 
-		for(int i = 0; i < num_cerebus_packets_per_signal; i++) {
+    while (1) {
 
-            cerebus_packet_t *cb_packet = (cerebus_packet_t *) &buffer[n*cerebus_packet_size];
-            cb_packet->time = time;
+        pause();
 
-			// Write the data
-			write(fd, cb_packet, cerebus_packet_size);
-            num_cerebus_packets_on_udp_packet++;
-            n++;
-            time++;
-            n = n % nRows;
+        if (flag_SIGINT) 
+            shutdown_process();
 
-			if( (num_cerebus_packets_on_udp_packet+1) * cerebus_packet_size >= 1472) {
-				setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
-				setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
-                num_cerebus_packets_on_udp_packet = 0;
-			}
-		}
+        if (flag_SIGALRM) {
 
-		// Now that we've sent all of the packets we're going to send, uncork and then cork
-		setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
-		setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
-        num_cerebus_packets_on_udp_packet = 0;
+            for(int i = 0; i < num_cerebus_packets_per_signal; i++) {
+
+                cerebus_packet_t *cb_packet = (cerebus_packet_t *) &buffer[n*cerebus_packet_size];
+                cb_packet->time = time;
+
+                // Write the data
+                write(fd, cb_packet, cerebus_packet_size);
+                num_cerebus_packets_on_udp_packet++;
+                n++;
+                time++;
+                n = n % nRows;
+
+                if( (num_cerebus_packets_on_udp_packet+1) * cerebus_packet_size >= 1472) {
+                    setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
+                    setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
+                    num_cerebus_packets_on_udp_packet = 0;
+                }
+            }
+
+            // Now that we've sent all of the packets we're going to send, uncork and then cork
+            setsockopt(fd, IPPROTO_UDP, UDP_CORK, &zero, sizeof(zero));
+            setsockopt(fd, IPPROTO_UDP, UDP_CORK, &one, sizeof(one));
+            num_cerebus_packets_on_udp_packet = 0;
+
+            flag_SIGALRM--;
+        }
     }
 
     free(buffer);
@@ -171,10 +197,11 @@ int main(int argc, char *argv[])
 /**
  * @brief This is called whenever the alarm is called
  */
-static void handlerAlarm(int sig)
-{
-	sem_post(&sem_timer);
-}
+/* static void handlerAlarm(int sig) */
+/* { */
+	/* sem_post(&sem_timer); */
+    /* pthread_mutex_unlock(&mutex); */
+/* } */
 
 int initialize_broadcast_socket() {
 
@@ -229,10 +256,10 @@ void initialize_alarm(){
     printf("[%s] Initializing alarm...\n", PROCESS);
     
 	// Initialize the Semaphore used to indicate new data should be sent
-	if (sem_init(&sem_timer, 0, 0) < 0) {
-		printf("[%s] Could not initialize Semaphore! Exiting.\n", PROCESS);
-		exit(1);
-	}
+	/* if (sem_init(&sem_timer, 0, 0) < 0) { */
+	/* 	printf("[%s] Could not initialize Semaphore! Exiting.\n", PROCESS); */
+	/* 	exit(1); */
+	/* } */
 
     // We want to specify out rate in microseconds from YAML
     
@@ -243,15 +270,43 @@ void initialize_alarm(){
     printf("[%s] Setting the broadcast rate to %d microseconds...\n", PROCESS, num_microseconds);
 
 	// How many nanoseconds do we wait between reads. Note:  1000 nanoseconds = 1us
-	InitializeAlarm(handlerAlarm, 0, num_microseconds * 1000);
+	//InitializeAlarm(handlerAlarm, 0, num_microseconds * 1000);
+
+    static struct itimerval rtTimer;
+
+    rtTimer.it_value.tv_sec = 0;
+    rtTimer.it_value.tv_usec = num_microseconds;
+    rtTimer.it_interval.tv_sec = 0;
+    rtTimer.it_interval.tv_usec = num_microseconds;
+    if (setitimer(ITIMER_REAL, &rtTimer, NULL) != 0) {
+        printf("[%s] Error setting timer. \n", PROCESS);
+        exit(1);
+    }
 
 }
 
 // Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80
 void initialize_realtime() {
+
+
+    char sched_fifo_string[16] = {0};
+    load_YAML_variable_string(PROCESS, "sched_fifo", sched_fifo_string, sizeof(sched_fifo_string));
+
+
+    if (strcmp(sched_fifo_string, "True") != 0) {
+        return;
+    }
+
+
     printf("[%s] Setting Real-time scheduler!\n", PROCESS);
-    const struct sched_param sched= {.sched_priority = 80};
-    sched_setscheduler(0, SCHED_FIFO, &sched);
+
+    baseline_scheduler_priority = sched_getscheduler(0);
+
+    struct sched_param sched= {.sched_priority = 80};
+    if(sched_setscheduler(0, SCHED_FIFO, &sched) < 0) {
+        printf("[%s] ERROR SCHED_FIFO SCHEDULER\n", PROCESS);
+    }
+
 }
 
 void initialize_parameters(yaml_parameters_t *p) {
@@ -363,14 +418,33 @@ int initialize_from_file(char **buffer, int numChannels) {
     return nRows;
 }
 
+void initialize_signals() {
 
-    /* int nRows = maxValue * numChannels * sizeof(int16_t); */
-    /* *buffer =  (int16_t *) malloc(nRows); */
+    printf("[%s] Attempting to initialize signal handlers.\n", PROCESS);
 
-    /* int index = 0; */
-    /* for (int i = 0; i < maxValue; i++) { */
-    /*     for (int j = 0; j < numChannels; j++) { */
-    /*         (*buffer)[index] = i; */
-    /*         index++; */
-    /*     } */
-    /* } */
+    signal(SIGINT, &handler_SIGINT);
+    signal(SIGALRM, &handler_SIGALRM);
+    signal(SIGUSR1, &handler_SIGALRM);
+
+    printf("[%s] Signal handlers installed.\n", PROCESS);
+}
+
+void handler_SIGINT(int signum) {
+    flag_SIGINT++;
+}
+void handler_SIGALRM(int signum) {
+    flag_SIGALRM++;
+}
+void shutdown_process() {
+    printf("[%s] SIGINT received. Shutting down.\n", PROCESS);
+
+    /* printf("[%s] Setting scheduler back to baseline.\n", PROCESS); */
+    /* const struct sched_param sched= {.sched_priority = 0}; */
+    /* sched_setscheduler(0, baseline_scheduler_priority, &sched); */
+
+
+    printf("[%s] Exiting.\n", PROCESS);
+    
+    exit(0);
+
+}

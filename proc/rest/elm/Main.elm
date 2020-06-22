@@ -12,11 +12,10 @@ Here, the idea is that Main's Model will contain a series of encapsulated models
 
 -}
 
-module Main exposing (..)
+port module Main exposing (..)
 
 import Stream exposing (Stream)
 import Yaml exposing (Yaml)
-import Runtime exposing (Runtime)
 
 import Browser
 import Browser.Dom
@@ -36,7 +35,18 @@ import Time
 
 import List.Extra
 
+import Process
 
+--------------------------------------------------
+-- PORTS and SUBSCRIPTIONS
+--------------------------------------------------
+
+-- port toJS_GridUpdate : String -> Cmd msg
+port toElm_stream_newdata : (String -> msg) -> Sub msg
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    toElm_stream_newdata ParseSocketInput
 
 --------------------------------------------------
 -- MAIN
@@ -44,30 +54,12 @@ import List.Extra
 
 main =
   Browser.element
-    { init = init
-    , update = update
+    { init          = init
+    , update        = update
     , subscriptions = subscriptions
-    , view = view
+    , view          = view
     }
 
--- Subscription depends on which tab we're currently looking at
--- TabStream: Query the database every getRefreshRate 
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model.tab of
-        TabStream -> 
-            case (Stream.getRefreshRate model.stream) of
-                Nothing -> Sub.none
-                Just val -> Time.every val TickStream
-        TabRuntime ->
-            case (Runtime.getRefreshRate model.runtime) of
-                Nothing -> Sub.none
-                Just val -> Time.every val TickRuntime
-
-        _ ->
-            Sub.none
-            
 
 --------------------------------------------------
 -- MODEL and INIT
@@ -78,102 +70,130 @@ subscriptions model =
 type Tab =
       TabStream
     | TabYaml
-    | TabRuntime
+
+type ModuleMsg =
+      MsgStream Stream.Msg
+    | MsgYaml   Yaml.Msg
 
 type alias Model =
     { tab        : Tab     -- Which tab is currently being presented to the user
     , stream     : Stream  -- Module for plotting streaming variables
-    , yaml       : Yaml    -- Module for inspecting yaml parameters
-    , runtime    : Runtime -- Module for interoggating module runtimes
+    , yaml       : Yaml    -- Module for viewing / changing parameters in the model
     , burgerFlag : Bool    -- Is the burger expanded
+    , url        : String  -- The URL of the rest server
     }
 
 emptyModel : Model
 emptyModel =
-    { tab        = TabRuntime
-    , stream     = Stream.initializeStream
-    , yaml       = Yaml.initializeYaml
-    , runtime    = Runtime.initializeRuntime
+    { tab        = TabStream
+    , stream     = Stream.init
+    , yaml       = Yaml.init
     , burgerFlag = False
+    , url        = ""
     }
 
 
-init : () -> (Model, Cmd Msg)
-init _ =
-    (emptyModel, runCommand emptyModel.tab)
+-- This is supplied during initialization! The jinja2 script provides the IP
+-- in the html code, which is then passed to Main
+init : String -> (Model, Cmd Msg)
+init url =
+    ( {emptyModel | url = url} , initCommand url emptyModel.tab)
 
-runCommand : Tab -> Cmd Msg
-runCommand tab = 
+--------------------------------------------------
+-- COMMANDS
+--------------------------------------------------
+
+initCommand : String -> Tab -> Cmd Msg
+initCommand url tab = 
     case tab of
-        TabStream  -> Stream.initializeStreamCommand   |> Cmd.map SetStream
-        TabYaml    -> Yaml.initializeYamlCommand       |> Cmd.map SetYaml
-        TabRuntime -> Runtime.initializeRuntimeCommand |> Cmd.map SetRuntime
+        TabStream -> Stream.initCommand url |> Cmd.map MsgStream |> Cmd.map AfterModule
+        TabYaml   -> Yaml.initCommand   url |> Cmd.map MsgYaml   |> Cmd.map AfterModule
+
+command : ModuleMsg -> Model -> Cmd Msg
+command moduleMsg model =
+    case moduleMsg of
+        MsgStream subMsg -> 
+            Stream.command model.url subMsg model.stream
+            |> Cmd.map MsgStream  
+            |> Cmd.map AfterModule
+
+        MsgYaml subMsg -> 
+            Yaml.command model.url subMsg model.yaml
+            |> Cmd.map MsgYaml  
+            |> Cmd.map AfterModule
+    
+
 
 --------------------------------------------------
 -- UPDATE
 --------------------------------------------------
 
 type Msg = 
-      SetStream Stream.Msg
-    | SetYaml Yaml.Msg
-    | SetRuntime Runtime.Msg
-    | SetTab Tab
-    | TickStream Time.Posix
-    | TickRuntime Time.Posix
+      SetTab Tab
     | ToggleBurger
-    | PostYamlCommand Yaml.Msg
-    | PostRuntimeCommand Runtime.Msg
+    | UpdateModule ModuleMsg
+    | AfterModule ModuleMsg
+    | ParseSocketInput String
+    | RunCommandNow ModuleMsg
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
-        SetStream subMsg -> 
-            (setStream subMsg model, Cmd.none)
+    
+        UpdateModule moduleMsg ->
+            (updateModule moduleMsg model, 
+                Process.sleep 1
+                |> Task.andThen (\_ -> Task.succeed (RunCommandNow moduleMsg))
+                |> Task.perform (\_ -> (RunCommandNow moduleMsg)))
 
-        SetYaml subMsg ->
-            (setYaml subMsg model, Yaml.runCommand subMsg |> Cmd.map PostYamlCommand)
-
-        SetRuntime subMsg ->
-            (setRuntime subMsg model, Runtime.runCommand subMsg |> Cmd.map PostRuntimeCommand)
+        AfterModule moduleMsg ->
+            (updateModule moduleMsg model, Cmd.none)
 
         SetTab tab ->
-            (setTab tab model, runCommand tab)
-
-        TickStream _ ->
-            (model, Stream.streamTick model.stream |> Cmd.map SetStream)
-
-        TickRuntime _ ->
-            (model, Runtime.runtimeTick model.runtime |> Cmd.map SetRuntime)
+            (setTab tab model, initCommand model.url tab)
 
         ToggleBurger ->
             (toggleBurger model, Cmd.none)
 
-        PostYamlCommand subMsg ->
-            (setYaml subMsg model, Cmd.none)
+        ParseSocketInput str ->
+            (parseSocketInput str model, portCommand model)
 
-        PostRuntimeCommand subMsg ->
-            (setRuntime subMsg model, Cmd.none)
+        RunCommandNow moduleMsg ->
+            (model, command moduleMsg model)
 
-setStream : Stream.Msg -> Model -> Model
-setStream subMsg model =
-    {model | stream = Stream.updateStream subMsg model.stream}
+updateModule : ModuleMsg -> Model -> Model
+updateModule moduleMsg model =
+    case moduleMsg of
+        MsgStream subMsg  -> {model | stream = Stream.update subMsg model.stream}
+        MsgYaml   subMsg  -> {model | yaml   = Yaml.update   subMsg model.yaml}
 
-setYaml : Yaml.Msg -> Model -> Model
-setYaml subMsg model =
-    {model | yaml = Yaml.updateYaml subMsg model.yaml}
-
-setRuntime : Runtime.Msg -> Model -> Model
-setRuntime subMsg model =
-    {model | runtime = Runtime.updateRuntime subMsg model.runtime}
+setTab : Tab -> Model -> Model
+setTab tab model =
+    {model | tab = tab, burgerFlag = False}
 
 toggleBurger : Model -> Model
 toggleBurger model =
     {model | burgerFlag = not model.burgerFlag}
 
-setTab : Tab -> Model -> Model
-setTab tab model =
-    {model | tab = tab, burgerFlag = False}
+parseSocketInput : String -> Model -> Model
+parseSocketInput str model =
+    case model.tab of
+        TabStream -> {model | stream = Stream.addData str model.stream}
+        _         -> model
+
+portCommand : Model -> Cmd Msg
+portCommand model =
+    case model.tab of
+        TabStream -> 
+            Stream.portCommand model.stream 
+            |> Cmd.map MsgStream
+            |> Cmd.map AfterModule
+
+        _ -> Cmd.none
+
+
+
 
 --------------------------------------------------
 --------------------------------------------------
@@ -185,22 +205,22 @@ setTab tab model =
 view : Model -> Html Msg
 view model =
     main_ []
-    [ displayHero
+    [ displayHero model
     , displayBurger model
     , displayContent model
     ]
             
-displayHero : Html Msg
-displayHero =
+displayHero : Model -> Html Msg
+displayHero model =
     section [class "hero is-info"] 
     [ div [class "hero-body"] 
       [ div [class "container"] 
         [ h1 
           [ class "title"] 
-          [ text "Realtime rig explorer" ]
+          [ text "Rig interface" ]
         , h2 
           [class "subtitle"] 
-          [ text "Version 0.1" ]
+          [ text model.url ]
         ]
       ]
     ]
@@ -242,19 +262,19 @@ displayContent : Model -> Html Msg
 displayContent model =
     let
         displayStream = 
-            Stream.displayStream model.stream |> Html.map SetStream
+            Stream.display model.stream 
+            |> Html.map MsgStream 
+            |> Html.map UpdateModule
 
         displayYaml = 
-            Yaml.displayYaml model.yaml |> Html.map SetYaml
-
-        displayRuntime = 
-            Runtime.displayRuntime model.runtime |> Html.map SetRuntime
+            Yaml.display model.yaml 
+            |> Html.map MsgYaml
+            |> Html.map UpdateModule
 
     in
         case model.tab of
-            TabStream     -> displayStream
-            TabYaml       -> displayYaml
-            TabRuntime    -> displayRuntime
+            TabStream -> displayStream
+            TabYaml   -> displayYaml
 
 
 --------------------------------------------------
@@ -265,13 +285,17 @@ displayContent model =
 
 tabList : List Tab
 tabList =
-    [TabStream, TabYaml, TabRuntime]
+    [TabStream, TabYaml]
 
 tabString : Tab -> String
 tabString tab =
     case tab of
         TabStream -> "Streams"
-        TabYaml -> "Parameter inspector"
-        TabRuntime -> "Process Runtimes"
+        TabYaml   -> "Parameters"
 
 
+-- portCommand : Cmd Msg
+-- portCommand =
+--     Process.sleep 1 
+--     |> Task.andThen (\_ -> Task.succeed Port)
+--     |> Task.perform (\_ -> Port)

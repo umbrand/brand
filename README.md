@@ -1,74 +1,60 @@
-# Emory real-time rig
+# Real-time Asynchronous Neural Decoding System (RANDS)
 ## Building
 ### Requirements
 * Host Machine Running Ubuntu 18.04
+* Validated on PREEMPT_RT kernel version 5.4.40-rt24
 * Nvidia GPU with Compute Capabilities > ?
 * CUDA 10.0
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
 ### Environment Setup and Make
-`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/) and [hiredis](https://github.com/redis/hiredis) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries, including submodule dependencies, and output them to `bin/`. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
+`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/),  [hiredis](https://github.com/redis/hiredis), and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries, including submodule dependencies, and output them to `bin/`. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
+
 ```
 ./boostrap.sh
 conda activate rt
 make
 ```
 
-# Sessions
+# Session workflow
 
-The real-time rig has the concept of a "session", which is short for experimental session. A session folder contains all of the information needed to run an experiment. Suppose we call our session "tracking." Then, the first folder will have the name `session/tracking.0`. The `0` refers to the version of the experiment. For the purposes of session development, a new version of a session should be created whenever any of the folder contents have been altered after having been run in the wild. 
-
-The information about running a session is defined in the `session.yaml` file. Here's an example of a configuration for the `tracking.0` session: 
+Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
 
 ```
-modules:
-  start:
-   - name: rest.pyx
-     links: 
-      - proc/rest/rest.pyx
-      - proc/rest/static
-      - session/tracking.0/rest.yaml 
-  main:
-   - name: timer
-     links: 
-      - bin/timer 
-      - session/tracking.0/timer.yaml
-      - bin/generator
-      - session/tracking.0/generator.yaml
-      - bin/streamUDP
-      - session/tracking.0/streamUDP.yaml
-  end:
-   - name: logger.py
-     links: 
-      - proc/logger/logger.py
-      - session/tracking.0/logger.yaml
-
-files:
- - session/debug/README.md
- - session/debug/session.yaml
+source setup.sh
+load cerebusTest
+run
 ```
 
-A session has three stages: `start`, `main`, and `end`. Modules run in the `start` stage should be supportive. For example, these modules may handle incoming UDP information, recreate previously collected data, manage a rest server, etc. The modules in the `main` stage do the bulk of the work. Finally, when the program exits, it first shuts down `main` and `start` modules, and then runs the `end` modules.
+`setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment, in case you forgot. 
 
-The modules have a name and then series of links. The links refer to the source files needed to run the modules. For example, the `rest.pyx` module will symbolically link the following files to `run/`: `proc/rest/rest.pyx`, `proc/rest/static`,`session/tracking.0/rest.yaml`.
+### load.sh
 
-By looking at the list of links, one gets a sense of dependencies and where they're coming from. Good coding practice is to define all of the .yaml files needed to run modules within the session folder. 
+The `load cerebusTest` command executes the `load.sh` in the folder `session/cerebusTest`. The `load.sh` file contains all of the configuration information required in order to start an experiment. At the end of calling `load.sh`, all files pertaining to an experiment will be put into the folder `run/`. At a minimum, after calling `load.sh` there should be a file `run/run.sh`.
 
-### Running a session
+Examples of the contents for a `session/` folder include the `yaml` files used for configuring modules, `.conf` files for configuring redis, etc. This makes it easy to keep all of the information in one place. Usually the process of populating a `run/` folder is done with symbolic links. For instance, `load.sh` will create symbolic links to binaries in the `bin/`, such as linking `bin/cerebusAdapter` to `run/cerebusAdapter`. Next, it will create a symbolic link from `proc/rest/rest.pyx` to `run/rest.pyx`. By looking at the list of links, one should know exactly what modules are called, and where they're defined. 
 
-After running `make`, there will be binaries located in the `bin/` folder. The next step is to initialize the files needed to run a session. Continuing with our example:
+The expectation is that multiple session types will use a combination of different modules to run an experiment. However, the configurations for each module may be different depending on the experiment being performed. 
 
-```
-python rig.py initialize tracking.0
-```
 
-Will then copy the files defined in `session/tracking.0/session.yaml` to the `run/` folder. To run an experiment, type:
+### run.sh
 
-```
-python rig.py run
-```
+The `run` command executes the `run.sh` file located in the `run/` directory. `run.sh` should contain the instructions to run an experiment. Running an experiment has the following sequences of events:
 
-This will look at `run/session.yaml` (which was linked to `session/tracking.0/session.yaml`) and then run the appropriate scripts to start the experiment.
+1. Start redis
+2. Start the initial modules 
+3. Start the main modules 
+4. Wait
+5. Stop the main modules
+6. Stop the initial modules
+7. Start the finalization modules 
+8. Stop the finalization modules
+9. Save redis database to disk
+10. Stop redis
+
+Modules run in the initial stage should be supportive. For example, these modules may handle incoming UDP information, replay previously collected data, manage a rest server, etc. The modules in the main stage do the bulk of the work, including signal processing, decoding algorithms, etc. When the program exits, it first shuts down main and start modules, and then runs the finalization modules. For example, modules that would tidy up the redis database would be called at this stage.
+
+
 
 # Folder organization
 
@@ -84,32 +70,57 @@ run/
 
 ### bin/
 
-`bin/` contains the compiled output of the various processes. To compile a process, run `make [process]` from the root directory.
+`bin/` contains the compiled output of the various processes. Calling `make` in the root directory will make all of the modules and git submodules (e.g. redis, etc.). To compile a specific process, run `make [process]` from the root directory.
 
 ### lib/
 
-lib/ contains a series of libraries or helper functions needed to make the system work. Here's are examples of two folders:
+lib/ contains a series of libraries or helper functions needed to make the system work. For example:
 
 ```
 lib/hiredis
 lib/redisTools
 ```
 
-`hiredis` is a submodule that links to a different git respository. `redisTools` is an in-house folder that has some wrapper functions for working with redis.
+`hiredis` is a submodule that links to a different git repository. `redisTools` is an in-house folder that has some wrapper functions for working with redis.
 
 ### proc/
 
-A module is designed to solve a specific task. The `proc/` folder contains the modules used for the rig. Suppose we call our module `foo`. Then, the contents of the foo module should have, at minimum, the following:
+The `proc/` folder contains the modules used for the rig. Suppose we call our module `foo`. If `foo` is written in a compiled language, like C, then it should have as a minimum:
 
 ```
-proc/foo/foo
+proc/foo/foo.c
 proc/foo/foo.yaml
 proc/foo/README.md
+proc/foo/Makefile
 ```
 
-`proc/foo/foo` is an executable that runs the module; the `foo.yaml` contains configuration information for the process, and the README.md contains information describing the purpose of the module, what it produces and what it consumes, how data can be interpreted, etc.
+If processes need to be compiled: they should be written so that they are compiled in their local directory (i.e. `/proc/foo/`), with the destination of the binary being the `bin/` directory. The processes should expect to be run in the `run/` directory. This can be very important for linking dependencies.
 
-The root-level YAML structure can contain whatever sub-headings are needed, but at minimum should contain an entry called parameters with the following structure:
+The reasoning for this is as follows: we want to compile all of the modules the start, since this may take time. If, however, we want to change our experiment on the fly, we simply call `load newSession`, which will change the symbolic links and allow us to start a new session immediately. 
+
+The `foo.yaml` file contains configuration information for the process. DO NOT CONFIGURE YOUR EXPERIMENT BASED ON THE YAML FILE IN THE PROC SUBDIRECTORY. Instead, create a `foo.yaml` file in the relevant `session/` subfolder. 
+
+### session/
+
+A folder within session should contain all of the relevant information for running a session. For example:
+
+```
+session/cerebusTest/load.sh
+session/cerebusTest/run.sh
+session/cerebusTest/cerebusAdapter.yaml
+session/cerebusTest/monitor.yaml
+session/cerebusTest/README.md
+```
+
+At a minimum, `load.sh` would then link all of the contents of `session/cerebusTest` as well as `bin/cerebusTest` and `bin/monitor` to the `run/` folder. 
+
+### run/
+
+This folder should contain all of the information needed to run the session. It will also likely contain the `dump.rdb` file created by redis, and any analysis output pertaining to the run.
+
+## yaml files
+
+YAML files used for configuring processes can contain whatever sub-headings are needed, but at minimum should contain a key called `parameters` with the following structure:
 
 ```
 parameters:
@@ -123,9 +134,10 @@ The name of the parameter is called `bar`, and it has value `12345` (N.B. This c
 
 Parameters can be "static" or "non-static." A static variable is one that is set during initialization and is not changed thereafter. A non-static is one that can be changed while the module is running. For instance, the host address of the Redis instance will likely be a static, whereas a boolean flag indicating whether a matrix multiplication does or doesn't occur during a module's run-cycle can be static: false. 
 
-## IPC
 
-The primary mode of inter-process communication through the rig is through Redis, focusing on Redis streams. If you're not familiar with Redis or Redis streams, check out this link for information. Briefly, Redis is an in-memory cache key-based database entry. It solves the problem of having to rapidly create, manipulate, and distribute data in memory very quickly and efficiently. 
+## Redis as a mechanism for IPC
+
+The primary mode of inter-process communication with RANDS is using Redis, focusing on [Redis streams](https://redis.io/topics/streams-intro). Briefly, Redis is an in-memory cache key-based database entry. It solves the problem of having to rapidly create, manipulate, and distribute data in memory very quickly and efficiently. 
 
 A stream within redis has the following organization:
 
@@ -134,19 +146,46 @@ stream_key ID key value key value ...
 ```
 
 
-The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely idenfied with the N value. 
+The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at N and increments for every simultaneously created entry within the same millisecond.
 
 When a module wants to share data with others, it does so using a stream. There are several advantages to using a stream: 
 
 1. Data is automatically timestamped
-2. Adding new data to the strema is cheap, since it's stored internally as a linked-list
+2. Adding new data to the stream is cheap, since it's stored internally as a linked-list. 
 3. It makes it easy to have a pub/sub approach to IPC, since modules can simply call the `xread` command 
-4. It makes it easy to query previously collected data using the xrange/xrevrange command
+4. It makes it easy to query previously collected data using the `xrange` or `xrevrange` command. Reading new data from either the head or the tail of the stream is computationally cheap.
 
+# Creating a new module
 
-Logging data
-==============
+Modules can be written in any language. Modules are launched, and stopped, in the `run.sh` script. Conceptually, a module should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Modules are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 modules running.
 
-Modules that stream data create new information and it is automatically timestamped. When the experiment is done (or even when it is happening, if you want?) the logger begins by going through a list of streams and turning the data into a SQL table. 
+At a minimum, a module should have the following characteristics:
 
+1. Catch SIGINT to close gracefully
+2. Have a `.yaml` configuration file
 
+Since it's inpredictable how modules will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the module.
+
+# Gotchas
+
+### PREEMPT_RT kernel bash fork error.
+
+It turns out that with Ubuntu 18.04 running PREEMPT_RT kernel version 5.4.40-rt24, there are some surprising conditions under which the terminal will crash, resulting in a `bash: fork: error` being displayed in the terminal, requiring one to restart their connection.
+
+First, *do not write a module that both sets a `SCHED_FIFO` prioritization and interacts with Redis*. The way around this is to have a process do one or the other. If a process needs to run a timer, then have the process `pause()` until if gets a signal from a different module (scheduled with SCHED_FIFO) indicating that it's time to run.
+
+Second, *do not write a module that sets `SCHED_FIFO` that is launched from python*. The way to do this is to lanch the processes using the `run.sh` script. 
+
+### Saving data in Redis with minimal latency
+
+By default, Redis is configured to periodically [save](https://redis.io/topics/persistence). Given that RANDS can be processing a great deal of information quickly, the background save procedures will result in significant latencies in real-time decoding.
+
+One option is to simply remove the `save` configuration parameters in the `.conf` file. However, if Redis is terminated using SIGTERM or SIGINT, then the [default behavior of writing to disk](https://redis.io/topics/signals) does not occur. To get around this, write something like `save NNN 1` in the configuration file, where NNN is a number much bigger than how long you ever expect to run your session. This way, Redis will gracefully exit and save your data to disk.
+
+### hiredis library
+
+[hiredis](https://github.com/redis/hiredis) is a C library for interacting with Redis. It is excellent, but it has undocumented behavior when working with streams. Calling `xrange` or `xrevrange` will result in a `REDIS_REPLY_ARRAY`, regardless of whether the stream exists or not. Moreover, `reply->len` will always be 0, despite possibly having many returned entries. The way around this is to first call the redis command `exists`.
+
+### Alarms and reading from file
+
+If a process is reading from a file descriptor and an alarm goes off, there can be unforunate consequence. For instance, if SIGALRM goes off while python is reading a file, reading will be interrupted and downstream processes can crash. If a process is setting an alarm, be sure to start it right before entering its main loop (and after the handlers have been installed), after all of the relevant configuration has been set.

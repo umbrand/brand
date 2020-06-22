@@ -5,28 +5,27 @@ include $(ROOT)/setenv.mk
 
 CC = gcc
 DEFAULTFLAGS = -Wall 
-CFLAGS = -O2 $(DEFAULTFLAGS)
-CFLAGSUNOPT = -O0 $(DEFAULTFLAGS)
-CFLAGS+ = -g -O2 $(DEFAULTFLAGS)
+CFLAGS = $(DEFAULTFLAGS) -O3 -g -mavx2 -mfma
 
-LINKS= -L$(HIREDIS_PATH)
-LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
-LDFLAGS = -lrt -pthread -lsqlite3 -lhiredis
+LINKS= -L$(HIREDIS_PATH) -L$(LPCNET_LIB_PATH)
+LDPATH = -Wl,-rpath=$(HIREDIS_PATH) -Wl,-rpath=$(LPCNET_LIB_PATH)
+LDFLAGS = -lrt -pthread -lhiredis
 
-CINCLUDE = -I$(ROOT)/lib/utilityFunctions/ \
-		   -I$(ROOT)/lib/redisTools/ \
-		   -I$(HIREDIS_PATH)
+CINCLUDE = -I$(ROOT)/lib/redisTools/ \
+		   -I$(HIREDIS_PATH) \
+		   -I$(ROOT)/lib/alarmTools/
 
 
-CFILES = $(ROOT)/lib/utilityFunctions/utilityFunctions.c \
-		 $(ROOT)/lib/redisTools/redisTools.c
+CFILES = $(ROOT)/lib/redisTools/redisTools.c \
+		 $(ROOT)/lib/alarmTools/AlarmTools.c 
+
 
 TARGET=$(BIN_PATH)/$(PROJECT)
 
-all: timer 
+all: timer
 
-timer: timer.c 
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) timer.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
+timer: timer.c
+	$(CC) $(CFLAGS) $(CINCLUDE) timer.c $(CFILES) -o $(TARGET) $(LINKS) $(LDFLAGS) $(LDPATH)
 
 clean:
 	$(RM) $(TARGET)

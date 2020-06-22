@@ -31,7 +31,7 @@ streams:
       type: INTEGER
     - key: timestamps
       type: BLOB
-    - key: current_time
+    - key: cerebusAdapter_time
       type: BLOB
     - key: udp_received_time
       type: BLOB
@@ -240,6 +240,7 @@ files:
    files:
     - cerebusAdapter.yaml
     - generator.yaml
+    - monitor.yaml
  - table_name: readme
    files:
     - README.md
