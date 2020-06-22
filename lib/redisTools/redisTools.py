@@ -23,8 +23,9 @@ def get_parameter_value(fileName, field):
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
 
-    except IOError:
-        return ""
+    except IOError as e:
+        if e.errno == errno.EPIPE:
+            return "THERE HAS BEEN AN EGRGIOUS EPIPE ERROR"
 
     for record in yamlData['parameters']:
         if record['name'] == field:

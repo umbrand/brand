@@ -1,12 +1,9 @@
 {-
 
-
-View the live streaming of parameters in the system. Listen to new information coming from
-the websocket and then display it on the screen
+View the live streaming of parameters in the system
 
 David Brandman
 
---------------------------------------
 
 This code begins by asking the rest server for information of what streams are available:
 
@@ -16,12 +13,23 @@ This will return a JSON which indicates the streams, and for each stream a list 
 
 /streams/[stream]/[stream key]?parameters
 
-At this point the rest server will activate the websocket and then start producing new data
+And then gets a JSON back with the data
+
+Data that are exported:
+
+- Stream : The type that contains the encapsulated information used by Main's model
+- Msg    : Since Main has to pass messages around, it has to know about Stream's Msg
+
+
+TODO: 
+1. the way empty streams are handled is quite lazy. It would be better if it were a Maybe rather than just relying on checking if the records match an empty
 
 -}
 
-port module Stream exposing (Stream, Msg, init, display, initCommand, command, portCommand, addData, update)
+port module Stream exposing (Stream, Msg, displayStream, updateStream, initializeStream, initializeStreamCommand, tick, getRefreshRate, runCommand )
 
+import Browser
+import Browser.Dom
 import Html exposing (..)
 import Html.Attributes exposing ( attribute, style, src, placeholder, type_, href, rel, class, value , classList , id)
 import Html.Events exposing (onClick, onInput, onCheck)
@@ -38,15 +46,6 @@ import Dict exposing (Dict)
 
 import List.Extra
 
---------------------------------------------------
---------------------------------------------------
--- Global variables
---------------------------------------------------
---------------------------------------------------
-
-maxData : Int
-maxData = 100
-
 
 --------------------------------------------------
 --------------------------------------------------
@@ -56,107 +55,75 @@ maxData = 100
 
 -- The encapsulated Model around type Stream.
 
-init : Stream
-init =
+initializeStream : Stream
+initializeStream =
     emptyModel
     |> Stream
 
-display : Stream -> Html Msg
-display socket = 
-    case socket of
+-- You give me the Stream, and I render it
+
+displayStream : Stream -> Html Msg
+displayStream stream = 
+    case stream of
         Stream model -> view model
 
-initCommand : String -> Cmd Msg
-initCommand url =
-    getStreamList url
+-- You give me a Stream.Msg, and then I update the model
 
-command : String -> Msg -> Stream -> Cmd Msg
-command url msg stream =
+updateStream : Msg -> Stream -> Stream
+updateStream msg stream =
     case stream of
         Stream model ->
-            case msg of
-                SetSelectedStream selectedStreamType -> postStreamRequest url model
-                _ -> Cmd.none
-
-addData : String -> Stream -> Stream
-addData jsonText socket =
-    let
-        newStreamData : StreamData
-        newStreamData = 
-            case socket of
-                Stream model -> model.streamData
-
-        appendData : SocketInputData -> Model -> Model
-        appendData socketData model = 
-            {model | streamData =
-                {newStreamData |
-                  x = socketData.time  :: model.streamData.x |> List.take maxData
-                , y = socketData.value :: model.streamData.y |> List.take maxData
-                , xTitle = socketData.xTitle 
-                , yTitle = socketData.yTitle
-                , title  = socketData.title
-                }
-            }
-    in
-        case socket of
-            Stream model ->
-                case Json.Decode.decodeString socketDataDecoder jsonText of
-                    Ok theData -> 
-                        model
-                        |> appendData (theData |> Debug.log "")
-                        |> Stream
-
-                    Err e -> 
-                        socket 
-                        |> Debug.log ("[Stream.elm] Json socketData error: " ++ (Json.Decode.errorToString e))
-            
-
-portCommand : Stream -> Cmd Msg
-portCommand socket =
-    case socket of
-        Stream model -> portJson model
-
-update : Msg -> Stream -> Stream
-update msg stream =
-    case stream of
-        Stream model -> 
-            update_ msg model
+            update msg model
             |> Tuple.first
             |> Stream
 
+-- Code for dealing with HTTP Get /streams
+
+initializeStreamCommand : String -> Cmd Msg
+initializeStreamCommand url =
+    getStreamList url
+
+-- Managing the results of a subscription update
+
+
+
+-- Return the model refresh rate
+
+getRefreshRate: Stream -> Maybe Float
+getRefreshRate stream =
+    case stream of
+        Stream model -> model.refreshRate
+
+runCommand : String -> Msg -> Cmd Msg
+runCommand url msg =
+    Cmd.none
 
 --------------------------------------------------
 --------------------------------------------------
--- COMMANDS
+-- MAIN and PORTS
 --------------------------------------------------
 --------------------------------------------------
-port toJS_plotly : List Json.Encode.Value -> Cmd msg
+
+-- main =
+--   Browser.element
+--     { init          = init
+--     , update        = update
+--     , subscriptions = subscriptions
+--     , view          = view
+--     }
+
+-- subscriptions : Model -> Sub Msg
+-- subscriptions model =
+--     Sub.none
+
+port toJS_plotly2 : List Json.Encode.Value -> Cmd msg
 
 portJson : Model -> Cmd msg
 portJson model =
     [ model |> plotlyJsonData
     , model |> plotlyJsonLayout
     ]
-    |> toJS_plotly
-
-getStreamList : String -> Cmd Msg
-getStreamList baseURL =
-    Http.get
-    { url = baseURL ++ "/streams"
-    , expect = Http.expectString ParseStreamList
-    }
-
-postStreamRequest : String -> Model -> Cmd Msg
-postStreamRequest baseURL model =
-    let
-        restTarget = "/streams/" ++ model.selectedStream.name ++ "/" ++ model.selectedStream.key
-    in
-        Http.post
-        { url    = baseURL ++ restTarget
-        , expect = Http.expectString ParsePostStreamRequest
-        , body   = Http.emptyBody
-        }
-
+    |> toJS_plotly2
 
 
 --------------------------------------------------
@@ -165,13 +132,8 @@ postStreamRequest baseURL model =
 --------------------------------------------------
 --------------------------------------------------
 
-type Stream = Stream Model
 
-type alias Model =
-    { streamList     : List StreamInfo 
-    , selectedStream : SelectedStream
-    , streamData     : StreamData
-    }
+type Stream = Stream Model
 
 type alias StreamInfo =
     { name       : String
@@ -179,20 +141,8 @@ type alias StreamInfo =
     , parameters : List String
     }
 
-type alias SelectedStream =
-    { name       : String
-    , key        : String
-    , parameters : Dict String String
-    }
-
-
-type alias SocketInputData = 
-    { time : Float
-    , value: Float
-    , xTitle: String
-    , yTitle: String
-    , title: String
-    }
+type alias StreamList =
+    { streams : List StreamInfo }
 
 type alias StreamData =
     { name   : String
@@ -200,12 +150,15 @@ type alias StreamData =
     , y      : List Float
     , xTitle : String
     , yTitle : String
-    , title  : String
+    , maxID  : String
     }
 
-
-type alias StreamList =
-    { streams : List StreamInfo }
+-- TODO: Turn these into maybes
+type alias SelectedStream =
+    { name       : String
+    , key        : String
+    , parameters : Dict String String
+    }
 
 emptyStreamInfo : StreamInfo
 emptyStreamInfo = 
@@ -221,11 +174,11 @@ emptyStreamList =
 emptyStreamData : StreamData
 emptyStreamData =
     { name   = "Empty"
-    , x      = []
-    , y      = []
+    , x      = [1,2,3,4,5]
+    , y      = [1,2,3,4,5]
     , xTitle = "Empty X"
-    , yTitle = "Empty Y"
-    , title  = "Empty title"
+    , yTitle = "Empty X"
+    , maxID  = "0-0"
     }
 
 type SelectedStreamType =
@@ -240,13 +193,27 @@ emptySelectedStream =
     , parameters = Dict.empty 
     }
 
+type alias Model =
+    { refreshRate    : Maybe Float
+    , selectedStream : SelectedStream
+    , streamList     : List StreamInfo
+    , streamData     : StreamData
+    , url            : String
+    }
 
 emptyModel : Model
 emptyModel =
-    { streamList     = []
+    { refreshRate    = Just 1000.0
     , selectedStream = emptySelectedStream
+    , streamList     = []
     , streamData     = emptyStreamData
+    , url            = ""
     }
+
+
+-- init : () -> (Model, Cmd Msg)
+-- init _ =
+--     (emptyModel, getStreamList )
 
 
 --------------------------------------------------
@@ -255,24 +222,33 @@ emptyModel =
 --------------------------------------------------
 --------------------------------------------------
 
-type Msg  =
-      SetSelectedStream SelectedStreamType
+type Msg  
+    = SetRefreshRate String
+    | SetSelectedStream SelectedStreamType
+    | SetURL String
+    | ParseStreamData (Result Http.Error String)
     | ParseStreamList (Result Http.Error String)
-    | ParsePostStreamRequest (Result Http.Error String)
 
 
-update_ : Msg -> Model -> (Model, Cmd Msg)
-update_ msg model =
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
     case msg of
+        SetRefreshRate val ->
+            (setRefreshRate val model, Cmd.none)
 
         SetSelectedStream val ->
             (setSelectedStream val model, Cmd.none)
 
+        SetURL val ->
+            (setURL val model, Cmd.none)
+
+        ParseStreamData result ->
+            (parseStreamData result model, Cmd.none)
+
         ParseStreamList result ->
             (parseStreamList result model, Cmd.none)
 
-        ParsePostStreamRequest result ->
-            (parsePostStreamRequest result model, Cmd.none)
+
 
 setSelectedStream : SelectedStreamType -> Model -> Model
 setSelectedStream selectedStreamType model =
@@ -289,61 +265,131 @@ setSelectedStream selectedStreamType model =
                      {selectedStream | key = val}
 
                  SelectedStreamParameter key val ->
-                     {selectedStream | 
-                         parameters = Dict.update key (\_ -> Just val) selectedStream.parameters}
+                     {selectedStream | parameters = Dict.update key (\_ -> Just val) selectedStream.parameters}
     in
         { model | selectedStream = newSelectedStream}
 
+setRefreshRate : String -> Model -> Model
+setRefreshRate val model =
+    { model | refreshRate = String.toFloat val}
+
+setURL : String -> Model -> Model
+setURL url model =
+    {model | url = url}
+
+tick : String -> Stream -> Cmd Msg
+tick url stream =
+    case stream of
+        Stream model ->
+
+            if model.selectedStream == emptySelectedStream then
+                Cmd.none
+            else
+                Cmd.batch 
+                [ getStreamData url model
+                , portJson model
+                ]
+
+
+--------------------------------------------------
+--------------------------------------------------
+-- DEALING WITH DOWNLOADING THE AVAILABLE PUBLIC VARIABLES
+--------------------------------------------------
+--------------------------------------------------
+
+getStreamList : String -> Cmd Msg
+getStreamList baseURL =
+    Http.get
+    { url = baseURL ++ "/streams"
+    , expect = Http.expectString ParseStreamList
+    }
+
+getStreamData : String -> Model -> Cmd Msg
+getStreamData baseURL model =
+    let
+        name = model.selectedStream.name
+        key  = model.selectedStream.key
+
+        parameters : String
+        parameters = 
+            model.selectedStream.parameters
+            |> Dict.toList
+            |> List.map (\a -> "?" ++ (Tuple.first a) ++ "=" ++ (Tuple.second a))
+            |> String.concat
+
+    in
+        Http.get
+        { url =  (String.join "/" [baseURL,"streams",name,key]) ++ parameters
+        , expect = Http.expectString ParseStreamData
+        }
+
+
+streamInfoDecoder : Json.Decode.Decoder StreamInfo
+streamInfoDecoder =
+   Json.Decode.succeed StreamInfo
+   |> Json.Decode.Pipeline.required "name" Json.Decode.string
+   |> Json.Decode.Pipeline.required "keys" (Json.Decode.list Json.Decode.string)
+   |> Json.Decode.Pipeline.required "parameters" (Json.Decode.list Json.Decode.string)
+
+streamListDecoder : Json.Decode.Decoder StreamList
+streamListDecoder =
+    Json.Decode.succeed StreamList
+    |> Json.Decode.Pipeline.required "streams" (Json.Decode.list streamInfoDecoder)
+
+
+streamDataDecoder : Json.Decode.Decoder StreamData
+streamDataDecoder =
+   Json.Decode.succeed StreamData
+       |> Json.Decode.Pipeline.optional "name" Json.Decode.string "No name"
+       |> Json.Decode.Pipeline.required "x" (Json.Decode.list Json.Decode.float)
+       |> Json.Decode.Pipeline.required "y" (Json.Decode.list Json.Decode.float)
+       |> Json.Decode.Pipeline.optional "xTitle" Json.Decode.string "X axis"
+       |> Json.Decode.Pipeline.optional "yTitle" Json.Decode.string "Y axis"
+       |> Json.Decode.Pipeline.optional "maxID" Json.Decode.string "0-0"
+
+setFirstStreamIfLengthOne: Model -> Model
+setFirstStreamIfLengthOne model =
+    if List.length model.streamList == 1 then
+        case List.head model.streamList of
+            Nothing -> model
+            Just streamList ->
+                case List.head streamList.keys of
+                    Nothing -> model
+                    Just streamKey ->
+                        model 
+                        |> setSelectedStream (SelectedStreamName streamList.name)
+                        |> setSelectedStream (SelectedStreamKey streamKey)
+    else
+        model
 
 parseStreamList : (Result Http.Error String) -> Model -> Model
 parseStreamList result model =
-    let
-        streamInfoDecoder : Json.Decode.Decoder StreamInfo
-        streamInfoDecoder =
-           Json.Decode.succeed StreamInfo
-           |> Json.Decode.Pipeline.required "name" Json.Decode.string
-           |> Json.Decode.Pipeline.required "keys" (Json.Decode.list Json.Decode.string)
-           |> Json.Decode.Pipeline.required "parameters" (Json.Decode.list Json.Decode.string)
+    case result of
+        Ok jsonText -> 
+            case Json.Decode.decodeString streamListDecoder jsonText of
+                Ok theData -> 
+                    {model | streamList = theData.streams } 
+                    |> setFirstStreamIfLengthOne
+                Err e -> 
+                    model |> Debug.log ("[Plot.elm] Json streamList error: " ++ (Json.Decode.errorToString e))
 
-        streamListDecoder : Json.Decode.Decoder StreamList
-        streamListDecoder =
-            Json.Decode.succeed StreamList
-            |> Json.Decode.Pipeline.required "streams" (Json.Decode.list streamInfoDecoder)
+        Err e ->
+            Debug.log ( "[Plot.elm] Parse Stream List Http Error: " ++ (httpErrorType e)) model
 
-    in
-        case result of
-            Ok jsonText -> 
-                case Json.Decode.decodeString streamListDecoder jsonText of
-                    Ok theData -> 
-                        {model | streamList = theData.streams } 
-                        |> setFirstStreamIfLengthOne
-                    Err e -> 
-                        model 
-                        |> Debug.log ("[Stream.elm] streamListDecoder:" ++ (Json.Decode.errorToString e))
+parseStreamData : (Result Http.Error String) -> Model -> Model
+parseStreamData result model =
+    case result of
+        Ok jsonText -> 
+            case Json.Decode.decodeString streamDataDecoder jsonText of
+                Ok theData -> 
+                    {model | streamData = theData } 
+                Err e -> 
+                    model |> Debug.log ("[Plot.elm] Json streamData error: " ++ (Json.Decode.errorToString e))
 
-            Err e ->
-                Debug.log ( "[Stream.elm] Parse Stream List Http Error: " ++ (httpErrorType e)) model
+        Err e ->
+            Debug.log ( "[Plot.elm] Parse Stream Data Http Error: " ++ (httpErrorType e)) model
 
 
-parsePostStreamRequest : (Result Http.Error String) -> Model -> Model
-parsePostStreamRequest result model =
-    model
-
-
---------------------------------------------------
---------------------------------------------------
--- JSON DECODERS
---------------------------------------------------
---------------------------------------------------
-
-socketDataDecoder : Json.Decode.Decoder SocketInputData
-socketDataDecoder =
-   Json.Decode.succeed SocketInputData
-   |> Json.Decode.Pipeline.required "time" Json.Decode.float
-   |> Json.Decode.Pipeline.required "value" Json.Decode.float
-   |> Json.Decode.Pipeline.optional "xTitle" Json.Decode.string "X axis"
-   |> Json.Decode.Pipeline.optional "yTitle" Json.Decode.string "Y axis"
-   |> Json.Decode.Pipeline.optional "title" Json.Decode.string "Title"
 
 
 
@@ -365,8 +411,10 @@ plotlyJsonData model =
             , ("y",    Json.Encode.list Json.Encode.float streamData.y)
             , ("type", Json.Encode.string "scatter")
             , ("mode", Json.Encode.string "markers")
+            , ("name", Json.Encode.string streamData.name)
             , ("hoverinfo", Json.Encode.string "skip")
             ] 
+
     in
         singlePlot model.streamData
         |> List.singleton
@@ -389,10 +437,11 @@ plotlyJsonLayout model =
             [("title", Json.Encode.string model.streamData.yTitle)
             ,("showgrid", Json.Encode.bool True)
             ,("zeroline", Json.Encode.bool True)
+            ,("range", Json.Encode.list Json.Encode.float [0,2000])
             ]
             |> Json.Encode.object
     in
-        [ ("title", Json.Encode.string model.streamData.title)
+        [ ("title", Json.Encode.string "Data visualization")
         , ("xaxis", xAxis)
         , ("yaxis", yAxis)
         ]
@@ -417,7 +466,8 @@ displayContents model =
     [ div [class "container"]
       [ div [class "columns is-tablet"] 
         [ div [class "column container box is-one-third"]
-          [ displayStreamParameters model
+          [ displayModelParameters model
+          , displayStreamParameters model
           ]
         , div [class "column container box is-two-thirds"]
           [ displayFigure model
@@ -425,6 +475,23 @@ displayContents model =
         ]
       ]
     ]
+
+displayModelParameters : Model -> Html Msg
+displayModelParameters model =
+    div [class "field"]
+    [ div [class "control"]
+      [ label [class "label"] [text "Set figure refresh rate"]
+      , input 
+        [ class "input"
+        , attribute "type" "number"
+        , onInput SetRefreshRate
+        , value ((Maybe.withDefault 0 model.refreshRate) |> String.fromFloat)
+        ] []
+      , p [class "help"] [text "Refresh rate (ms) for querying REST server to get fresh data."]
+      ]
+    ]
+
+      
 
 displayStreamParameters : Model -> Html Msg
 displayStreamParameters model =
@@ -511,36 +578,3 @@ httpErrorType errorType =
             "Bad status error: " ++ (String.fromInt val)
         Http.BadBody str ->
             "Bad body error: " ++ str
-
-setFirstStreamIfLengthOne : Model -> Model
-setFirstStreamIfLengthOne model =
-    if List.length model.streamList == 1 then
-        case List.head model.streamList of
-            Nothing -> model
-            Just streamList ->
-                case List.head streamList.keys of
-                    Nothing -> model
-                    Just streamKey ->
-                        model 
-                        |> setSelectedStream (SelectedStreamName streamList.name)
-                        |> setSelectedStream (SelectedStreamKey streamKey)
-    else
-        model
-
--- displayModelParameters : Model -> Html Msg
--- displayModelParameters model =
---     div [class "field"]
---     [ div [class "control"]
---       [ label [class "label"] [text "Set figure refresh rate"]
---       , input 
---         [ class "input"
---         , attribute "type" "number"
---         , onInput SetRefreshRate
---         , value ((Maybe.withDefault 0 model.refreshRate) |> String.fromFloat)
---         ] []
---       , p [class "help"] [text "Refresh rate (ms) for querying REST server to get fresh data."]
---       ]
---     ]
-
-      
-

@@ -6,3 +6,7 @@
 	path = lib/LPCNet
 	url = https://github.com/mozilla/LPCNet.git
 	ignore = untracked
+[submodule "lib/redis"]
+	path = lib/redis
+	url = https://github.com/antirez/redis.git 
+	ignore = untracked

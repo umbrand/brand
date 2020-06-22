@@ -79,3 +79,6 @@ git submodule update --init --recursive
 checkStatus $? "failed to update git submodules"
 info "Your environment is ready!"
 info "Run \`conda activate rt\` before running make"
+
+
+

@@ -13,8 +13,8 @@
  *
  * This function sits and blocks on a udp socket. When a new packet arrives it then creates a pointer
  * to the point of the UDP payload that we would expect to be a cerebus packet header. 
- * If it has the right data type, it copies the data from the UDP payload to populate argv on the fly.
- * It has to keep track of argvlen prior to submission to Redis.
+ * If it has the right data type, it copies the data from the UDP payload to populate argv.
+ * It keeps track of the argvlen prior to submission to Redis.
  *
  * When sufficient samples have been collected (defined in the cerebusAdapter.yaml file) it then
  * writes the collected argv to Redis and then starts again.
@@ -42,7 +42,6 @@
 
 // Cerebrus packet definition, adapted from the standard Blackrock library
 // https://github.com/neurosuite/libcbsdk. 
-
 typedef struct cerebus_packet_header_t {
     uint32_t time;
     uint16_t chid;
@@ -62,13 +61,15 @@ void initialize_signals();
 int  initialize_socket();
 void initialize_parameters(yaml_parameters_t *p);
 void initialize_realtime();
-void handle_exit(int exitStatus);
-void ignore_exit(int exitStatus);
+void handler_SIGINT(int exitStatus);
+void shutdown_process();
 void print_argv(int, char **, size_t *);
 
 char PROCESS[] = "cerebusAdapter";
 
 redisContext *redis_context;
+
+int flag_SIGINT = 0;
 
 
 
@@ -78,7 +79,8 @@ int main (int argc_main, char **argv_main) {
 
     initialize_signals();
 
-    initialize_realtime();
+    // Uncommenting this results in bash fork error since cerebusAdapter uses Redis
+    //initialize_realtime();
 
     int udp_fd = initialize_socket();
 
@@ -152,8 +154,8 @@ int main (int argc_main, char **argv_main) {
         argv[ind_samples + 2*i] = malloc(len);
         argv[ind_samples + 2*i + 1] = malloc(sizeof(int16_t) * samples_per_redis_stream);
     }
-
-
+    //
+    //
     //////////////////////////////////////////
 
 
@@ -167,7 +169,7 @@ int main (int argc_main, char **argv_main) {
     
     argvlen[ind_num_samples]       = sprintf(argv[ind_num_samples] ,"%s", "num_samples");
     argvlen[ind_timestamps]        = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
-    argvlen[ind_current_time]      = sprintf(argv[ind_current_time]  , "%s", "current_time");
+    argvlen[ind_current_time]      = sprintf(argv[ind_current_time]  , "%s", "cerebusAdapter_time");
     argvlen[ind_udp_received_time] = sprintf(argv[ind_udp_received_time]  , "%s", "udp_received_time");
 
     for (int i = 0; i < num_channels; i++) {
@@ -186,6 +188,11 @@ int main (int argc_main, char **argv_main) {
     // How many samples have we copied for argv?
     int n = 0;
 
+    // We use rcvmsg because we want to know when the kernel received the UDP packet
+    // and because we want the socket read to timeout, allowing us to gracefully
+    // shutdown with a SIGINT call. Using recvmsg means there's a lot more overhead
+    // in actually getting to business, as seen below
+
     char *buffer = malloc(65535); // max size of conceivable packet
     char msg_control_buffer[2000] = {0};
     
@@ -202,16 +209,17 @@ int main (int argc_main, char **argv_main) {
 
     struct timeval current_time;
     struct timeval udp_received_time;
-    struct cmsghdr *cmsg_header;
+    struct cmsghdr *cmsg_header; // Used for getting the time UDP packet was received
 
     while (1) {
 
         int udp_packet_size = recvmsg(udp_fd, &message_header, 0);
 
+        if (flag_SIGINT) 
+            shutdown_process();
 
-        // Check to see if something went wrong. TODO: How else can we handle this?
-        if (udp_packet_size <= 0) {
-            printf("ERROR SIZE: %d\n", udp_packet_size);
+        // The timer has timed out or there was an error with the recvmsg() call
+        if (udp_packet_size  <= 0) {
             continue;
         }
 
@@ -328,7 +336,7 @@ void initialize_redis() {
 
     redis_context = redisConnect(redis_ip, atoi(redis_port));
     if (redis_context->err) {
-        printf("error: %s\n", redis_context->errstr);
+        printf("[%s] Redis connection error: %s\n", PROCESS, redis_context->errstr);
         exit(1);
     }
 
@@ -340,8 +348,7 @@ void initialize_signals() {
 
     printf("[%s] Attempting to initialize signal handlers.\n", PROCESS);
 
-    /* signal(SIGINT, &ignore_exit); */
-    signal(SIGUSR1, &handle_exit);
+    signal(SIGINT, &handler_SIGINT);
 
     printf("[%s] Signal handlers installed.\n", PROCESS);
 }
@@ -364,13 +371,22 @@ int initialize_socket() {
 
     //Set socket permissions that we get a timestamp from when UDP was received
     if (setsockopt(fd,SOL_SOCKET,SO_TIMESTAMP , (void *) &one, sizeof(one)) < 0) {
-        perror("socket timestampns failure"); 
+        perror("[cerebusAdapter] timestamp failure"); 
         exit(EXIT_FAILURE); 
     }
 
+    // Set timeout for socket, so that we can handle SIGINT cleanly
+    struct timeval timeout;      
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100000;
+    if (setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO , (char *) &timeout, sizeof(timeout)) < 0) {
+        perror("[cerebusAdapter] timeout failure"); 
+        exit(EXIT_FAILURE); 
+    }
+
+
     char broadcast_port_string[16] = {0};
     load_YAML_variable_string(PROCESS, "broadcast_port", broadcast_port_string, sizeof(broadcast_port_string));
-
     int broadcast_port = atoi(broadcast_port_string);
     printf("[%s] I will be listening on port %d\n", PROCESS, broadcast_port);
 
@@ -379,7 +395,7 @@ int initialize_socket() {
     struct sockaddr_in addr;
     memset(&addr,0,sizeof(addr));
     addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY); //htonl(INADDR_BROADCAST);
     addr.sin_port        = htons(broadcast_port);
 
      if (bind(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
@@ -408,29 +424,50 @@ void initialize_parameters(yaml_parameters_t *p) {
 
 // Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80
 void initialize_realtime() {
+
+    char sched_fifo_string[16] = {0};
+    load_YAML_variable_string(PROCESS, "sched_fifo", sched_fifo_string, sizeof(sched_fifo_string));
+
+    if (strcmp(sched_fifo_string, "True") != 0) {
+        return;
+    }
+
+
     printf("[%s] Setting Real-time scheduler!\n", PROCESS);
     const struct sched_param sched= {.sched_priority = 80};
     sched_setscheduler(0, SCHED_FIFO, &sched);
 }
 
+void shutdown_process() {
+
+    printf("[%s] SIGINT received. Shutting down.\n", PROCESS);
+
+    printf("[%s] Setting scheduler back to baseline.\n", PROCESS);
+    const struct sched_param sched= {.sched_priority = 0};
+    sched_setscheduler(0, SCHED_OTHER, &sched);
+
+    printf("[%s] Shutting down redis.\n", PROCESS);
+
+    redisFree(redis_context);
+
+    printf("[%s] Exiting.\n", PROCESS);
+    
+    exit(0);
+}
 
 //------------------------------------
 // Handler functions
 //------------------------------------
 
-void handle_exit(int exitStatus) {
-    printf("[%s] Exiting!\n", PROCESS);
-    exit(0);
-}
-
-void ignore_exit(int exitStatus) {
-    printf("[%s] Terminates through SIGUSR1!\n", PROCESS);
+void handler_SIGINT(int exitStatus) {
+    flag_SIGINT++;
 }
 
 //------------------------------------
 // Helper function
 //------------------------------------
 
+// Quick and dirty function used for debugging purposes
 void print_argv(int argc, char **argv, size_t *argvlen) {
     printf("argc = %d\n", argc);
 
@@ -474,31 +511,4 @@ void print_argv(int argc, char **argv, size_t *argvlen) {
     }
 
 }
-
-/*         // We expect that the data will arrive as a series of cerebus packets concatenated in a UDP packet */
-/*         // Let's first compute how many cerebus_packets_t we've received */
-
-/*         int num_cerebus_packets = udp_packet_size / sizeof(cerebus_packet_data_t); */
-
-
-
-/*         // Now for each of the cerebrus packets, copy the samples from the cerebus_packet_data_t data field. */
-/*         // We want to set up the argv immediately. The +1 offset is for the data associated with a key */
-/*         // Since we're storing all voltage data as int16, and the timestamps as int32, we need to be careful */
-/*         // argv has dimensions [keys][samples]. So that means... */
-/*         // ind_samples + j*2 + 1 : start at ind_samples, and then jump to index corresponding to value for key j*2 */
-/*         // n * sizeof(in16_t) : we're expecting data of size int16_t, so offset based on how many samples we have */
-
-/*         for (int i = 0; i < num_cerebus_packets; i++) { */
-/*             for(int j = 0; j < num_channels; j++) { */
-
-/*                 memcpy(&argv[ind_samples + j*2 + 1][n * sizeof(int16_t)], &udp_packet_payload[i].data[j], sizeof(int16_t)); */
-/*                 memcpy(&argv[ind_timestamps + 1][n * sizeof(int32_t)]   , &udp_packet_payload[i].data   , sizeof(int32_t)); */
-/*             } */
-/*             n++; */
-/*         } */
-
-
-            /* cerebus_packet_header_t cerebus_packet_header; */
-            /* memcpy(&cerebus_packet_header, &udp_packet_payload[cb_packet_ind], sizeof(cerebus_packet_header_t)); */
 

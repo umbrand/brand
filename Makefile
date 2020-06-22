@@ -14,7 +14,7 @@ all: $(SUBDIRS) hiredis lpcnet
 .PHONY: subdirs $(CLEANDIRS)
 
 # make targets for all relevant paths under proc/
-$(SUBDIRS): hiredis lpcnet
+$(SUBDIRS): hiredis lpcnet redis
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
 
 # Linking to hiredis seems to have a bug, where make
@@ -34,6 +34,11 @@ ifeq ($(wildcard $(LPCNET_PATH)/Makefile), )
 	cd $(LPCNET_PATH) && ./configure
 endif
 	$(MAKE) -C $(LPCNET_PATH)
+
+redis:
+	$(MAKE) -C $(REDIS_PATH)
+
+
 
 clean-all: clean clean-hiredis clean-lpcnet
 
