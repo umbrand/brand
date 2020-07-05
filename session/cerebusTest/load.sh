@@ -34,8 +34,8 @@ masterList=(
     # REDIS
     session/cerebusTest/redis.realtime.conf
     session/cerebusTest/redis.rest.conf
-    lib/redis/src/redis-server
-    lib/redis/src/redis-cli
+    bin/redis-server
+    bin/redis-cli
 
     session/cerebusTest/analyze.sh
     analysis/monitor_analysis.py
