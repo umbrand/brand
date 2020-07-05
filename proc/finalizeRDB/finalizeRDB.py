@@ -54,8 +54,8 @@ def add_files_to_redis(r, files):
 
         print("[finalizeRDB] Adding key", file['key'], "with file:", file['file']) 
             
-        file_fd = open(file['file'], "r") 
-        file_contents = file_fd.read() 
+        with open(file['file'], "r") as f:
+            file_contents = f.read()
 
         r.set(file['key'],file_contents)
 
