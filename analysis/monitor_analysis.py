@@ -3,6 +3,16 @@
 
 ## Imports 
 
+#telling matplotlib to us Agg so that we can run this without using X
+import os
+headless = 'DISPLAY' not in os.environ
+if headless:
+	import matplotlib
+	matplotlib.use("Agg")
+
+
+
+
 import pandas as pd
 import numpy as np
 import sqlite3

@@ -3,6 +3,14 @@
 
 ## Imports 
 
+# telling matplotlib to use Agg so that we can run this without using X
+import os
+headless = 'DISPLAY' not in os.environ
+if headless:
+	import matplotlib
+	matplotlib.use("Agg")
+
+
 import pandas as pd
 import numpy as np
 import sys
@@ -49,6 +57,7 @@ def xrange_pagination(stream, min_ID, count):
 print('[cerebusAdapter] Examining cerebus packet differences')
 
 offset = 0
+dump_file = 0
 timestamps = []
 min_ID = '-'
 while offset < num_rows:
@@ -87,6 +96,7 @@ fig.savefig(filename)
 print('[cerebusAdapter] Examining UDP received interval')
 
 offset = 0
+dump_file = 0
 timestamps = []
 min_ID = '-'
 while offset < num_rows:
@@ -133,6 +143,7 @@ fig.savefig(filename)
 
 ## Plot the actual samples to see what we're working with
 
+'''
 num_cerebusAdapter_entries = 1000
 key = b'chan0'
 rows = r.xrevrange('cerebusAdapter', count=num_cerebusAdapter_entries)
@@ -142,7 +153,7 @@ for row in rows:
     t = struct.unpack('h'*int(row[1][b'num_samples']), row[1][key])
     samples = np.append(samples, np.array(t, dtype='int'))
 
-
+'''
 
 ###############################################
 ## Question 4: Cycle runtime
