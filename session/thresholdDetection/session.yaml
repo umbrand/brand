@@ -1,0 +1,46 @@
+
+name: thresholdDetection
+owner: Kevin Bodkin
+
+modules:
+  start:
+      #   - name: rest.pyx
+      #     links: 
+      #      - proc/rest/rest.pyx
+      #      - proc/rest/static
+      #      - proc/rest/templates
+      #      - session/cerebusTest/rest.yaml 
+   - name: cerebusAdapter
+     links:
+      - bin/cerebusAdapter
+      - session/thresholdDetection/cerebusAdapter.yaml
+  main:
+   - name: monitor
+     links: 
+      - bin/monitor 
+      - session/thresholdDetection/monitor.yaml
+   - name: timer
+     links: 
+      - bin/timer 
+      - session/thresholdDetection/timer.yaml
+   - name: thresholdExtraction
+     links: 
+      - bin/thresholdExtraction 
+      - session/thresholdDetection/thresholdExtraction.yaml
+  end:
+    - name: finalizeRDB.py
+      links: 
+       - proc/finalizeRDB/finalizeRDB.py
+       - session/thresholdDetection/finalizeRDB.yaml
+
+files:
+ - session/thresholdDetection/README.md
+ - session/thresholdDetection/session.yaml
+ - session/thresholdDetection/run.sh
+  
+redis:
+ - session/thresholdDetection/redis.realtime.conf
+ - session/thresholdDetection/redis.rest.conf
+
+analysis:
+ - monitor_analysis.py
