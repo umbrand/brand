@@ -28,8 +28,8 @@ rdb=`grep "dbfilename.*rdb" ${redis_cfg} | grep -v "#" | awk '{print $2}'`
 [ `echo ${rdb} | wc -l` -gt 1 ] && error "dbfilename is defined multiple times in $redis_cfg}"
 
 if [ -f "${rdb}" ]; then
-    # Increment the filename according to ${rdb}_x, where x is the number of replacements that
-    # have been issued for ${rdb}.
+    # If the database already exists, increment the filename according to ${rdb}_x,
+    # where x is the number of replacements that have been issued for ${rdb}.
 
     # extract x from rdb name. x=0 means we haven't done this before.
     prefix=${rdb%%.rdb} #everything before '.rdb'
