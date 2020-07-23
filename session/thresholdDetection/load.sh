@@ -11,13 +11,13 @@ masterList=(
     bin/cerebusAdapter
     session/thresholdDetection/cerebusAdapter.yaml
 
-    bin/monitor 
+    bin/monitor
     session/thresholdDetection/monitor.yaml
 
     bin/timer 
     session/thresholdDetection/timer.yaml
 
-    bin/thresholdExtraction
+    proc/thresholdExtraction/thresholdExtraction.py
     session/thresholdDetection/thresholdExtraction.yaml
 
     proc/finalizeRDB/finalizeRDB.py

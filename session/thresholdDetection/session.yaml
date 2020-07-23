@@ -25,7 +25,7 @@ modules:
       - session/thresholdDetection/timer.yaml
    - name: thresholdExtraction
      links: 
-      - bin/thresholdExtraction 
+      - proc/thresholdExtraction/thresholdExtraction.py 
       - session/thresholdDetection/thresholdExtraction.yaml
   end:
     - name: finalizeRDB.py
