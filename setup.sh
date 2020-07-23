@@ -2,7 +2,7 @@
 
 # Generate an array of all folders within session
 session_list=($(ls -d session/* | cut -d '/' -f2))
-complete -W "$session_list" load
+complete -W "`echo ${session_list[@]}`" load
 
 # Activate the rt environment to get to work
 conda activate rt

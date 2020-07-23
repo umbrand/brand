@@ -8,7 +8,7 @@ SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
 # make some clean targets for all subdirs
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
-all: $(SUBDIRS) hiredis lpcnet
+all: $(SUBDIRS) hiredis lpcnet redis
 
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
@@ -21,7 +21,7 @@ $(SUBDIRS): hiredis lpcnet redis
 # attempt to link to an so filename with the full ver.
 # ldconfig to automatically creates that file, and
 # a tmp cache is specified to avoid requiring root perms.
-hiredis:
+hiredis: redis
 	$(MAKE) -C $(HIREDIS_PATH)
 	ldconfig -C /tmp/cache $(HIREDIS_PATH)
 	$(RM) /tmp/cache
@@ -36,20 +36,27 @@ endif
 	$(MAKE) -C $(LPCNET_PATH)
 
 redis:
-	$(MAKE) -C $(REDIS_PATH)
+	$(MAKE) -C $(REDIS_PATH) redis-server redis-cli
+	mv $(REDIS_PATH)/src/redis-server $(BIN_PATH)
+	mv $(REDIS_PATH)/src/redis-cli $(BIN_PATH)
 
-
+redis-test:
+	$(MAKE) -C $(REDIS_PATH) test
 
 clean-all: clean clean-hiredis clean-lpcnet
 
 clean: $(CLEANDIRS)
 
 $(CLEANDIRS):
-	$(MAKE) -C $(@:clean-%=%) clean
+	$(MAKE) -C $(SUBDIR_BASE_PATH)/$(@:clean-%=%) clean
 
 clean-hiredis:
 	$(MAKE) -C $(HIREDIS_PATH) clean
 	$(RM) $(HIREDIS_PATH)/*.so*
+
+clean-redis:
+	$(MAKE) -C $(REDIS_PATH) clean
+	$(RM) $(BIN_PATH)/redis-server $(BIN_PATH)/redis-cli
 
 clean-lpcnet:
 	$(MAKE) -C $(LPCNET_PATH) clean
