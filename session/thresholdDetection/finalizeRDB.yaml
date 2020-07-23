@@ -13,11 +13,11 @@ files:
  - key: cerebusAdapter.yaml
    file: cerebusAdapter.yaml
    type: text
- - key: generator.yaml
-   file: generator.yaml
-   type: text
  - key: monitor.yaml
    file: monitor.yaml
+   type: text
+ - key: thresholdExtraction.yaml
+   file: thresholdExtraction.yaml
    type: text
  - key: README.md
    file: README.md
