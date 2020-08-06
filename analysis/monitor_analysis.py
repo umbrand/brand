@@ -53,6 +53,10 @@ def xrange_pagination(stream, min_ID, count):
 
 
 
+
+# combined the two questions into one loop to make everything run a little smoother
+
+
 ###############################################
 ## Question 1: Inter-run interval for monitor process
 ###############################################
@@ -60,43 +64,6 @@ def xrange_pagination(stream, min_ID, count):
 # Were're interested in looking at the difference between
 # execution timestamps for the monitor process. This is straightforward
 
-print('[monitor stream] Generating inter-run interval')
-
-
-offset = 0
-timestamps = []
-min_ID = '-'
-while offset < num_rows:
-    rows = xrange_pagination('monitor',min_ID, pagination_limit)
-
-    for row in rows:
-        timestamps = np.append(timestamps, np.array(int(row[1][b'monitor_time'])))
-        offset = offset + 1
-
-    min_ID = rows[-1][0]
-    print('[monitor stream]', offset, 'of', num_rows)
-
-diffs = np.diff(timestamps)
-
-fig = plt.figure()
-
-title = "Stream: monitor \n Diff of monitor runtimes \n Timer set to 1000 microseconds"
-plt.subplot(121)
-plt.plot(diffs, 'o', markersize=2)
-plt.ylabel('monitor runtime delta (microseconds)', fontsize=12);
-plt.xlabel('Execution cycle', fontsize=12);
-plt.title(title)
-
-title = "Histogram"
-plt.subplot(122)
-plt.hist(diffs, 50)
-plt.ylabel('Count', fontsize=12);
-plt.xlabel('Monitor runtime delta cycle', fontsize=12);
-plt.title(title)
-
-
-filename = output_folder + "monitor_runtime_diffs.png"
-fig.savefig(filename)
 
 
 ###############################################
@@ -113,15 +80,17 @@ fig.savefig(filename)
 print("[monitor stream] Computing diff between monitor and cerebus timestamps")
 
 offset = 0
-monitor_timestamps = []
-cerebus_timestamps = []
+monitor_timestamps = np.empty(num_rows)
+cerebus_timestamps = np.empty(num_rows)
 min_ID = '-'
 while offset < num_rows:
     rows = xrange_pagination('monitor',min_ID, pagination_limit)
 
     for row in rows:
-        monitor_timestamps = np.append(monitor_timestamps, np.array((row[1][b'monitor_time']), dtype='uint64'))
-        cerebus_timestamps = np.append(cerebus_timestamps, np.array((row[1][b'cerebus_timestamp']),dtype='uint64'))
+        monitor_timestamps[offset] = np.array((row[1][b'monitor_time']), dtype='uint64')
+        cerebus_timestamps[offset] = np.array((row[1][b'cerebus_timestamp']), dtype='uint64')
+        # monitor_timestamps = np.append(monitor_timestamps, np.array((row[1][b'monitor_time']), dtype='uint64'))
+        # cerebus_timestamps = np.append(cerebus_timestamps, np.array((row[1][b'cerebus_timestamp']),dtype='uint64'))
         offset = offset + 1
 
     min_ID = rows[-1][0]
@@ -138,7 +107,7 @@ title = "\n Stream: monitor \n Diff of monitor runtime and last cerebus packet r
 
 diffs = np.diff(monitor_timestamps - cerebus_timestamps) 
 plt.plot(diffs, 'o', markersize=2)
-plt.ylabel('Delta monitor to cerebus timestamp (microsecs)', fontsize=12);
+plt.ylabel('Delta monitor to cerebus timestamp (us)', fontsize=12);
 plt.xlabel('Execution cycle', fontsize=12);
 plt.title(title)
 
@@ -148,3 +117,27 @@ filename = output_folder + "monitor_timestamps_minus_cerebus_timestamps.png"
 fig.savefig(filename)
 
 
+print('[monitor stream] Generating inter-run interval')
+
+
+diffs = np.diff(monitor_timestamps)
+
+fig = plt.figure()
+
+title = "Stream: monitor \n Diff of monitor runtimes \n Timer set to 1000 microseconds"
+plt.subplot(121)
+plt.plot(diffs, 'o', markersize=2)
+plt.ylabel('monitor runtime delta (us)', fontsize=12);
+plt.xlabel('Execution cycle', fontsize=12);
+plt.title(title)
+
+title = "Histogram"
+plt.subplot(122)
+plt.hist(diffs, 50)
+plt.ylabel('Count', fontsize=12);
+plt.xlabel('Monitor runtime delta cycle', fontsize=12);
+plt.title(title)
+
+
+filename = output_folder + "monitor_runtime_diffs.png"
+fig.savefig(filename)
