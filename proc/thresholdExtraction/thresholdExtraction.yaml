@@ -56,23 +56,26 @@ parameters:
 ###########################################
 
 - name: butterworth_enable
-  value: true
+  value: True
   description: Enable butterworth filtering
 
 - name: butterworth_lowercutoff
   value: 250
   description: Lower cutoff for the butterworth filter -- in hz
-  static: true
+  static: True
 
 - name: butterworth_uppercutoff
   value: 7500
   description: Upper cutoff for the butterworth filter
-  static: true
+  static: True
 
 - name: butterworth_order
   value: 2
   description: Order for the butterworth filtering
 
+- name: causalEnable
+  value: True
+  description: is this a causal filter
 
 ##############################################################
 ### Threshold crossing information
@@ -89,3 +92,24 @@ parameters:
 - name: thresh_read_calls
   value: 2000
   description: how many read calls to use to calculate the threshold crossings 
+
+
+
+##############################################################
+### cerebus packet information
+##############################################################
+
+- name: start_key
+  value: $
+  description: what key value to start reading from 
+  static: True
+
+- name: adapter_packet_num
+  value: 1
+  description: number of cerebusAdapter packets per xread call
+  static: True
+
+
+
+
+
