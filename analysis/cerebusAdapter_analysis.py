@@ -64,7 +64,7 @@ udp_ts = np.empty(int(num_rows*num_samples),dtype='uint32') # empty array -- num
 min_ID = '-'
 while offset < num_rows: 
     try:
-        rows = xrange_pagination('cerebusAdapter',min_ID, pagination_limit)
+        rows = xrange_pagination('cerebusAdapter', min_ID, pagination_limit)
     
         for row in rows:
             r_begin,r_end = offset*num_samples,(offset+1)*num_samples # index for current array range
