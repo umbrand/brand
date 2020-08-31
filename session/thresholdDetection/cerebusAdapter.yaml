@@ -23,7 +23,7 @@ parameters:
   static: true
 
 - name: samples_per_redis_stream
-  value: 30
+  value: 10
   description: Number of samples we're expecting to see per Redis stream entry
   static: true
 

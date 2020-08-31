@@ -11,6 +11,7 @@ from scipy import io
 import os, sys, redis
 from struct import unpack, pack
 from datetime import datetime as dt
+from time import sleep
 
 # try this without cython to start
 #import cython
@@ -203,17 +204,20 @@ for ii in range(0,numChannels):
 r.xadd('thresholdValues',threshValueDict) # push it into a new redis stream
 
 # start time stamping
-tDelta = [dt.now(), 0]
+tDelta = [dt.now(), dt.now()]
+numLoop = 10000
+tDeltaLog = np.empty(numLoop,dtype=dt)
+loopInc = 0
 
-while True:
-
+while loopInc < numLoop:
    # wait to get data from cerebus stream, then parse it
    #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
    cerPackInc = 0 # when we're needing to stick multiple packets in the same array
    xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)
-   prevKey = xread_receive[0][1][-1][0] # first list: ?; second tuple: cerebus stream; third list: location in record;
+   '''prevKey = xread_receive[0][1][-1][0] # first list: ?; second tuple: cerebus stream; third list: location in record;
    for xread_tuple in xread_receive[0][1]: # run each tuple individually
       numpy_import(xread_tuple[1], dataBuffer[:,cerPackInc*sampleLength:(cerPackInc+1)*sampleLength], sampleLength)
+      cerPackInc += 1
 
    # start and stop timestamps for the threshold dict
    ts_g0 = unpack('I'*sampleLength, xread_receive[0][1][0][1][b'timestamps'])
@@ -233,16 +237,22 @@ while True:
       
    # send data back to the streams
    numpy_export(crossDict, xread_receive, threshCross, filtBuffer, r, sampleLength)
-
+   '''
 
    # check our loop timing
    tDelta = [dt.now(), tDelta[0]]
-   tElapse = (tDelta[0]-tDelta[1]).microseconds
-   if tElapse > 1000:
-       print('[thresholdExtractor] tDelta: ', tElapse, ' us')
+   tDeltaLog[loopInc] = (tDelta[0]-tDelta[1])
+   '''if tElapse > 1000:
+       print('[thresholdExtractor] tDelta: ', tElapse, ' us')'''
    
+   loopInc += 1
 
 
+
+print('Mean loop time: ', np.mean(tDeltaLog))
+print('Max loop time: ', np.max(tDeltaLog))
+print('Min loop time: ', np.min(tDeltaLog))
+print('number of zeros: ', sum(tDeltaLog == 0))
 
 
 

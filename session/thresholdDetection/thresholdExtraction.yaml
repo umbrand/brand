@@ -88,10 +88,6 @@ parameters:
 ### Threshold crossing information
 ##############################################################
 
-- name: buffer_len
-  value: 60 # double the number of samples, I guess
-  description: Length of data buffer
-
 - name: thresh_mult
   value: -4.25
   description: SD multiplier for calculating threshold crossings
