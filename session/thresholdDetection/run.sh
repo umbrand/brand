@@ -1,56 +1,29 @@
 #!/bin/bash
 
 start_modules=(cerebusAdapter)
-main_modules=(monitor)
+main_modules=(monitor thresholdExtraction.py)
 end_modules=(finalizeRDB.py)
 
 ##############################################
 # Check to see if there is already an .rdb file
 ##############################################
 
-RED="\e[31m"
-YELLOW="\e[33m"
-DEFAULT="\e[39m"
+if [ -f "dump.rdb" ]; then
+    echo ""
+    echo "---------------------------------------------"
+    echo "---------------------------------------------"
+    echo "Warning. There is already a dumb.rb file."
+    echo "This suggests that redis has recently been run"
+    echo "There may be existing data from a previously recorded session"
+    echo ""
+    echo "Are you sure you want to continue? (yes/no)"
 
-error () {
-    echo -e "${RED}Error: ${DEFAULT}$1"
-    exit 1
-}
+    read should_continue
 
-warn () {
-    echo -e "${YELLOW}Warning: ${DEFAULT}$1"
-}
-
-# make sure the database save name is defined in the redis cfg file and not commented out
-redis_cfg=redis.realtime.conf
-rdb=`grep "dbfilename.*rdb" ${redis_cfg} | grep -v "#" | awk '{print $2}'`
-[ -z "${rdb}" ] && error "No database filename given in ${redis_cfg}"
-[ `echo ${rdb} | wc -l` -gt 1 ] && error "dbfilename is defined multiple times in $redis_cfg}"
-
-if [ -f "${rdb}" ]; then
-    # If the database already exists, increment the filename according to ${rdb}_x,
-    # where x is the number of replacements that have been issued for ${rdb}.
-
-    # extract x from rdb name. x=0 means we haven't done this before.
-    prefix=${rdb%%.rdb} #everything before '.rdb'
-    let x=`echo ${prefix} | rev | cut -d '_' -f 1 | rev`
-    [ $x -gt 0 ] && prefix=`echo ${rdb} | sed 's/\(.*\)_.*/\1/'` # everything before the last '_'
-    x=$(( $x + 1 )) # increment the count
-    while [ -f "${prefix}_$x.rdb" ]; do
-        x=$(( $x + 1 ))
-    done
-    new_rdb=${prefix}_$x.rdb
-
-    msg="There is already a database saved as ${rdb}.\n"
-    msg="${msg}The database from this run will be saved as ${new_rdb}."
-    warn "${msg}"
-    read -p "Do you want to continue? [Y/n]: " should_continue
-
-    if [[ ${should_continue,,} != "y"* ]]; then
+    if [[ $should_continue != "yes" ]]; then
         echo "Exiting."
-        exit
+        return
     fi
-    rdb=${new_rdb}
 fi
 
 
@@ -58,7 +31,7 @@ fi
 # Load the modules
 ##############################################
 
-./redis-server ${redis_cfg} --dbfilename ${rdb} &
+./redis-server redis.realtime.conf &
 sleep 2s
 
 echo "--------------------------------"
