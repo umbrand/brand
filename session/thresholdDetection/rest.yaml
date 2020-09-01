@@ -1,0 +1,31 @@
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: rest_ip
+  value: 127.0.0.1
+  description: What is the IP of the rest server?
+  static: true
+
+- name: rest_port
+  value: 5000
+  description: What is the port of the rest server?
+  static: true
+
+- name: modules
+  value: [generator, cerebusAdapter, monitor, timer]
+  description: What modules do we want to present the parameters for?
+  static: true
+
+- name: runtimes
+  value: [cerebusAdapter]
+  description: What modules do we want to present the runtime information for?
+  static: true
+

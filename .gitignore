@@ -17,3 +17,14 @@ bin/
 
 # All backup code should be saved in subfolders with "old":
 **/old
+
+# dump files -- in case they end up outside of /run/
+*.rdb
+
+# images and media
+*.png
+*.jbp
+*.bmp
+*.avi
+*.mp[0-9]
+
