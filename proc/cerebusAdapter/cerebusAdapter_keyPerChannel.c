@@ -83,6 +83,7 @@ int main (int argc_main, char **argv_main) {
     //initialize_realtime();
 
     int udp_fd = initialize_socket();
+    printf("AA\n");
 
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
@@ -117,8 +118,7 @@ int main (int argc_main, char **argv_main) {
     int ind_timestamps        = ind_num_samples + 2;       // timestamps [data]
     int ind_current_time      = ind_timestamps + 2;        // current_time [data]
     int ind_udp_received_time = ind_current_time + 2;      // udp_received_time [data]
-    int ind_chan_labels       = ind_udp_received_time + 2; // chan0 [data] chan1 [data] ...
-    int ind_samples           = ind_chan_labels + 2;       // chan0 [data] chan1 [data] ...
+    int ind_samples           = ind_udp_received_time + 2;       // chan0 [data] chan1 [data] ...
 
 
 
@@ -150,20 +150,11 @@ int main (int argc_main, char **argv_main) {
     argv[ind_udp_received_time]     = malloc(len);
     argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * samples_per_redis_stream);
    
-    // allocating memory for chans:    [chan0 ... chanX]
-    //                       samples:  [data0 ... dataX]
-    argv[ind_chan_labels] = malloc(len);
-    argv[ind_chan_labels + 1] = malloc(len * num_channels);
-
-    argv[ind_samples] = malloc(len);
-    argv[ind_samples + 1] = malloc(sizeof(int16_t) * samples_per_redis_stream * num_channels);
-
-    /* running it as a single block of channel labels, and a block of samples
     // allocating memory for chan0 [data] chan1 [data] ...
     for(int i = 0; i < num_channels; i++) {
         argv[ind_samples + 2*i] = malloc(len);
         argv[ind_samples + 2*i + 1] = malloc(sizeof(int16_t) * samples_per_redis_stream);
-    }*/
+    }
     //
     //
     //////////////////////////////////////////
@@ -181,7 +172,7 @@ int main (int argc_main, char **argv_main) {
     argvlen[ind_timestamps]        = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
     argvlen[ind_current_time]      = sprintf(argv[ind_current_time]  , "%s", "cerebusAdapter_time");
     argvlen[ind_udp_received_time] = sprintf(argv[ind_udp_received_time]  , "%s", "udp_received_time");
-
+    
     for (int i = 0; i < num_channels; i++) {
         argvlen[ind_samples + 2*i] = sprintf(argv[ind_samples + 2*i], "chan%01d", i);
     }
@@ -274,11 +265,11 @@ int main (int argc_main, char **argv_main) {
 
                 // The index where the data starts in the UDP payload
                 int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
-
+                
                 // Copy each payload entry directly to the argv. dlen contains the number of 4 bytes of payload
                 for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
                     memcpy(&argv[ind_samples + i*2 + 1][n * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
-                }
+					}
                 n++;
             }
 
