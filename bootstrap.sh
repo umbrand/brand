@@ -33,18 +33,17 @@ libsqlite3-dev
 redis-server
 automake
 libtool
+curl
 )
 
 # install pkgs in $dependencies
 for dep in ${dependencies[@]}; do
-    if ! dpkg --get-selections | grep -q ${dep}; then
-        info "Installing ${dep}"
-        [ "${dep}" == "redis-server" ] && sudo add-apt-repository -y ppa:chris-lea/redis-server
-        sudo apt-get update
-        sudo apt-get -y install ${dep}
-        checkStatus $? "failed to install ${dep}"
-        info "Successfully installed ${dep}"
-    fi
+    info "Installing ${dep}"
+    [ "${dep}" == "redis-server" ] && sudo add-apt-repository -y ppa:chris-lea/redis-server
+    sudo apt-get update
+    sudo apt-get -y install ${dep}
+    checkStatus $? "failed to install ${dep}"
+    info "Successfully installed ${dep}"
 done
 
 # check if elm command is available. If not prompt user for installation.
