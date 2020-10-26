@@ -199,9 +199,9 @@ threshMult = get_parameter_value(threshold_yaml,'thresh_mult') # pull in the thr
 readCalls = get_parameter_value(threshold_yaml,'thresh_read_calls') # need enough data to calculate variance etc
 thresholds = calc_thresh(r, threshMult, readCalls, sampleLength, numChannels) # get the array
 threshValueDict = {} # set up a dictionary to export the threshold values for later info
-for ii in range(0,numChannels):
-    threshValueDict[('chan{}'.format(ii)).encode()] = pack('h',int(thresholds[ii]))
-r.xadd('thresholdValues',threshValueDict) # push it into a new redis stream
+#for ii in range(0,numChannels):
+#    threshValueDict[('chan{}'.format(ii)).encode()] = pack('h',int(thresholds[ii]))
+#r.xadd('thresholdValues',threshValueDict) # push it into a new redis stream
 
 # start time stamping
 tDelta = [dt.now(), dt.now()]
@@ -213,9 +213,12 @@ while loopInc < numLoop:
    # wait to get data from cerebus stream, then parse it
    #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
    cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-   xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)
-   '''prevKey = xread_receive[0][1][-1][0] # first list: ?; second tuple: cerebus stream; third list: location in record;
-   for xread_tuple in xread_receive[0][1]: # run each tuple individually
+   '''p = r.pipeline()
+   p.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)
+   xread_receive = p.execute()[0][0][1] # first list: pipeline; second list: xread stream; third list: cerebus Adapter response'''
+   xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)[0][1]
+   prevKey = xread_receive[-1][0] # entry number of last item in list
+   for xread_tuple in xread_receive: # run each tuple individually
       numpy_import(xread_tuple[1], dataBuffer[:,cerPackInc*sampleLength:(cerPackInc+1)*sampleLength], sampleLength)
       cerPackInc += 1
 
@@ -237,7 +240,7 @@ while loopInc < numLoop:
       
    # send data back to the streams
    numpy_export(crossDict, xread_receive, threshCross, filtBuffer, r, sampleLength)
-   '''
+   
 
    # check our loop timing
    tDelta = [dt.now(), tDelta[0]]

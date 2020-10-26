@@ -108,8 +108,8 @@ parameters:
   static: True
 
 - name: adapter_packet_num
-  value: 10
-  description: number of cerebusAdapter packets per xread call
+  value: 3
+  description: number of cerebusAdapter redis packets per xread call
   static: True
 
 

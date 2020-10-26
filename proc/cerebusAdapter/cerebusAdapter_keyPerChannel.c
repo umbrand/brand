@@ -73,8 +73,12 @@ int flag_SIGINT = 0;
 
 
 
+
 int main (int argc_main, char **argv_main) {
 
+    // debugging file output
+    FILE *fp = fopen("cerebusAdapter_debug.txt","w");
+   
     initialize_redis();
 
     initialize_signals();
@@ -83,7 +87,6 @@ int main (int argc_main, char **argv_main) {
     //initialize_realtime();
 
     int udp_fd = initialize_socket();
-    printf("AA\n");
 
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
@@ -253,6 +256,7 @@ int main (int argc_main, char **argv_main) {
             cerebus_packet_header_t *cerebus_packet_header = (cerebus_packet_header_t*) &udp_packet_payload[cb_packet_ind];
 
             // Now check to see if we're getting a type 6 packet, which should contain our sampled Utah array voltage data
+            fprintf(fp,"cerebus_packet_header time:%i,\tdlen:%i,\ttype:%i,\tchid:%i\n",cerebus_packet_header->time,cerebus_packet_header->dlen,cerebus_packet_header->type,cerebus_packet_header->chid);
             if (cerebus_packet_header->type == 6) {
                 
                 // This gets the current system time
@@ -313,6 +317,7 @@ int main (int argc_main, char **argv_main) {
     }
     free(argvlen);
     free(buffer);
+    fclose(fp);
     return 0;
 }
 
