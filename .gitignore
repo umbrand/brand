@@ -29,5 +29,7 @@ bin/
 *.mp[0-9]
 
 
+
 # matlab data
 .mat
+

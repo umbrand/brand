@@ -86,8 +86,7 @@ int main (int argc_main, char **argv_main) {
     //initialize_realtime();
 
     int udp_fd = initialize_socket();
-    
-    
+
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
 
@@ -189,7 +188,6 @@ int main (int argc_main, char **argv_main) {
     char *buffer = malloc(65535); // max size of conceivable packet
     char msg_control_buffer[2000] = {0};
     
-
     struct iovec message_iovec = {0};
     message_iovec.iov_base = buffer;
     message_iovec.iov_len  = 65535;
@@ -204,7 +202,7 @@ int main (int argc_main, char **argv_main) {
     struct timeval current_time;
     struct timeval udp_received_time;
     struct cmsghdr *cmsg_header; // Used for getting the time UDP packet was received
-    
+
     while (1) {
 
         int udp_packet_size = recvmsg(udp_fd, &message_header, 0);
@@ -246,7 +244,6 @@ int main (int argc_main, char **argv_main) {
             cerebus_packet_header_t *cerebus_packet_header = (cerebus_packet_header_t*) &udp_packet_payload[cb_packet_ind];
 
             // Now check to see if we're getting a type 6 packet, which should contain our sampled Utah array voltage data
-            fprintf(fp,"cerebus_packet_header\ttime: %i,\tdlen: %i,\ttype: %i,\tchid: %i\n",cerebus_packet_header->time,cerebus_packet_header->dlen,cerebus_packet_header->type,cerebus_packet_header->chid);
             if (cerebus_packet_header->type == 6) {
                 
                 // This gets the current system time
