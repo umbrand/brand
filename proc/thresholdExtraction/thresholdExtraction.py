@@ -35,9 +35,11 @@ cerebusAdapter_yaml = 'cerebusAdapter.yaml'
 
 
 # turn the bytecode dict into a python array
-def numpy_import(inDict, outArray, samples): 
+def numpy_import(inDict, outArray, samplesPerRead, numChannels): 
     
     chInd = 0  # increment to keep track of which  channel we're on -- not all data in the dict is neural signals
+
+    outArray[:,:] = np.reshape(unpack('h' * samplesPerRead * numChannels, inDict[b'samples']))
 
     for ii in inDict.keys():
         if 'chan' in ii.decode('utf-8'):
@@ -213,9 +215,6 @@ while loopInc < numLoop:
    # wait to get data from cerebus stream, then parse it
    #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
    cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-   '''p = r.pipeline()
-   p.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)
-   xread_receive = p.execute()[0][0][1] # first list: pipeline; second list: xread stream; third list: cerebus Adapter response'''
    xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)[0][1]
    prevKey = xread_receive[-1][0] # entry number of last item in list
    for xread_tuple in xread_receive: # run each tuple individually

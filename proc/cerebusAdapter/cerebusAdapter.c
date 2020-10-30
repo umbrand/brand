@@ -76,7 +76,6 @@ int flag_SIGINT = 0;
 int main (int argc_main, char **argv_main) {
 
     //debugging file output
-    FILE *fp = fopen("cerebusAdapter_debug.txt","w");
 
     initialize_redis();
 
@@ -257,9 +256,9 @@ int main (int argc_main, char **argv_main) {
                 // The index where the data starts in the UDP payload
                 int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
 
-                // Copy each payload entry directly to the argv. dlen contains the number of 5 bytes of payload
+                // Copy each payload entry directly to the argv. dlen contains the number of 4 bytes of payload
                 for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
-                    memcpy(&argv[ind_samples + 1][n * sizeof(int16_t) + i], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
+                    memcpy(&argv[ind_samples + 1][(n + i*samples_per_redis_stream) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
                 }
                 n++;
             }
