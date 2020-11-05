@@ -23,8 +23,8 @@ TARGET=$(BIN_PATH)/$(PROJECT)
 
 all: redis_test
 
-redis_test: redis_test.cpp
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) redis_test.cpp $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
+redis_test: redis_test.c
+	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) redis_test.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
 
 clean:
 	$(RM) $(TARGET)

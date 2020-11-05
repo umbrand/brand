@@ -32,6 +32,8 @@ int main() {
 
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
+
+    freeReplyObject(redisCommand(redis_context,  "XADD mouseData * x 2 y 4 wheel 2"));
 }
 
 
@@ -39,11 +41,11 @@ void initialize_redis() {
 
     printf("[%s] Initializing Redis...\n", PROCESS);
 
-    char redis_ip[]       = "127.0.0.1";
-    char redis_port[]     = "6379";
+    char redis_ip[16]       = {0};
+    char redis_port[16]     = {0};
 
-    // load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
-    // load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
+    load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
 
     printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
 
