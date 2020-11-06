@@ -22,6 +22,7 @@ void initialize_redis();
 void initialize_signals();
 void handler_SIGINT(int exitStatus);
 void initialize_parameters(yaml_parameters_t *p);
+void shutdown_process();
 
 char PROCESS[] = "redis_test";
 redisReply *reply;
@@ -42,7 +43,7 @@ int main() {
 	yaml_parameters_t yaml_parameters = {0};
 	initialize_parameters(&yaml_parameters);
 
-	mouse_fd = fopen("/dev/input/by-id/usb-Razer_Razer_Viper-event-mouse", "r");
+	mouse_fd = open("/dev/input/by-id/usb-Razer_Razer_Viper-event-mouse", O_RDONLY);
 	// Mouse Initialization
 	if (mouse_fd < 0) {
 		printf("Error opening mouse. Status code %d.\n", mouse_fd);
@@ -54,6 +55,9 @@ int main() {
 
 	// wait for mouse input
 	while(1) {
+		if (flag_SIGINT) 
+			shutdown_process();
+
 		rd = read(mouse_fd, &ev, sizeof(struct input_event));  // wait for input
 		if (rd < (int) sizeof(struct input_event)) {
 			perror("Mouse: error reading \n");
@@ -91,10 +95,11 @@ int main() {
 				}
 			}
 		pthread_mutex_unlock(&mouseDataMutex);
+
+		freeReplyObject(redisCommand(redis_context,
+			"XADD mouseData * dx %d dy %d dw %d",
+			mouseData[0], mouseData[1], mouseData[2]));
 	}
-	freeReplyObject(redisCommand(redis_context,
-		"XADD mouseData * x %d y %d wheel %d",
-		mouseData[0], mouseData[1], mouseData[2]));
 }
 
 
@@ -134,10 +139,6 @@ void initialize_signals() {
 // Handler functions
 //------------------------------------
 
-void handler_SIGINT(int exitStatus) {
-	flag_SIGINT++;
-}
-
 
 void initialize_parameters(yaml_parameters_t *p) {
 
@@ -150,4 +151,29 @@ void initialize_parameters(yaml_parameters_t *p) {
 	p->num_channels             = atoi(num_channels_string);
 	p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);
 
+}
+
+void shutdown_process() {
+
+	printf("[%s] SIGINT received. Shutting down.\n", PROCESS);
+
+	printf("[%s] Setting scheduler back to baseline.\n", PROCESS);
+	const struct sched_param sched= {.sched_priority = 0};
+	sched_setscheduler(0, SCHED_OTHER, &sched);
+
+	printf("[%s] Shutting down redis.\n", PROCESS);
+
+	redisFree(redis_context);
+
+	printf("[%s] Exiting.\n", PROCESS);
+	
+	exit(0);
+}
+
+//------------------------------------
+// Handler functions
+//------------------------------------
+
+void handler_SIGINT(int exitStatus) {
+	flag_SIGINT++;
 }
