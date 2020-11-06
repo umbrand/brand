@@ -1,4 +1,4 @@
-PROJECT=mouseAdapter
+PROJECT=cursor_control
 
 ROOT ?= ../..
 include $(ROOT)/setenv.mk
@@ -21,13 +21,10 @@ CFILES = $(ROOT)/lib/redisTools/redisTools.c
 
 TARGET=$(BIN_PATH)/$(PROJECT)
 
-all: mouseAdapter
+all: cursor_control
 
-redis_test: redis_test.c
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) redis_test.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
-
-mouseAdapter: mouseAdapter.c
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) mouseAdapter.c -pthread $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
+cursor_control: cursor_control.c
+	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) cursor_control.c -pthread $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
 
 clean:
 	$(RM) $(TARGET)
