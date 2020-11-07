@@ -189,3 +189,20 @@ One option is to simply remove the `save` configuration parameters in the `.conf
 ### Alarms and reading from file
 
 If a process is reading from a file descriptor and an alarm goes off, there can be unforunate consequence. For instance, if SIGALRM goes off while python is reading a file, reading will be interrupted and downstream processes can crash. If a process is setting an alarm, be sure to start it right before entering its main loop (and after the handlers have been installed), after all of the relevant configuration has been set.
+
+### Permission denied for a scripts
+```
+$ load cerebrusTest
+bash: ./session/cerebrusTest/load.sh: Permission denied
+```
+If you see this error, run `chmod +x ./session/cerebrusTest/load.sh` to make the script executable.
+
+
+### `run` command does not execute the `run.sh` script corresponding to the loaded session
+This can happen if a `run/` folder already exists prior to running `load mysession`. The `load.sh` script in each session is usually designed to not overwrite an existing `run/` folder. If a run folder exists already you will need to move it before a new session can be loaded.
+
+
+### Running a script with sudo privileges within the current conda environment
+```
+sudo -E env "PATH=$PATH" ./myscript
+```
