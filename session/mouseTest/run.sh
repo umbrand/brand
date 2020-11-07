@@ -1,8 +1,8 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(monitor)
-end_modules=(finalizeRDB.py)
+main_modules=(mouseAdapter)
+end_modules=()
 
 ##############################################
 # Check to see if there is already an .rdb file

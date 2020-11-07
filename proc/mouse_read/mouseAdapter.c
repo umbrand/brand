@@ -20,6 +20,7 @@ typedef struct yaml_parameters_t {
 void initialize_redis();
 void initialize_signals();
 void handler_SIGINT(int exitStatus);
+void handler_SIGUSR1(int exitStatus);
 void initialize_parameters(yaml_parameters_t *p);
 void shutdown_process();
 
@@ -28,6 +29,7 @@ redisReply *reply;
 redisContext *redis_context;
 
 int flag_SIGINT = 0;
+int flag_SIGUSR1 = 0;
 
 int32_t mouseData[6];  // (change in) X, Y, and wheel position (0-2) and 
 // value of left, middle, and right button press (3-5)
@@ -92,23 +94,6 @@ void * mouseListenerThread(void * thread_params) {
 	return 0;
 }
 
-void * mousePublisherThread(void * thread_params) {
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-	while(1) {
-		freeReplyObject(redisCommand(redis_context,
-			"XADD mouseData * dx %d dy %d dw %d",
-			mouseData[0], mouseData[1], mouseData[2]));
-		pthread_mutex_lock(&mouseDataMutex);
-		mouseData[0] = 0;
-		mouseData[1] = 0;
-		mouseData[2] = 0;
-		pthread_mutex_unlock(&mouseDataMutex);
-		usleep(500);
-	}
-	return 0;
-}
-
 
 
 
@@ -137,23 +122,26 @@ int main() {
 		printf("Mouse thread failed to initialize!!\n");
 	}
 
-	// /* Spawn Mouse thread */
-	printf("Starting Publisher Thread \n");
-	rc = pthread_create(&publisherThread, NULL, mousePublisherThread, NULL);
-	if(rc)
-	{
-		printf("Mouse thread failed to initialize!!\n");
-	}
-
 
 	/* server infinite loop */
 	while(1) {
+		pause();
+
 		if (flag_SIGINT) 
 			shutdown_process();
-		usleep(100);
 
-		// printf("M %d %d %d %d %d %d \n", mouseData[0], mouseData[1],
-		// 	mouseData[2], mouseData[3], mouseData[4], mouseData[5]);
+		if (flag_SIGUSR1) {
+			freeReplyObject(redisCommand(redis_context,
+				"XADD mouseData * dx %d dy %d dw %d",
+				mouseData[0], mouseData[1], mouseData[2]));
+			pthread_mutex_lock(&mouseDataMutex);
+			mouseData[0] = 0;
+			mouseData[1] = 0;
+			mouseData[2] = 0;
+			pthread_mutex_unlock(&mouseDataMutex);
+
+			flag_SIGUSR1--;
+		}
 
 	}
 
@@ -193,6 +181,7 @@ void initialize_signals() {
 	printf("[%s] Attempting to initialize signal handlers.\n", PROCESS);
 
 	signal(SIGINT, &handler_SIGINT);
+	signal(SIGUSR1, &handler_SIGUSR1);
 
 	printf("[%s] Signal handlers installed.\n", PROCESS);
 }
@@ -230,4 +219,8 @@ void shutdown_process() {
 
 void handler_SIGINT(int exitStatus) {
 	flag_SIGINT++;
+}
+
+void handler_SIGUSR1(int signum) {
+    flag_SIGUSR1++;
 }

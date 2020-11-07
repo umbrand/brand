@@ -18,7 +18,7 @@ parameters:
    static: true
  
  - name: modules
-   value: [monitor]
+   value: [mouseAdapter]
    description: List of modules to send SIGUSR1 signal to
    static: true
  
