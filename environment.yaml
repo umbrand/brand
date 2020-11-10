@@ -66,6 +66,7 @@ dependencies:
     - prometheus-client==0.7.1
     - prompt-toolkit==3.0.5
     - ptyprocess==0.6.0
+    - pygame==2.0.0
     - pygments==2.6.1
     - pyparsing==2.4.7
     - pyrsistent==0.16.0
