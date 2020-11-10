@@ -1,7 +1,7 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(mouseAdapter)
+main_modules=(mouseAdapter cursor_control)
 end_modules=()
 
 ##############################################

@@ -12,6 +12,7 @@ masterList=(
 
     bin/cursor_control
     proc/cursor_control/cursor_control.yaml
+    proc/cursor_control/yellow_circle.png
 
     # REDIS
     session/mouseTest/redis.realtime.conf

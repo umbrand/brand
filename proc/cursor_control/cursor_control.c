@@ -7,6 +7,9 @@
 #include <signal.h>
 #include "redisTools.h"
 #include "hiredis.h"
+#include <SDL2/SDL.h> 
+#include <SDL2/SDL_image.h> 
+#include <SDL2/SDL_timer.h> 
 
 // List of parameters read from the yaml file, facilitates function definition of initialize_parameters
 typedef struct yaml_parameters_t {
@@ -37,8 +40,7 @@ void * mouseSubscriberThread(void * thread_params) {
 	// 	shutdown_process();
 		reply = redisCommand(redis_context,
 			"XREAD BLOCK 1000000 STREAMS mouseData $");
-		// char *string = reply->element[0]->element[1]->element[0]->element[1]->element[1]->str;
-		// char *string = reply->element[0]->element[1]->element[0]->element[1]->str;
+
 		mousePosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str);
 		mousePosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str);
 		mousePosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str);
@@ -67,12 +69,109 @@ int main() {
 		printf("Started thread\n");
 	}
 
+	// source: https://www.geeksforgeeks.org/sdl-library-in-c-c-with-examples/
+	// returns zero on success else non-zero 
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) { 
+		printf("error initializing SDL: %s\n", SDL_GetError()); 
+	} 
+	SDL_Window* win = SDL_CreateWindow("GAME", // creates a window 
+									   SDL_WINDOWPOS_CENTERED, 
+									   SDL_WINDOWPOS_CENTERED, 
+									   1920, 1080, 0); 
 
-	while(1) {
-		if (flag_SIGINT) 
+	// SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN);
+
+	// move cursor to center of the screen
+	SDL_WarpMouseInWindow(win, 500, 500);
+
+
+	// triggers the program that controls 
+	// your graphics hardware and sets flags 
+	Uint32 render_flags = SDL_RENDERER_ACCELERATED; 
+
+	// creates a renderer to render our images 
+	SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags); 
+
+	// creates a surface to load an image into the main memory 
+	SDL_Surface* surface; 
+
+	// please provide a path for your image 
+	surface = IMG_Load("./yellow_circle.png"); 
+
+	// loads image to our graphics hardware memory. 
+	SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surface); 
+
+	// clears main-memory 
+	SDL_FreeSurface(surface); 
+
+	SDL_ShowCursor(SDL_DISABLE);
+
+	// let us control our image position 
+	// so that we can move it with our keyboard. 
+	SDL_Rect dest; 
+
+	// connects our texture with dest to control position 
+	SDL_QueryTexture(tex, NULL, NULL, &dest.w, &dest.h); 
+
+	// adjust height and width of our image box. 
+	dest.w /= 6; 
+	dest.h /= 6; 
+
+	// sets initial x-position of object 
+	dest.x = (1920 - dest.w) / 2; 
+
+	// sets initial y-position of object 
+	dest.y = (1080 - dest.h) / 2; 
+
+	// controls annimation loop 
+	int close = 0; 
+
+	// annimation loop 
+	while (1) { 
+		if (flag_SIGINT | close) 
 			shutdown_process();
-		usleep(1000);
-	}
+
+		dest.x = mousePosition[0] + (1920 - dest.w) / 2;
+		dest.y = mousePosition[1] + (1080 - dest.h) / 2;
+
+
+		// right boundary 
+		if (dest.x + dest.w > 1920) 
+			dest.x = 1920 - dest.w; 
+
+		// left boundary 
+		if (dest.x < 0) 
+			dest.x = 0; 
+
+		// bottom boundary 
+		if (dest.y + dest.h > 1080) 
+			dest.y = 1080 - dest.h; 
+
+		// upper boundary 
+		if (dest.y < 0) 
+			dest.y = 0; 
+
+		// clears the screen
+		SDL_RenderClear(rend); 
+		SDL_RenderCopy(rend, tex, NULL, &dest); 
+
+		// triggers the double buffers 
+		// for multiple rendering 
+		SDL_RenderPresent(rend); 
+
+		// calculates to 60 fps 
+		SDL_Delay(1000 / 60); 
+	} 
+
+	// destroy texture 
+	SDL_DestroyTexture(tex); 
+
+	// destroy renderer 
+	SDL_DestroyRenderer(rend); 
+
+	// destroy window 
+	SDL_DestroyWindow(win); 
+	return 0; 
 }
 
 
