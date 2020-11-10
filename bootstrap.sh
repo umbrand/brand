@@ -34,6 +34,12 @@ redis-server
 automake
 libtool
 curl
+libsdl2-2.0-0
+libsdl2-dev
+libsdl2-image-2.0-0
+libsdl2-image-dev
+libsdl2-gfx-1.0-0
+libsdl2-gfx-dev
 )
 
 # install pkgs in $dependencies
