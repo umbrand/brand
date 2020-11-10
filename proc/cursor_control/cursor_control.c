@@ -77,7 +77,7 @@ int main() {
 	SDL_Window* win = SDL_CreateWindow("GAME", // creates a window 
 									   SDL_WINDOWPOS_CENTERED, 
 									   SDL_WINDOWPOS_CENTERED, 
-									   1920, 1080, 0); 
+									   1920, 1080, SDL_WINDOW_OPENGL); 
 
 	// SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN);
 
@@ -87,7 +87,7 @@ int main() {
 
 	// triggers the program that controls 
 	// your graphics hardware and sets flags 
-	Uint32 render_flags = SDL_RENDERER_ACCELERATED; 
+	Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
 
 	// creates a renderer to render our images 
 	SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags); 
