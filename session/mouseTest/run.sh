@@ -1,7 +1,7 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(mouseAdapter cursor_control)
+main_modules=(mouseAdapter pycursor_control)
 end_modules=()
 
 ##############################################

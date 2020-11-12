@@ -14,6 +14,10 @@ masterList=(
     proc/cursor_control/cursor_control.yaml
     proc/cursor_control/yellow_circle.png
 
+    bin/pycursor_control
+    proc/pycursor_control/pycursor_control.yaml
+    proc/pycursor_control/yellow_circle.png
+
     # REDIS
     session/mouseTest/redis.realtime.conf
     bin/redis-server
