@@ -36,42 +36,31 @@ cerebusAdapter_yaml = 'cerebusAdapter.yaml'
 
 # turn the bytecode dict into a python array
 def numpy_import(inDict, outArray, samplesPerRead, numChannels): 
-    
-    chInd = 0  # increment to keep track of which  channel we're on -- not all data in the dict is neural signals
+    # wow this is so much easier in the array method :)
+    outArray[:,:] = np.reshape(unpack('h' * samplesPerRead * numChannels, inDict[b'samples']),(samplesPerRead,numChannels))
 
-    outArray[:,:] = np.reshape(unpack('h' * samplesPerRead * numChannels, inDict[b'samples']))
-
-    for ii in inDict.keys():
-        if 'chan' in ii.decode('utf-8'):
-            outArray[chInd,:] = unpack('h' * samples,inDict[ii])
-            chInd += 1
 
 # -----------------------------------------------------------
 
 # prep the filtered and thresholded data for export
 def numpy_export(crossDict, xread_receive, crossArray, filtArray, rConnection, sampleLength):
-    chInd = 0 # need to iterate through channel numbers in reverse
-
-    for ii in crossDict.keys():
-        if 'chan' in ii.decode():
-            crossDict[ii] = pack('h',int(crossArray[chInd]))
-            chInd += 1
-  
+    # this needs to take the threshold crossing times and filtered data and put it into the Redis stream
+    # Threshold crossings needs just the time and channel. We could just do that
+    # as a 1 ms sampled array, with the time steps as a second key
+    # 
+    # Filtered array needs sample times (from the original array) and an array
+    # of num_samples * num_channels filtered samples. Probably need to reshape
+    # before sending it.
+    #
+    # Since we have two different streams we're pushing into, we'll do it with
+    # a pipeline 
 
     p = rConnection.pipeline() # create a new pipeline
-    p.xadd('thresholdCrossings',crossDict) # thresholdCrossings stream
-
+    p.xadd('thresholdCrossings',crossDict) # thresholdCrossings stream -- assuming I've already set it up properly below
  
     # need to implement casting all of the filtered data into dictionaries
-    cerPackInc = 0
-    for xread_tuple in xread_receive[0][1]:
-        chInd = 0 # need to run through all of the channels for each packet
-        for kk in xread_tuple[1].keys():
-            if 'chan' in kk.decode('utf-8'):
-                xread_tuple[1][kk] = pack('h' * sampleLength, *filtArray[chInd, cerPackInc*sampleLength:(cerPackInc+1)*sampleLength].astype('h'))
-                chInd +=1
-        cerPackInc += 1
-        p.xadd('filteredCerebusAdapter',xread_tuple[1]) # add the filtered stuff to the pipeline
+    
+    p.xadd('filteredCerebusAdapter') # add the filtered stuff to the pipeline
 
  
     p.execute() # send it brah
@@ -131,9 +120,8 @@ def calc_thresh(r, threshMult, readCalls, samplesPerRead, numChannels):
 numChannels = get_parameter_value(cerebusAdapter_yaml,'num_channels') # number of channels
 sampleLength = get_parameter_value(cerebusAdapter_yaml,'samples_per_redis_stream') # the number of 30k samples we should be getting per channel per xread 
 cerPack = get_parameter_value(threshold_yaml,'adapter_packet_num') # number of cerebus adapter packets to get per xread call
-crossDict = {b'tsStart':b'', b'tsStop':b''} # initialize the thresholdCrossing dictionary for writing back to the redis stream
-for ii in range(0,numChannels): # and put in placeholders for each channel
-    crossDict[('chan{}'.format(ii)).encode()] = pack('h',int(0))
+crossDict = {b'tsStart':b'', b'tsStop':b'',b'samples':b''} # initialize the thresholdCrossing dictionary for writing back to the redis stream
+
 
 
 ###############################################################
@@ -218,7 +206,7 @@ while loopInc < numLoop:
    xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)[0][1]
    prevKey = xread_receive[-1][0] # entry number of last item in list
    for xread_tuple in xread_receive: # run each tuple individually
-      numpy_import(xread_tuple[1], dataBuffer[:,cerPackInc*sampleLength:(cerPackInc+1)*sampleLength], sampleLength)
+      numpy_import(xread_tuple[1], dataBuffer[cerPackInc*sampleLength:(cerPackInc+1)*sampleLength,:], sampleLength, numChannels)
       cerPackInc += 1
 
    # start and stop timestamps for the threshold dict
