@@ -166,6 +166,26 @@ At a minimum, a module should have the following characteristics:
 
 Since it's inpredictable how modules will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the module.
 
+# Performance Optimization
+CPUs will scale their operating frequency according to load, which makes it difficult to get predictable timing. To get around this, we'll use `cpufrequtils`:
+```
+sudo apt install cpufrequtils
+sudo systemctl disable ondemand
+sudo systemctl enable cpufrequtils
+```
+
+Setting the CPU at its maximum allowable frequency (which will still be reduced if the CPU gets too hot):
+```
+sudo cpufreq-set -g performance
+```
+
+Renabling CPU scaling to save power:
+```
+sudo cpufreq-set -g powersave
+```
+
+This was tested on Intel CPUs. The commands may be difference for CPUs from other manufacturers.
+
 # Gotchas
 
 ### PREEMPT_RT kernel bash fork error.
