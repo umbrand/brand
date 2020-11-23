@@ -249,7 +249,7 @@ int main (int argc_main, char **argv_main) {
                 gettimeofday(&current_time,NULL);
 
                 // Copy the timestamp information into argv
-                memcpy(&argv[ind_timestamps        + 1][n * sizeof(int32_t)       ], &cerebus_packet_header->time, sizeof(int32_t));
+                memcpy(&argv[ind_timestamps        + 1][n * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
                 memcpy(&argv[ind_current_time      + 1][n * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
                 memcpy(&argv[ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
 

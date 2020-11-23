@@ -38,7 +38,7 @@ parameters:
 ###########################################
 
 - name: enableCAR
-  value: True
+  value: False
   description: Enable common-value averaging
 
   
