@@ -226,3 +226,16 @@ This can happen if a `run/` folder already exists prior to running `load mysessi
 ```
 sudo -E env "PATH=$PATH" ./myscript
 ```
+
+### Removing headers from UDP packet capture
+Dependencies: [tshark](https://packages.ubuntu.com/bionic/tshark), [bittwist](https://packages.ubuntu.com/bionic/bittwist)   
+
+If you have `.pcapng` files, convert them to `.pcap`:
+```
+tshark -F pcap -r mypackets.pcapng -w mypackets.pcap
+```
+Use Wireshark to check the size of the header. In our case, the header is the first 42 bytes in each packet, so we run:
+```
+bittwiste -I mypackets.pcap -O mypackets_no_headers.pcap -D 1-42
+```
+Now `mypackets_no_headers.pcap` is a copy of our `mypackets.pcap` file with headers removed.
