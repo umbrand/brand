@@ -1,5 +1,6 @@
 import pyglet
 import time
+import numpy as np
 
 window = pyglet.window.Window(width=1000, height=1000)
 
@@ -12,11 +13,18 @@ label = pyglet.text.Label('Hello, world',
                           anchor_y='top',
                           color=(125, 125, 125, 255))
 
-image = pyglet.resource.image('circle.png')
-
 mouse_data = {'x': 0, 'y': 0}
 
-fps_display = pyglet.window.FPSDisplay(window)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+pointer = pyglet.shapes.Circle(x=0, y=0, radius=50, color=YELLOW)
+target = pyglet.shapes.Rectangle(x=500,
+                                 y=500,
+                                 width=100,
+                                 height=100,
+                                 color=RED)
 
 
 @window.event
@@ -29,6 +37,7 @@ last_time = time.time()
 i = 0
 refresh_rate = 0
 
+
 @window.event
 def draw_stuff(*args):
     global last_time
@@ -40,11 +49,24 @@ def draw_stuff(*args):
         last_time = current_time
         label.text = f'{refresh_rate}'
         i = 0
+
+    pointer.x = mouse_data['x']
+    pointer.y = mouse_data['y']
     window.clear()
-    label.draw()
-    image.blit(x=mouse_data['x'] - image.width / 2,
-               y=mouse_data['y'] - image.height / 2)
-    fps_display.draw()
+
+    # calculate distance between pointer center and target center
+    xdist = np.abs(target.x + 50 - pointer.x)
+    ydist = np.abs(target.y + 50 - pointer.y)
+
+    if xdist <= 100 and ydist <= 100:
+        target.color = GREEN
+    else:
+        target.color = RED
+
+    target.draw()
+    pointer.draw()
+    # label.draw()
+
     i += 1
 
 
