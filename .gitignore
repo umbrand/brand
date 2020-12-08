@@ -28,3 +28,8 @@ bin/
 *.avi
 *.mp[0-9]
 
+
+
+# matlab data
+.mat
+
