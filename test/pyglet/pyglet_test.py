@@ -4,7 +4,7 @@ import numpy as np
 
 window = pyglet.window.Window(width=1000, height=1000)
 
-label = pyglet.text.Label('Hello, world',
+label = pyglet.text.Label('',
                           font_name=['Noto Sans', 'Times New Roman'],
                           font_size=36,
                           x=0,
