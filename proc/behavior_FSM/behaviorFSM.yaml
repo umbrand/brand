@@ -1,0 +1,37 @@
+# Variables for running the threshold extraction function
+
+parameters:
+
+###########################################
+# redis general info
+###########################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+
+###########################################
+# target list
+###########################################
+
+
+- name: targetList
+  value:
+      target_1:
+        -x:      0
+        -y:      0
+        -width:  10
+        -height: 10
+      target_2:
+        -x:      0
+        -y:      0
+        -width:  20
+        -height: 20
+  description: List of target locations and sizes
+  static: true
