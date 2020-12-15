@@ -19,19 +19,58 @@ parameters:
 ###########################################
 # target list
 ###########################################
-
-
 - name: targetList
   value:
       target_1:
-        -x:      0
-        -y:      0
-        -width:  10
-        -height: 10
+        x:      0
+        y:      0
+        width:  10
+        height: 10
       target_2:
-        -x:      0
-        -y:      0
-        -width:  20
-        -height: 20
+        x:      0
+        y:      0
+        width:  20
+        height: 20
   description: List of target locations and sizes
   static: true
+
+
+
+###########################################
+# cursor location
+###########################################
+- name: cursor
+  value:
+       x_offset: 0
+       y_offset: 0
+       gain_x_0: 1 # gain from sensor 0 to x
+       gain_x_1: 1 # gain from sensor 1 to x
+       gain_y_0: 1 # gain from sensor 0 to y
+       gain_y_1: 1 # gain from sensor 1 to y
+       width: 5 # width and height of collision box
+       height: 5
+       recalc_center: true # should we recalculate the center at any point?
+  description: cursor settings
+  static: true
+
+
+
+###########################################
+# timing informaton
+###########################################
+- name: targetHoldTime
+  value:
+       max: 0.75
+       min: 0.25
+       
+- name: dispenseTime
+  value:
+       max: 0.25
+       min: 0.5
+
+- name: interTrialTime
+  value:
+       max: 5
+       min: 1.5
+
+ 
