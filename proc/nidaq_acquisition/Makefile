@@ -9,9 +9,9 @@ CFLAGS = -O2 $(DEFAULTFLAGS)
 CFLAGSUNOPT = -O0 $(DEFAULTFLAGS)
 CFLAGS+ = -g -O2 $(DEFAULTFLAGS)
 
-LINKS= -L$(HIREDIS_PATH)
+LINKS= -L$(HIREDIS_PATH) 
 LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
-LDFLAGS = -lhiredis
+LDFLAGS = -lhiredis -lnidaqmx
 
 CINCLUDE = -I$(ROOT)/lib/redisTools/ \
 		   -I$(HIREDIS_PATH)

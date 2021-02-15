@@ -48,39 +48,40 @@ redisContext *redis_context;
 int flag_SIGINT = 0;
 
 
-#define DAQmxErrChk(functionCall) if( DAQmxFailed(error=(functionCall)) ) goto Error; else
+//#define DAQmxErrChk(functionCall) if( DAQmxFailed(error=(functionCall)) ) goto Error; else
 
-int main(void) {
+int main() {
 
     initialize_redis();
 
     initialize_signals();
 
-    int32_t         error=0;
+    //int32_t         error=0;
     TaskHandle      positionTaskHandle=0; // xy position
     TaskHandle      rewardTaskHandle=0; // output to the reward circuit
-    char            errBuff[2048]={'\0'};
+    //char            errBuff[2048]={'\0'}; //error buffer in case there's an issue
     
     // bring in parameters from the yaml setup file
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
     int32 sampleRate      = yaml_parameters.sample_rate; // what's the sampling rate from the nidaq?
     int32 sampPerRedis    = yaml_parameters.samples_per_redis_stream; // how many samples per Redis stream write?
-    int32 *sampPerChanRead;   // output from the nidaq, what is the actual number of samples received?
+    int32 sampPerChanRead;   // output from the nidaq, what is the actual number of samples received?
 
 
     // array to keep track of system time
-    struct timeval current_time;
+    struct timespec     current_time;
 
     // initialize NIDAQmx tasks
     printf("[%s] Initializing NIDAQ tasks\n", PROCESS);
-    DAQmxErrChk (DAQmxCreateTask("xyLocation",&positionTaskHandle)); 
-    DAQmxErrChk (DAQmxCreateTask("rewardOutput",&rewardTaskHandle));
+    if(DAQmxCreateTask("xyLocation",&positionTaskHandle)<0) shutdown_process(); 
+    if(DAQmxCreateTask("rewardOutput",&rewardTaskHandle)<0) shutdown_process();
 
     // setup  the task to read the xy values from the NIDAQ along with the sampling clock
-    DAQmxErrChk (DAQmxCreateAIVoltageChan (positionTaskHandle, "Dev1/ai0", "X_position", DAQmx_Val_Cfg_Default, -5.0, 5.0, DAQmx_Val_Volts, NULL));
-    DAQmxErrChk (DAQmxCreateAIVoltageChan (positionTaskHandle, "Dev2/ai1", "Y_position", DAQmx_Val_Cfg_Default, -5.0, 5.0, DAQmx_Val_Volts, NULL));
-    DAQmxCfgSampClkTiming(positionTaskHandle, "", sampleRate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, sampPerRedis);
+    printf("[%s] Initializing Voltage Channels\n", PROCESS);
+    if(DAQmxCreateAIVoltageChan(positionTaskHandle, "Dev1/ai0", "X_position", DAQmx_Val_Cfg_Default, -5.0, 5.0, DAQmx_Val_Volts, NULL) < 0) shutdown_process();
+    if(DAQmxCreateAIVoltageChan(positionTaskHandle, "Dev2/ai1", "Y_position", DAQmx_Val_Cfg_Default, -5.0, 5.0, DAQmx_Val_Volts, NULL) < 0) shutdown_process();
+    if(DAQmxCfgSampClkTiming(positionTaskHandle, "", sampleRate, DAQmx_Val_Rising, DAQmx_Val_ContSamps, sampPerRedis) <0) shutdown_process();
 
 
     // number of arguments etc for calls to redis
@@ -104,9 +105,9 @@ int main(void) {
 
     // timestamps and sample array
     argv[ind_timestamps] = malloc(len);
-    argv[ind_timestamps+1] = malloc(sizeof(struct timeval));
+    argv[ind_timestamps+1] = malloc(sizeof(struct timespec));
     argv[ind_samples]   = malloc(len);
-    double samples[2][sampPerRedis];
+    double samples[2 * sampPerRedis];
     argv[ind_samples+1] = malloc(2 * sampPerRedis * sizeof(double)); // number of samples * two inputs * float64 size
 
     
@@ -125,8 +126,8 @@ int main(void) {
     printf("[%s] Entering loop\n", PROCESS);
 
     // start the nidaq tasks
-    DAQmxErrChk (DAQmxStartTask(positionTaskHandle));
-    DAQmxErrChk (DAQmxStartTask(rewardTaskHandle));
+    DAQmxStartTask(positionTaskHandle);
+    DAQmxStartTask(rewardTaskHandle);
 
     // main loop
     while (1) {
@@ -137,12 +138,14 @@ int main(void) {
 
 
         // read from the nidaq board for the AI channels
-        DAQmxErrChk (DAQmxReadAnalogF64(positionTaskHandle, sampPerRedis, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, samples, sampPerRedis * 2, *sampPerChanRead, NULL));
-        &argv[ind_samples+1] = samples;
+        
+        DAQmxReadAnalogF64(positionTaskHandle, sampPerRedis, DAQmx_Val_WaitInfinitely, DAQmx_Val_GroupByChannel, samples, sampPerRedis * 2, &sampPerChanRead, NULL);
+        printf("%.2f",samples[0]);
+        *argv[ind_samples+1] = *samples;
         
         // current read the current time into the array
         clock_gettime(CLOCK_MONOTONIC,&current_time);
-        memcpy(&argv[ind_timestamps + 1][sizeof(struct timeval)], &current_time, sizeof(struct timeval));
+        memcpy(&argv[ind_timestamps + 1][sizeof(struct timespec)], &current_time, sizeof(struct timespec));
 
         // send everything to Redis -- let's hope I set this up right!
         freeReplyObject(redisCommandArgv(redis_context, argc, (const char**) argv, argvlen));
@@ -159,29 +162,25 @@ int main(void) {
     return 0;
 
 
-
+/*
     Error: 
-                if( DAQmxFailed(error) )
+        if( DAQmxFailed(error) )
             DAQmxGetExtendedErrorInfo(errBuff,2048);
-        /*********************************************/
         // DAQmx Stop Code
-        /*********************************************/
-        if( thermocoupleMasterTask!=0 ) {
-            DAQmxStopTask(thermocoupleMasterTask);
-            DAQmxClearTask(thermocoupleMasterTask);
+        if( positionTaskHandle!=0 ) {
+            DAQmxStopTask(positionTaskHandle);
+            DAQmxClearTask(positionTaskHandle);
         }
-        if( thermocoupleSlaveTask!=0 ) {
-            DAQmxStopTask(thermocoupleSlaveTask);
-            DAQmxClearTask(thermocoupleSlaveTask);
-        }
-        if( digitalSlaveTask!=0 ) {
-            DAQmxStopTask(digitalSlaveTask);
-            DAQmxClearTask(digitalSlaveTask);
+        if( rewardTaskHandle!=0 ) {
+            DAQmxStopTask(rewardTaskHandle);
+            DAQmxClearTask(rewardTaskHandle);
         }
         if( DAQmxFailed(error) )
             printf("DAQmx Error: %s\n",errBuff);
+            flagSIGINT++ // close out of the function, close everything down
         return 0;
 
+*/
 }
 
 
