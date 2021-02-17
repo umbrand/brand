@@ -5,36 +5,39 @@ masterList=(
     proc/rest/rest.pyx
     proc/rest/static
     proc/rest/templates
-    session/thresholdDetection/rest.yaml 
+    session/cerebusTest/rest.yaml 
 
     # MODULES
-    bin/cerebusAdapter
-    session/thresholdDetection/cerebusAdapter.yaml
+    bin/generator
+    session/cerebusTest/generator.yaml
 
-    bin/monitor
-    session/thresholdDetection/monitor.yaml
+    bin/replay
+    session/cerebusTest/replay.yaml
+
+    bin/cerebusAdapter
+    session/cerebusTest/cerebusAdapter.yaml
+
+    bin/monitor 
+    session/cerebusTest/monitor.yaml
 
     bin/timer 
-    session/thresholdDetection/timer.yaml
-
-    proc/thresholdExtraction/thresholdExtraction.py
-    session/thresholdDetection/thresholdExtraction.yaml
+    session/cerebusTest/timer.yaml
 
     proc/finalizeRDB/finalizeRDB.py
-    session/thresholdDetection/finalizeRDB.yaml
+    session/cerebusTest/finalizeRDB.yaml
 
     # CONFIGURATION
-    session/thresholdDetection/README.md
-    session/thresholdDetection/run.sh
-    session/thresholdDetection/load.sh
+    session/cerebusTest/README.md
+    session/cerebusTest/run.sh
+    session/cerebusTest/load.sh
 
     # REDIS
-    session/thresholdDetection/redis.realtime.conf
-    session/thresholdDetection/redis.rest.conf
-    lib/redis/src/redis-server
-    lib/redis/src/redis-cli
+    session/cerebusTest/redis.realtime.conf
+    session/cerebusTest/redis.rest.conf
+    bin/redis-server
+    bin/redis-cli
 
-    session/thresholdDetection/analyze.sh
+    session/cerebusTest/analyze.sh
     analysis/monitor_analysis.py
     analysis/cerebusAdapter_analysis.py
     analysis/cerebusAdapter_plot.py

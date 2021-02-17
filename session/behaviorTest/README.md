@@ -1,4 +1,4 @@
-# threshold detection
+# threshold extraction test
 
 Kevin Bodkin
 July 2020

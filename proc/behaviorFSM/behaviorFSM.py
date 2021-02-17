@@ -105,16 +105,16 @@ class cursor:
     def on(self):
         self.state = 1
     
-    def update_cursor(self, nidaqStream, sensor0, sensor1):
-        s0,s1 = unpack('h',nidaqStream[sensor0]),unpack('h',nidaqStream[sensor1])
+    def update_cursor(self, cursorStream):
+        s0,s1 = unpack('hh',cursorStream[b'samples'])
         self.x = (s0*self.mX0) + (s1*self.mX1) + self.bX
         self.y = (s0*self.mY0) + (s1*self.mY1) + self.bY
     
-    def recenter(self, nidaqStream, sensor0, sensor1):
-        self.update_cursor(nidaqStream,sensor0,sensor1)
+    def recenter(self, cursorStream, sensor0, sensor1):
+        self.update_cursor(cursorStream,sensor0,sensor1)
         self.bX = -self.x
         self.bY = -self.y
-        self.update_cursor(nidaqStream, sensor0, sensor1)
+        self.update_cursor(cursorStream, sensor0, sensor1)
     
     def packCurs(self):
         return pack('Ihh',self.state,self.x,self.y)
@@ -128,21 +128,21 @@ class touchpad():
         self.minTouch,self.maxTouch = minTouch,maxTouch
         self.touchStart = 0
     
-    def activate(self,nidaqControl,redisPipe):
+    def activate(self,cursorControl,redisPipe):
         self.active = True
         self.touchLength = (self.maxTouch-self.minTouch)*np.random.random() + self.minTouch
         self.touchStart = 0
-        nidaqControl[b'touch_active'] = pack('?',1)
+        cursorControl[b'touch_active'] = pack('?',1)
         redisPipe.add(b'nidaqControl',nidaqControl)
         
     
     def deactivate(self,nidaqControl,redisPipe):
         self.active = False
-        nidaqControl[b'touch_active'] = pack('?',0)
+        cursorControl[b'touch_active'] = pack('?',0)
         redisPipe.add(b'nidaqControl',nidaqControl)
     
-    def tap_check(self,nidaqStream):
-        if unpack('?',nidaqStream[b'touchpad_touched']):
+    def tap_check(self,cursorStream):
+        if unpack('?',cursorStream[b'touchpad_touched']):
             if self.touchStart == 0:
                 self.touchStart = dt.now().timestamp()
                 return False
@@ -213,19 +213,19 @@ nidaqControl = {b'touch_active':pack('?',0), b'reward':pack('?',0)}
 while True:
     
     # update the current location of the cursor
-    nidaqFrame = redisStream.xread({b'nidaq_stream','$'}, block=0, count=1)[0][1][0][1]
-    curs.update_cursor(nidaqFrame, sensor0, sensor1) # sensor names
+    cursorFrame = redisStream.xread({b'cerebusAdapter_task','$'}, block=0, count=1)[0][1][0][1]
+    curs.update_cursor(cursorFrame) # sensor names
     currTime = dt.now().timestamp() # the posix time at the beginning of the loop
     p = r.pipeline()
     p.xadd(b'cursorLocation',curs.packCurs)
     p.xadd(b'targetLocation',tgt.packTarget)
     
     if state == STATE_START_TRIAL:
-        if tpad.tap_check(nidaqFrame):
+        if tpad.tap_check(cursorFrame):
             p.xadd(b'state',{b'state': b'movement', b'time': currTime})
             state = STATE_MOVEMENT
             stateTime = 0
-            tPad.deactivate(nidaqControl,p)
+            tPad.deactivate(cursorControl,p)
     
     if state == STATE_MOVEMENT:
         if tgt.isOver(curs):
@@ -244,19 +244,19 @@ while True:
             
     
     if state == STATE_REWARD:
-        nidaqControl[b'reward'] == pack('?',True)
+        cursorControl[b'reward'] == pack('?',True)
         if (currTime-stateTime) > dispenseTime:
             state = STATE_BETWEEN_TRIALS
             p.xadd(b'state',{b'state':b'movement',b'time',currTime})
-            nidaqControl[b'reward'] = pack('?',False)
+            cursorControl[b'reward'] = pack('?',False)
             stateTime = currTime
         
-        p.add(b'nidaqControl',nidaqControl)
+        p.add(b'cursorControl',cursorControl)
     
     if state == STATE_BETWEEEN_TRIALS:
         if (currTime-stateTime) > interTrialTime:
             tgt = restart_task(targets)
-            tPad.activate(nidaqControl,p)
+            tPad.activate(cursorControl,p)
             targetHoldTime.reroll()
             dispenseTime.reroll()
             interTrialTime.reroll()

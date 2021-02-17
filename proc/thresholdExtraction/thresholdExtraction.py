@@ -93,7 +93,7 @@ def causal_demean_data(data, filtData, sos, zi):
 
 # calculate threshold values
 def calc_thresh(r, threshMult, readCalls, packetLength, numChannels,sos,zi):
-    xrev_receive = r.xrevrange('cerebusAdapter',count = readCalls) # receive
+    xrev_receive = r.xrevrange('cerebusAdapter_neural',count = readCalls) # receive
     # thresholds = np.empty((numChannels,1),dtype=np.float32) # threshold array
     readArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
     filtArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
@@ -192,17 +192,12 @@ r.xadd('thresholdValues',{b'thresholds':thresholds.astype('short').tostring()}) 
 # interesting note for putting data back into redis: we don't have to use pack, since it's already stored as a byte object in numpy. 
 # wonder if we can take advantage of that for the unpacking process too
 
-# start time stamping
-'''tDelta = [dt.now(), dt.now()]
-numLoop = 10000
-tDeltaLog = np.empty(numLoop,dtype=dt)
-loopInc = 0'''
 
 while True:
    # wait to get data from cerebus stream, then parse it
    #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
    cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-   xread_receive = r.xread({'cerebusAdapter':prevKey}, block=0, count=cerPack)[0][1]
+   xread_receive = r.xread({'cerebusAdapter_neural':prevKey}, block=0, count=cerPack)[0][1]
    prevKey = xread_receive[-1][0] # entry number of last item in list
    for xread_tuple in xread_receive: # run each tuple individually
       indStart,indEnd = cerPackInc*packetLength,(cerPackInc+1)*packetLength
