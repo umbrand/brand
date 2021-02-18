@@ -65,7 +65,7 @@ void initialize_parameters(yaml_parameters_t *p);
 void initialize_realtime();
 void handler_SIGINT(int exitStatus);
 void shutdown_process();
-void print_neural_argv(int, char **, size_t *);
+void print_argv(int, char **, size_t *);
 
 char PROCESS[] = "cerebusAdapter";
 
@@ -243,7 +243,7 @@ int main (int argc_main, char **argv_main) {
 
         // The timer has timed out or there was an error with the recvmsg() call
         if (udp_packet_size  <= 0) {
-            printf("timer has timed out or there was an error with the recvmsg() call!");
+            printf("[%s] timer has timed out or there was an error with the recvmsg() call!\n",PROCESS);
             continue;
         }
 
@@ -274,8 +274,6 @@ int main (int argc_main, char **argv_main) {
 
             // Create a pointer to the cerebus packet at the current location of the udp payload
             cerebus_packet_header_t *cerebus_packet_header = (cerebus_packet_header_t*) &udp_packet_payload[cb_packet_ind];
-
-            printf("Received Cerebus Packet type %i",cerebus_packet_header->type);
 
             // Now check to see if we're getting a type 6 packet, which should contain our sampled Utah array voltage data
             if (cerebus_packet_header->type == 6) {
@@ -312,7 +310,7 @@ int main (int argc_main, char **argv_main) {
                 // The index where the data starts in the UDP payload
                 int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
 
-                // Copy each payload entry directly to the neural_argv. dlen contains the number of 4 bytes of payload
+                // Copy each payload entry directly to the task_argv. dlen contains the number of 4 bytes of payload
                 for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
                     memcpy(&task_argv[ind_samples + 1][(m + i*task_samples_per_redis_stream) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
                 }
@@ -359,8 +357,8 @@ int main (int argc_main, char **argv_main) {
                 task_argvlen[ind_current_time + 1]      = sizeof(struct timeval) * m;
                 task_argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * m;
                 
-                /* printf("n = %d\n", n); */
-                /* print_neural_argv(argc, argv, argvlen); */
+                //printf("m = %d\n", m); 
+                //print_argv(argc, task_argv, task_argvlen); 
                 /* return 0; */
 
                 // Everything we've done is just to get to this one line. Whew!
@@ -490,9 +488,11 @@ void initialize_parameters(yaml_parameters_t *p) {
     load_YAML_variable_string(PROCESS, "num_task_channels", num_task_channels_string,   sizeof(num_task_channels_string));
     load_YAML_variable_string(PROCESS, "task_samples_per_redis_stream", task_samples_per_redis_stream_string,   sizeof(task_samples_per_redis_stream_string));
 
-    p->num_neural_channels             = atoi(num_neural_channels_string);
-    p->neural_samples_per_redis_stream = atoi(neural_samples_per_redis_stream_string);
-
+    p->num_neural_channels              = atoi(num_neural_channels_string);
+    p->neural_samples_per_redis_stream  = atoi(neural_samples_per_redis_stream_string);
+    p->num_task_channels                = atoi(num_task_channels_string);
+    p->task_samples_per_redis_stream    = atoi(task_samples_per_redis_stream_string);
+    
 }
 
 // Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80

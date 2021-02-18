@@ -1,14 +1,14 @@
-# threshold extraction test
+# behavior FSM test
 
 Kevin Bodkin
-July 2020
+Feb 2021
 
 This session was built to test modules to extract thresholds from the 30khz data stream from the server. This will likely be added to pipe in the future
 
 
 Proposed workflow:
-(start) -- cerebusAdapter
-(main) -- thresholdExtraction 
+(start) -- cerebusAdapter 
+(main) -- behaviorFSM.py monitor
 (end) -- finalizeRDB
 ```
 ```
@@ -17,7 +17,6 @@ Proposed workflow:
 The `cerebusAdapter` process sits and listens to UDP packets coming from a YAML defined port (assumed to be broadcasted UDP packets). 
 It then takes the payload of the packets and transfers them to Redis.
 
-thresholdExtraction listens to SIGUSR1 timer events (planned every 1 ms for the time being) filters and looks for points below the threshold value defined in the associated .yaml file, and removes any that are under the defined "refractory" period.
-
+behaviorFSM brings in 1khz signals from the Redis and uses them as a cursor to perform a task. The targets and the gain fromthe sensors to the cursor are defined in an associated .yaml file it outputs the status of the task, cursor and target locations to Redis to be used by the cursor_control script
 
 The `finalizeRDB` is designed to write a few more files to Redis before shutting down

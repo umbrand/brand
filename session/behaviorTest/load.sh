@@ -5,39 +5,37 @@ masterList=(
     proc/rest/rest.pyx
     proc/rest/static
     proc/rest/templates
-    session/cerebusTest/rest.yaml 
+    session/behaviorTest/rest.yaml 
 
     # MODULES
-    bin/generator
-    session/cerebusTest/generator.yaml
-
-    bin/replay
-    session/cerebusTest/replay.yaml
-
     bin/cerebusAdapter
-    session/cerebusTest/cerebusAdapter.yaml
+    session/behaviorTest/cerebusAdapter.yaml
 
     bin/monitor 
-    session/cerebusTest/monitor.yaml
+    session/behaviorTest/monitor.yaml
 
     bin/timer 
-    session/cerebusTest/timer.yaml
+    session/behaviorTest/timer.yaml
 
     proc/finalizeRDB/finalizeRDB.py
-    session/cerebusTest/finalizeRDB.yaml
+    session/behaviorTest/finalizeRDB.yaml
+
+    proc/behaviorFSM/behaviorFSM.py
+    session/behaviorTest/behaviorFSM.yaml
+
 
     # CONFIGURATION
-    session/cerebusTest/README.md
-    session/cerebusTest/run.sh
-    session/cerebusTest/load.sh
+    session/behaviorTest/README.md
+    session/behaviorTest/run.sh
+    session/behaviorTest/load.sh
 
     # REDIS
-    session/cerebusTest/redis.realtime.conf
-    session/cerebusTest/redis.rest.conf
+    session/behaviorTest/redis.realtime.conf
+    session/behaviorTest/redis.rest.conf
     bin/redis-server
     bin/redis-cli
 
-    session/cerebusTest/analyze.sh
+    session/behaviorTest/analyze.sh
     analysis/monitor_analysis.py
     analysis/cerebusAdapter_analysis.py
     analysis/cerebusAdapter_plot.py

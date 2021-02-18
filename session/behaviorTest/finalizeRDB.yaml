@@ -13,8 +13,8 @@ files:
  - key: cerebusAdapter.yaml
    file: cerebusAdapter.yaml
    type: text
- - key: generator.yaml
-   file: generator.yaml
+ - key: behaviorFSM.yaml
+   file: behaviorFSM.yaml
    type: text
  - key: monitor.yaml
    file: monitor.yaml

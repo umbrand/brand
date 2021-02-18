@@ -1,7 +1,7 @@
 #!/bin/bash
 
 start_modules=(cerebusAdapter)
-main_modules=(monitor)
+main_modules=(monitor behaviorFSM.py)
 end_modules=(finalizeRDB.py)
 
 ##############################################

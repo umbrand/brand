@@ -13,7 +13,7 @@ parameters:
   static: true
 
 - name: broadcast_port
-  value: 53000
+  value: 51002
   description: What is the port the cerebrusAdapter listens to
   static: true
 

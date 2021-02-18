@@ -13,7 +13,7 @@ parameters:
   static: true
 
 - name: broadcast_port
-  value: 53000
+  value: 51002
   description: What is the port the cerebrusAdapter listens to
   static: true
 
@@ -28,7 +28,7 @@ parameters:
   static: true
 
 - name: num_task_channels
-  value: 2
+  value: 3
   description: Number of channels from the cereport/digital headstage that we're expecting to see
   static: true
 

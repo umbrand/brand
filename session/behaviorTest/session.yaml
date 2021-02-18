@@ -19,7 +19,7 @@ modules:
      links: 
       - bin/monitor 
       - session/behaviorTest/monitor.yaml
-   - name: behavior
+   - name: behaviorFSM.py
      links:
       - proc/behaviorFSM/behaviorFSM.py 
       - session/behaviorTest/behaviorFSM.yaml
