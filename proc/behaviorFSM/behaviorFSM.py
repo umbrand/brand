@@ -85,7 +85,8 @@ class target():
             return False
     
     def packTarget(self):
-        return {b'targetLocation': pack('Ihhhh',self.state,self.x,self.y,self.width,self.height)}
+        targetDict = {b'X': pack('h',self.x), b'Y': pack('h',self.y), b'width': pack('h',self.width), b'height': pack('h',self.height), b'state':pack('I',self.state)}
+        return targetDict
 
 
 # define the cursor
@@ -126,7 +127,7 @@ class cursor:
         self.update_cursor(sensor0, sensor1)
     
     def packCurs(self):
-        cursorDict = {b'cursorLocation': pack('Ihh',self.state,self.x,self.y)}
+        cursorDict = {b'X': pack('h',self.x), b'Y': pack('h',self.y), b'state': pack('I',self.state)}
         return cursorDict
 
 
@@ -240,8 +241,8 @@ while True:
     curs.update_cursor(sensor0, sensor1) # sensor names
     currTime = dt.now().timestamp() # the posix time at the beginning of the loop
     p = r.pipeline()
-    p.xadd(b'cursorLocation',curs.packCurs())
-    p.xadd(b'targetLocation',tgt.packTarget())
+    p.xadd(b'cursorData',curs.packCurs())
+    p.xadd(b'targetData',tgt.packTarget())
     
     if state == STATE_START_TRIAL:
         if tPad.tap_check(sensor2):

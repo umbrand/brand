@@ -1,3 +1,8 @@
+/* cursor_control.c
+*   takes in location information from behaviorFSM system and displays it.
+*   may need to run on a system separately from the primary data intake 
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h> /* close() */
@@ -32,23 +37,48 @@ int flag_SIGINT = 0;
 
 pthread_t subscriberThread;
 
-int32_t mousePosition[3];
+int32_t cursorPosition[3];   // [X Y state]
+int32_t targetPosition[5];  // [X Y W H state]
 
-void * mouseSubscriberThread(void * thread_params) {
+void * cursorSubscriberThread(void * thread_params) {
 	while(1) {
 	// if (flag_SIGINT) 
 	// 	shutdown_process();
 		reply = redisCommand(redis_context,
-			"XREAD BLOCK 1000000 STREAMS mouseData $");
+			"XREAD BLOCK 1000000 STREAMS cursorData $");
 
-		mousePosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str);
-		mousePosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str);
-		mousePosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str);
+		cursorPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+		cursorPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
+		// states: off = 0, on = 1
+        cursorPosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //state
 		
-		printf("mouse position: (x = %d, y = %d, w = %d)\n", mousePosition[0],
-			mousePosition[1], mousePosition[2]);
+		printf("cursor position: (x = %d, y = %d, state = %d)\n", cursorPosition[0],
+			cursorPosition[1], cursorPosition[2]);
 	}
 }
+
+
+void * targetSubscriberThread(void * thread_params) {
+	while(1) {
+	// if (flag_SIGINT) 
+	// 	shutdown_process();
+		reply = redisCommand(redis_context,
+			"XREAD BLOCK 1000000 STREAMS targetData $");
+
+		targetPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+		targetPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
+        targetPosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //W
+        targetPosition[3] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //H
+		// states: off = 0, on = 1
+        targetPosition[4] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //state
+		
+		printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %d)\n", targetPosition[0],
+			targetPosition[1], targetPosition[2], targetPosition[3], targetPosition[4]);
+	}
+}
+
+
+
 
 int main() {
 	int rc;
@@ -61,7 +91,7 @@ int main() {
 
 	/* Spawn Subcriber thread */
 	printf("Starting Subcriber Thread \n");
-	rc = pthread_create(&subscriberThread, NULL, mouseSubscriberThread, NULL);
+	rc = pthread_create(&subscriberThread, NULL, cursorSubscriberThread, NULL);
 	if(rc)
 	{
 		printf("Subcriber thread failed to initialize!!\n");
@@ -131,8 +161,8 @@ int main() {
 		if (flag_SIGINT | close) 
 			shutdown_process();
 
-		dest.x = mousePosition[0] + (1920 - dest.w) / 2;
-		dest.y = mousePosition[1] + (1080 - dest.h) / 2;
+		dest.x = cursorPosition[0] + (1920 - dest.w) / 2;
+		dest.y = cursorPosition[1] + (1080 - dest.h) / 2;
 
 
 		// right boundary 

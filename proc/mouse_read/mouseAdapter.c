@@ -132,7 +132,7 @@ int main() {
 
 		if (flag_SIGUSR1) {
 			freeReplyObject(redisCommand(redis_context,
-				"XADD mouseData * dx %d dy %d dw %d",
+				"XADD cursorData * dx %d dy %d dw %d",
 				mouseData[0], mouseData[1], mouseData[2]));
 			pthread_mutex_lock(&mouseDataMutex);
 			mouseData[0] = 0;
