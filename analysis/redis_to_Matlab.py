@@ -15,22 +15,28 @@ r = Redis('localhost','6379')
 
 pageSize = 1000 # number of packets per xread call
 
-FN_filt = 'redis_export_filt.mat'
-FN_thresh = 'redis_export_thresh.mat'
-FN_raw = 'redis_export_raw.mat'
+#FN_filt = 'redis_export_filt.mat'
+#FN_thresh = 'redis_export_thresh.mat'
+FN_raw_neural = 'redis_export_raw_neural.mat'
+FN_raw_task = 'redis_export_raw_task.mat'
 
-filtLength = r.xinfo_stream(b'filteredCerebusAdapter')['length']
-threshLength = r.xinfo_stream(b'thresholdCrossings')['length']
-rawLength = r.xinfo_stream(b'cerebusAdapter')['length']
+#filtLength = r.xinfo_stream(b'filteredCerebusAdapter')['length']
+#threshLength = r.xinfo_stream(b'thresholdCrossings')['length']
+rawNeuralLength = r.xinfo_stream(b'cerebusAdapter_neural')['length']
+rawTaskLength = r.xinfo_stream(b'cerebusAdapter_task')['length']
 
 readLocn_filt = 0
 readLocn_thresh = 0
-readLocn_raw = 0
+readLocn_Neural_raw = 0
+readLocn_Task_raw = 0
 
-filt_dict = {'filt_samples':np.zeros((96,filtLength*30),dtype='short'),'filt_timestamps':np.zeros((filtLength*30),dtype='uint32')}
-thresh_dict = {'thresh_samples':np.zeros((96,threshLength*30),dtype='short'),'tsStart':np.zeros((threshLength,),dtype='uint32'),'tsStop':np.zeros((threshLength,),dtype='uint32'),'thresh_timestamps':np.zeros((threshLength*30),dtype='uint32')}
-raw_dict = {'raw_samples':np.zeros((96,rawLength*10),dtype='short'),'raw_timestamps':np.zeros((rawLength*10,),dtype='uint32'),'cerebusAdapter_time':np.zeros((rawLength*10,),dtype='uint32'),'udp_received_time':np.zeros((rawLength*10,),dtype='uint32')}
+#filt_dict = {'filt_samples':np.zeros((96,filtLength*30),dtype='short'),'filt_timestamps':np.zeros((filtLength*30),dtype='uint32')}
+#thresh_dict = {'thresh_samples':np.zeros((96,threshLength*30),dtype='short'),'tsStart':np.zeros((threshLength,),dtype='uint32'),'tsStop':np.zeros((threshLength,),dtype='uint32'),'thresh_timestamps':np.zeros((threshLength*30),dtype='uint32')}
+raw_neural_dict = {'raw_samples':np.zeros((2,rawNeuralLength*30),dtype='short'),'raw_timestamps':np.zeros((rawNeuralLength*30,),dtype='uint32'),'cerebusAdapter_time':np.zeros((rawNeuralLength*30,),dtype='uint32'),'udp_received_time':np.zeros((rawNeuralLength*30,),dtype='uint32')}
+raw_task_dict = {'raw_samples':np.zeros((2,rawTaskLength),dtype='short'),'raw_timestamps':np.zeros((rawTaskLength),dtype='uint32'),'cerebusAdapter_time':np.zeros((rawTaskLength,),dtype='uint32'),'udp_received_time':np.zeros((rawTaskLength,),dtype='uint32')}
 
+
+'''
 # filtered data
 print('--------------------------------')
 print('converting filtered data')
@@ -52,10 +58,10 @@ print('saving  file')
 #print('Size of sample dict:',getsizeof(filt_dict['filt_samples']))
 #print('Size of timestamps dict:',getsizeof(filt_dict['filt_timestamps']))
 io.savemat(FN_filt,filt_dict,do_compression=True)
+'''
 
 
-
-
+'''
 # threshold crossings
 print('--------------------------------')
 print('converting threshold data')
@@ -75,27 +81,44 @@ for a in range(0,10):
 print('saving  file')
 io.savemat(FN_thresh,thresh_dict,do_compression=True)
 
-
+'''
 
 
 # raw data
 print('--------------------------------')
 print('converting raw data')
 pageNum = 0
-indStart = 0
+indStart_neural = 0
+indStart_task = 0
 for a in range(0,30):
-   for xreadPack in r.xread({'cerebusAdapter':readLocn_raw}, count=pageSize, block=None)[0][1]:
-      indEnd = indStart + 10
-      raw_dict['raw_samples'][:,indStart:indEnd] = np.reshape(unpack('h'*96*10,xreadPack[1][b'samples']),(96,10))
-      raw_dict['raw_timestamps'][indStart:indEnd] = np.array(unpack('I'*10,xreadPack[1][b'timestamps']))
-      cerebusAdapter_time = np.reshape(unpack('ll'*10,xreadPack[1][b'cerebusAdapter_time']),(10,2))
-      udp_time = np.reshape(unpack('ll'*10,xreadPack[1][b'udp_received_time']),(10,2))
-      for ii in range(0,10):
-         raw_dict['cerebusAdapter_time'][indStart+ii] = cerebusAdapter_time[ii,0]*1000000 + cerebusAdapter_time[ii,1]
-         raw_dict['udp_received_time'][indStart+ii] = udp_time[ii,0]*1000000 + udp_time[ii,1]
-      readLocn_raw = xreadPack[0]
-      indStart = indEnd
-   pageNum += 1
+    for xreadPack in r.xread({'cerebusAdapter_neural':readLocn_Neural_raw}, count=pageSize, block=None)[0][1]:
+      indEnd_neural = indStart_neural + 30
+      raw_neural_dict['raw_samples'][:,indStart_neural:indEnd_neural] = np.reshape(unpack('h'*2*30,xreadPack[1][b'samples']),(2,30))
+      raw_neural_dict['raw_timestamps'][indStart_neural:indEnd_neural] = np.array(unpack('I'*30,xreadPack[1][b'timestamps']))
+      cerebusAdapter_time = np.reshape(unpack('ll'*30,xreadPack[1][b'cerebusAdapter_time']),(30,2))
+      udp_time = np.reshape(unpack('ll'*30,xreadPack[1][b'udp_received_time']),(30,2))
+      for ii in range(0,30):
+         raw_neural_dict['cerebusAdapter_time'][indStart_neural+ii] = cerebusAdapter_time[ii,0]*1000000 + cerebusAdapter_time[ii,1]
+         raw_neural_dict['udp_received_time'][indStart_neural+ii] = udp_time[ii,0]*1000000 + udp_time[ii,1]
+      readLocn_Neural_raw = xreadPack[0]
+      indStart_neural = indEnd_neural
+    
+    for xreadPack in r.xread({'cerebusAdapter_task':readLocn_Task_raw}, count=pageSize, block=None)[0][1]:
+      try:
+        indEnd_task = indStart_task + 1
+        raw_task_dict['raw_samples'][:,indStart_task:indEnd_task] = np.reshape(unpack('h'*2,xreadPack[1][b'samples']),(2,1))
+        raw_task_dict['raw_timestamps'][indStart_task:indEnd_task] = np.array(unpack('I',xreadPack[1][b'timestamps']))
+        cerebusAdapter_time = np.reshape(unpack('ll',xreadPack[1][b'cerebusAdapter_time']),(1,2))
+        udp_time = np.reshape(unpack('ll',xreadPack[1][b'udp_received_time']),(1,2))
+        raw_task_dict['cerebusAdapter_time'][indStart_task] = cerebusAdapter_time[0,0]*1000000 + cerebusAdapter_time[0,1]
+        raw_task_dict['udp_received_time'][indStart_task] = udp_time[0,0]*1000000 + udp_time[0,1]
+        readLocn_Task_raw = xreadPack[0]
+        indStart_task = indEnd_task
+      except:
+        pass
+     
+    pageNum += 1
 
 print('saving  file')
-io.savemat(FN_raw,raw_dict,do_compression=True)
+io.savemat(FN_raw_neural,raw_neural_dict,do_compression=True)
+io.savemat(FN_raw_task,raw_task_dict,do_compression=True) #will this work?

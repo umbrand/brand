@@ -3,7 +3,7 @@
 
 parameters:
 - name: redis_ip
-  value: 127.0.0.1
+  value: 165.124.111.117
   description: What is the IP of our Redis instance
   static: true
 
@@ -18,7 +18,7 @@ parameters:
   static: true
 
 - name: num_neural_channels
-  value: 96
+  value: 2
   description: Number of channels from the cereport/digital headstage that we're expecting to see
   static: true
 

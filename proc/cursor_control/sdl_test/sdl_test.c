@@ -38,8 +38,7 @@ int main()
 	// please provide a path for your image 
 	surface = IMG_Load("./yellow_circle.png"); 
 
-    /* creates a blank cursor */
-    SDL_ShowCursor(SDL_DISABLE);
+
 
 	// loads image to our graphics hardware memory. 
 	SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surface); 

@@ -26,9 +26,9 @@ import redis
 pagination_limit = 100000
 output_folder = "./"
 
-r = redis.Redis()
-num_rows = r.xinfo_stream('cerebusAdapter')['length'] # how many cerebusAdapter entries?
-num_samples = int(r.xinfo_stream(b'cerebusAdapter')['first-entry'][1][b'num_samples']) # how many samples per cerebusAdapter entry?
+r = redis.Redis('165.124.111.117','6379')
+num_rows = r.xinfo_stream('cerebusAdapter_neural')['length'] # how many cerebusAdapter_neural entries?
+num_samples = int(r.xinfo_stream(b'cerebusAdapter_neural')['first-entry'][1][b'num_samples']) # how many samples per cerebusAdapter_neural entry?
 
 ###############################################
 ## Pagination
@@ -64,7 +64,7 @@ udp_ts = np.empty(int(num_rows*num_samples),dtype='uint32') # empty array -- num
 min_ID = '-'
 while offset < num_rows: 
     try:
-        rows = xrange_pagination('cerebusAdapter', min_ID, pagination_limit)
+        rows = xrange_pagination('cerebusAdapter_neural', min_ID, pagination_limit)
     
         for row in rows:
             r_begin,r_end = offset*num_samples,(offset+1)*num_samples # index for current array range
@@ -75,7 +75,7 @@ while offset < num_rows:
             if offset > num_rows: # for some reason this is returning more than there are number of rows... have to force it out
                 break
 
-        print('[cerebusAdapter stream]', offset, 'of', num_rows)
+        print('[cerebusAdapter_neural stream]', offset, 'of', num_rows)
 
     except:
         print(offset)
@@ -89,10 +89,10 @@ while offset < num_rows:
 ## Question 1: Plotting cerebus timestamp diffs
 ###############################################
 
-print('[cerebusAdapter] Examining cerebus packet differences')
+print('[cerebusAdapter_neural] Examining cerebus packet differences')
 
 fig = plt.figure()
-title = "Stream: cerebusAdapter \n Diff of cerebus timestamps as entered into Redis \n Diff changes > 10 are truncated to 10"
+title = "Stream: cerebusAdapter_neural \n Diff of cerebus timestamps as entered into Redis \n Diff changes > 10 are truncated to 10"
 
 cb_diffs = np.diff(cb_ts)
 cb_diffs[cb_diffs > 10] = 10
@@ -114,11 +114,11 @@ fig.savefig(filename)
 ## Question 2: UDP packet interval
 ###############################################
 
-print('[cerebusAdapter] Examining UDP received interval')
+print('[cerebusAdapter_neural] Examining UDP received interval')
 
 
 fig = plt.figure()
-title = "\n Stream: cerebusAdapter \n Diff of UDP received timestamps \n Diff changes > 2000us are truncated to 2000us"
+title = "\n Stream: cerebusAdapter_neural \n Diff of UDP received timestamps \n Diff changes > 2000us are truncated to 2000us"
 
 udp_diffs = np.diff(udp_ts)
 udp_diffs[udp_diffs > 2000] = 2000
@@ -148,9 +148,9 @@ fig.savefig(filename)
 ## Plot the actual samples to see what we're working with
 
 '''
-num_cerebusAdapter_entries = 1000
+num_cerebusAdapter_neural_entries = 1000
 key = b'chan0'
-rows = r.xrevrange('cerebusAdapter', count=num_cerebusAdapter_entries)
+rows = r.xrevrange('cerebusAdapter_neural', count=num_cerebusAdapter_neural_entries)
 samples = []
 
 for row in rows:
@@ -166,7 +166,7 @@ for row in rows:
 # offset = 0
 # timestamps = []
 # while offset < num_rows:
-#     sqlStr = "SELECT num_samples, current_time FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
+#     sqlStr = "SELECT num_samples, current_time FROM cerebusAdapter_neural LIMIT {} OFFSET {}".format(pagination_limit, offset)
 #     rows = con.execute(sqlStr).fetchall()
 
 #     for row in rows:
@@ -176,10 +176,10 @@ for row in rows:
 #         offset = offset + 1
 
 # fig = plt.figure()
-# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of cerebusAdapter gettimeofday calls"
+# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter_neural \n Diff of cerebusAdapter_neural gettimeofday calls"
 
 # plt.plot(np.diff(timestamps), 'o', markersize=2)
-# plt.ylabel('cerebusAdapter runtime diff (microseconds)', fontsize=12);
+# plt.ylabel('cerebusAdapter_neural runtime diff (microseconds)', fontsize=12);
 # plt.xlabel('Cerebus packet number', fontsize=12);
 # plt.title(title)
 
@@ -194,7 +194,7 @@ for row in rows:
 # timestamps = []
 # min_ID = '-'
 # while offset < num_rows:
-#     sqlStr = "SELECT ID  FROM cerebusAdapter LIMIT {} OFFSET {}".format(pagination_limit, offset)
+#     sqlStr = "SELECT ID  FROM cerebusAdapter_neural LIMIT {} OFFSET {}".format(pagination_limit, offset)
 #     rows = con.execute(sqlStr).fetchall()
 #     print(sqlStr)
 
@@ -204,7 +204,7 @@ for row in rows:
 #         offset = offset + 1
 
 # fig = plt.figure()
-# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter \n Diff of redis timestamps"
+# title = pathlib.Path(sql_filename).name + "\n Stream: cerebusAdapter_neural \n Diff of redis timestamps"
 
 # plt.plot(np.diff(timestamps), 'o', markersize=2)
 # plt.ylabel('Redis Timestamp diff', fontsize=12);

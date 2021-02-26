@@ -1,6 +1,6 @@
 parameters:
 - name: redis_ip
-  value: 127.0.0.1
+  value: 165.124.111.117
   description: What is the IP of our Redis instance
   static: true
 
