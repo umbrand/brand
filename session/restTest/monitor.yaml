@@ -1,0 +1,23 @@
+
+# Some configuration options for monitor.c 
+
+parameters:
+- name: redis_ip
+  value: 165.124.111.117
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: timer_period
+  value: 1000
+  description: What is the period (in microseconds) of the timer going off
+  static: true
+
+- name: sched_fifo
+  value: true
+  description: Do we want to enable sched_fifo
+  static: true

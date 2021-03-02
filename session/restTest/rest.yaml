@@ -19,26 +19,6 @@ parameters:
   description: What is the port of the rest server?
   static: true
 
-- name: stream_name
-  value: cerebusAdapter_neural
-  description: Name of the stream we want to display
-  static: false
-
-- name: num_channels
-  value: 2
-  description: How many channels in the samples array
-  static: false
-
-- name: num_samples
-  value: 30
-  description: Number of samples per channel
-  static: false
-
-- name: disp_channel
-  value: 1
-  description: Channel to display (to start)
-  static: false
-
 - name: modules
   value: [generator, cerebusAdapter, monitor, timer]
   description: What modules do we want to present the parameters for?

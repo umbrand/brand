@@ -35,6 +35,10 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 redis_ip = get_parameter_value(YAML_FILE,"redis_ip")
 redis_port = get_parameter_value(YAML_FILE,"redis_port")
+stream_name = get_parameter_value(YAML_FILE,"stream_name")
+num_channels = get_parameter_value(YAML_FILE,"num_channels") # number of channels per sample array
+num_samples = get_parameter_value(YAML_FILE, "num_samples") # number of samples per stream
+disp_channel = get_parameter_value(YAML_FILE, "disp_channel") # channel to display -- for pulling things out of the array
 print("[rest] Initializing Redis with IP :" , redis_ip, ", port: ", redis_port)
 r = redis.StrictRedis(host = redis_ip, port = redis_port, db = 0)
 
@@ -73,6 +77,8 @@ def handle_connect():
 # Read from the /tmp/stream file, and then use that for emitting data
 
 def emitStreamData():
+
+    print("[rest] streaming data") 
     while True:
         try:
             
@@ -99,17 +105,28 @@ def emitStreamData():
 
             # Code specifically for cerebusAdapter
             # Unpack the most recent entry and construct a json struct
-            if jsonData['stream'] == 'cerebusAdapter':
-                if 'chan' in key:
-                    val = struct.unpack('H' * int(xrevrange_output[1][b'num_samples']), 
-                            xrevrange_output[1][key.encode('utf-8')])
+            if jsonData['stream'] == stream_name:
+                if 'samples' in key:
+                    val = struct.unpack('h' * num_channels * num_samples,
+                            xrevrange_output[1][key.encode('utf-8')])[num_samples*(disp_channel-1):num_samples*disp_channel]
                     
-
                     output = {'time' : float(seconds)
                             , 'value' : float(val[0])
                             , 'xTitle' : "Time (seconds)"
                             , 'yTitle' : "Voltage (mv)" 
-                            , 'title'  : ("Streaming: " + key)}
+                            , 'title'  : ("Streaming: " + str(disp_channel))}
+                    socketio.emit('stream_newdata', json.dumps(output), include_self=True)
+
+
+
+                if 'udp_received_time' in key:
+                    val = np.array(struct.unpack('I' * num_samples, xrevrange_output[1][key.encode('utf-8')]))
+                    val = np.append(0,val[1:] - val[:-1])
+                    output = {'time' : float(seconds)
+                            , 'value' : float(val[0])
+                            , 'xTitle' : "Time (s)"
+                            , 'yTitle' : "UDP packet time delta" 
+                            , 'title'  : ("UDP Packet Latencies")}
                     socketio.emit('stream_newdata', json.dumps(output), include_self=True)
 
         except IOError:
@@ -187,13 +204,13 @@ def getStreams():
                 }
         streams = streams + [stream]
             
-    if r.exists("cerebusAdapter"):
-        stream_result = r.xinfo_stream("cerebusAdapter")
+    if r.exists(stream_name):
+        stream_result = r.xinfo_stream(stream_name)
         stream_keys   = [x.decode('utf-8') for x in stream_result['last-entry'][1].keys()]
-        stream_keys   = [x for x in stream_keys if "chan" in x]
+        #stream_keys   = [x for x in stream_keys if "chan" in x]
         # LOGIC HERE FOR INCLUDING ONLY THOSE THAT START WITH CHAN
         stream        = {
-                "name" : "cerebusAdapter",
+                "name" : stream_name,
                 "keys" : stream_keys,
                 "parameters" : []
                 }
@@ -205,7 +222,7 @@ def getStreams():
     return json.dumps(output)
             
 ###########################################################
-## /streams/cerebusAdapter
+## /streams/cerebusAdapter_neural
 ###########################################################
 
 
@@ -228,52 +245,46 @@ def writeStream(stream, key):
     return json.dumps(val)
 
 
-@app.route('/streams/cerebusAdapter/<key>', methods=['GET'])
-def cerebusAdapter(key):
+@app.route('/streams/cerebusAdapter_neural/<disp_channel>', methods=['GET'])
+def cerebusAdapter_neural(disp_channel):
 
 
     downsample = request.args.get('downsample', 100, type=int)
-    key = key.encode('utf-8')
 
     # This will return an array of entries
     # Each entry has [0] --> timestamp
     # [1] --> A dictionary
-    data = r.xrevrange("cerebusAdapter", count=1000)
-
-    if key not in data[0][1].keys():
-        output = {"error" : str(key) + " is not a key in pipe"}
-        return json.dumps(output)
+    data = r.xrevrange("cerebusAdapter_neural", count=1000)
 
     # If we're here then we know we have a valid key
     # From the dictionary, return the dictionary entry of the key
     # and convert it into a float. Create a comprehension over all of the
     # returned data
 
-    if b"chan" in key:
+    y = []
+    for single_data in data:
+        val = struct.unpack('H' * num_channels * num_samples, single_data[1])
+        val = val[(disp_channel*num_samples,(disp_channel+1)*num_samples)]
+        y = np.append(y, np.array(val, dtype='int'))
 
-        y = []
-        for single_data in data:
-            val = [struct.unpack('H' * int(single_data[1][b'num_samples']), single_data[1][key])]
-            y = np.append(y, np.array(val, dtype='int'))
-    
-        y      = y[::downsample]
-        x      = list(reversed(range(len(y))))
-        name   = str(key)
-        xTitle = "Cerebus sample"
-        yTitle = "Raw voltage"
-        maxID  = data[0][0].decode('utf-8')
+    y      = y[::downsample]
+    x      = list(reversed(range(len(y))))
+    name   = str(key)
+    xTitle = "Cerebus sample"
+    yTitle = "Raw voltage"
+    maxID  = data[0][0].decode('utf-8')
 
-        print(len(y))
+    print(len(y))
 
-        output = { "x"      : x
-                 , "y"      : y.tolist()
-                 , "name"   : name
-                 , "xTitle" : xTitle
-                 , "yTitle" : yTitle
-                 , "maxID"  : maxID
-                 }
+    output = { "x"      : x
+             , "y"      : y.tolist()
+             , "name"   : name
+             , "xTitle" : xTitle
+             , "yTitle" : yTitle
+             , "maxID"  : maxID
+             }
 
-        return json.dumps(output)
+    return json.dumps(output)
 
 
 ###########################################################
