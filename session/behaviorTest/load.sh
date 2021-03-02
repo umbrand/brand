@@ -2,10 +2,10 @@
 masterList=(
 
     # REST
-    proc/rest/rest.pyx
-    proc/rest/static
-    proc/rest/templates
-    session/behaviorTest/rest.yaml 
+    #proc/rest/rest.pyx
+    #proc/rest/static
+    #proc/rest/templates
+    #session/behaviorTest/rest.yaml 
 
     # MODULES
     bin/cerebusAdapter
@@ -23,6 +23,8 @@ masterList=(
     proc/behaviorFSM/behaviorFSM.py
     session/behaviorTest/behaviorFSM.yaml
 
+    bin/cursor_control
+    session/behaviorTest/cursor_control.yaml
 
     # CONFIGURATION
     session/behaviorTest/README.md
@@ -31,7 +33,7 @@ masterList=(
 
     # REDIS
     session/behaviorTest/redis.realtime.conf
-    session/behaviorTest/redis.rest.conf
+    #session/behaviorTest/redis.rest.conf
     bin/redis-server
     bin/redis-cli
 
