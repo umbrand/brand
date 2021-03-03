@@ -269,7 +269,7 @@ def cerebusAdapter_neural(disp_channel):
 
     y      = y[::downsample]
     x      = list(reversed(range(len(y))))
-    name   = str(key)
+    name   = str(disp_channel)
     xTitle = "Cerebus sample"
     yTitle = "Raw voltage"
     maxID  = data[0][0].decode('utf-8')

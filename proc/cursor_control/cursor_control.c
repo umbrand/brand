@@ -35,17 +35,18 @@ redisContext *redis_context;
 
 int flag_SIGINT = 0;
 
-pthread_t subscriberThread;
+pthread_t subscriberThreadCursor;
+pthread_t subscriberThreadTarget;
 
 int32_t cursorPosition[3];   // [X Y state]
 int32_t targetPosition[5];  // [X Y W H state]
 
 void * cursorSubscriberThread(void * thread_params) {
     while(1) {
-           if (flag_SIGINT) 
-         shutdown_process();
+        if (flag_SIGINT) 
+            shutdown_process();
         reply = redisCommand(redis_context,
-            "XREAD BLOCK 1000000 STREAMS cursorData $");
+            "XREAD BLOCK 1 STREAMS cursorData $");
     
         cursorPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
         cursorPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
@@ -63,7 +64,7 @@ void * targetSubscriberThread(void * thread_params) {
     // if (flag_SIGINT) 
     //     shutdown_process();
         reply = redisCommand(redis_context,
-            "XREAD BLOCK 1000000 STREAMS targetData $");
+            "XREAD BLOCK 1 STREAMS targetData $");
 
         targetPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
         targetPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
@@ -81,7 +82,8 @@ void * targetSubscriberThread(void * thread_params) {
 
 
 int main() {
-    int rc;
+    int rc; //error value for the cursor thread
+    int rt; //error value for the target thread
 
     initialize_redis();
     initialize_signals();
@@ -90,9 +92,10 @@ int main() {
     initialize_parameters(&yaml_parameters);
 
     /* Spawn Subcriber thread */
-    printf("Starting Subcriber Thread \n");
-    rc = pthread_create(&subscriberThread, NULL, cursorSubscriberThread, NULL);
-    if(rc)
+    printf("Starting Subcriber Threads \n");
+    rc = pthread_create(&subscriberThreadCursor, NULL, cursorSubscriberThread, NULL);
+    rt = pthread_create(&subscriberThreadTarget, NULL, targetSubscriberThread, NULL);
+    if(rc | rt)
     {
         printf("Subcriber thread failed to initialize!!\n");
     } else {
@@ -160,7 +163,9 @@ int main() {
     while (1) { 
         if (flag_SIGINT | close) 
             shutdown_process();
+        
 
+        // update the cursor x and y -- based around the center of the screen
         dest.x = cursorPosition[0] + (1920 - dest.w) / 2;
         dest.y = cursorPosition[1] + (1080 - dest.h) / 2;
 
