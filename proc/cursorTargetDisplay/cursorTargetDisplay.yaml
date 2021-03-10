@@ -1,0 +1,21 @@
+
+# Some configuration options for mouseTargetDisplay
+
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+# display configurations
+- name: screenSize
+  value: 1920, 1080
+  description: horizontal, vertical resolution of the screen
+  static: true
+
+

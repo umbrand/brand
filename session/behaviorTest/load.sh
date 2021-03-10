@@ -23,8 +23,8 @@ masterList=(
     proc/behaviorFSM/behaviorFSM.py
     session/behaviorTest/behaviorFSM.yaml
 
-    bin/cursor_control
-    session/behaviorTest/cursor_control.yaml
+    bin/cursorTargetDisplay
+    session/behaviorTest/cursorTargetDisplay.yaml
 
     # CONFIGURATION
     session/behaviorTest/README.md

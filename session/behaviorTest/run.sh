@@ -1,7 +1,7 @@
 #!/bin/bash
 
 start_modules=(cerebusAdapter)
-main_modules=(monitor behaviorFSM.py cursor_control)
+main_modules=(monitor behaviorFSM.py cursorTargetDisplay)
 end_modules=(finalizeRDB.py)
 
 ##############################################

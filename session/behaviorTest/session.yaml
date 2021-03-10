@@ -23,6 +23,10 @@ modules:
      links:
       - proc/behaviorFSM/behaviorFSM.py 
       - session/behaviorTest/behaviorFSM.yaml
+   - name: cursorTargetControl
+     links:
+      - bin/cursorTargetControl
+      - session/cursorTargetControl/cursorTargetControl.yaml
   end:
     - name: finalizeRDB.py
       links: 

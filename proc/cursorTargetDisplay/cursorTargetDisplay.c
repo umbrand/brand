@@ -1,4 +1,4 @@
-/* cursor_control.c
+/* cursorTargetDisplay.c
 *   takes in location information from behaviorFSM system and displays it.
 *   may need to run on a system separately from the primary data intake 
 */
@@ -29,51 +29,43 @@ void handler_SIGINT(int exitStatus);
 void initialize_parameters(yaml_parameters_t *p);
 void shutdown_process();
 
-char PROCESS[] = "cursorControl";
-redisReply *reply;
+char PROCESS[] = "cursorTargetDisplay";
+redisReply *cursor_reply;
+redisReply *target_reply;
 redisContext *redis_context;
 
 int flag_SIGINT = 0;
 
 pthread_t subscriberThreadCursor;
-pthread_t subscriberThreadTarget;
 
 int32_t cursorPosition[3];   // [X Y state]
 int32_t targetPosition[5];  // [X Y W H state]
 
-void * cursorSubscriberThread(void * thread_params) {
+void * subscriberThread(void * thread_params) {
     while(1) {
-        if (flag_SIGINT) 
-            shutdown_process();
-        reply = redisCommand(redis_context,
-            "XREAD BLOCK 1 STREAMS cursorData $");
-    
-        cursorPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-        cursorPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
-        // states: off = 0, on = 1
-        cursorPosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //state
+        //if (flag_SIGINT) 
+         //   shutdown_process();
+        cursor_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS cursorData $"); 
+        if (cursor_reply->elements == 1) {
+            cursorPosition[0] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            cursorPosition[1] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
+            // states: off = 0, on = 1
+            cursorPosition[2] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //state
+        }
+
+        target_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS targetData $");
+        if (target_reply->elements == 1){
+            targetPosition[0] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            targetPosition[1] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
+            targetPosition[2] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //W
+            targetPosition[3] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //H
+            // states: off = 0, on = 1, over = 2
+            targetPosition[4] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //state
+        }
         
-        printf("cursor position: (x = %d, y = %d, state = %d)\n", cursorPosition[0],
+        printf("cursor position: (x = %d, y = %d, state = %u)\n", cursorPosition[0],
             cursorPosition[1], cursorPosition[2]);
-    }
-}
-
-
-void * targetSubscriberThread(void * thread_params) {
-    while(1) {
-    // if (flag_SIGINT) 
-    //     shutdown_process();
-        reply = redisCommand(redis_context,
-            "XREAD BLOCK 1 STREAMS targetData $");
-
-        targetPosition[0] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-        targetPosition[1] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
-        targetPosition[2] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //W
-        targetPosition[3] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //H
-        // states: off = 0, on = 1
-        targetPosition[4] += atoi(reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //state
-        
-        printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %d)\n", targetPosition[0],
+        printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %u)\n", targetPosition[0],
             targetPosition[1], targetPosition[2], targetPosition[3], targetPosition[4]);
     }
 }
@@ -82,8 +74,11 @@ void * targetSubscriberThread(void * thread_params) {
 
 
 int main() {
-    int rc; //error value for the cursor thread
-    int rt; //error value for the target thread
+    int rc; //error value for the thread
+
+    int screenSize[2];
+    screenSize[0] = 1920; // horizontal screen size
+    screenSize[1] = 1080; // vertical screen size
 
     initialize_redis();
     initialize_signals();
@@ -92,20 +87,19 @@ int main() {
     initialize_parameters(&yaml_parameters);
 
     /* Spawn Subcriber thread */
-    printf("Starting Subcriber Threads \n");
-    rc = pthread_create(&subscriberThreadCursor, NULL, cursorSubscriberThread, NULL);
-    rt = pthread_create(&subscriberThreadTarget, NULL, targetSubscriberThread, NULL);
-    if(rc | rt)
+    printf("[%s] Starting Subcriber Threads \n", PROCESS);
+    rc = pthread_create(&subscriberThreadCursor, NULL, subscriberThread, NULL);
+    if (rc)
     {
-        printf("Subcriber thread failed to initialize!!\n");
+        printf("[%s] Subcriber thread failed to initialize!!\n", PROCESS);
     } else {
-        printf("Started thread\n");
+        printf("[%s] Started thread\n", PROCESS);
     }
 
     // source: https://www.geeksforgeeks.org/sdl-library-in-c-c-with-examples/
     // returns zero on success else non-zero 
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) { 
-        printf("error initializing SDL: %s\n", SDL_GetError()); 
+        printf("[%s] error initializing SDL: %s\n", PROCESS, SDL_GetError()); 
     } 
     SDL_Window* win = SDL_CreateWindow("GAME", // creates a window 
                                        SDL_WINDOWPOS_CENTERED, 
@@ -126,35 +120,36 @@ int main() {
     SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags); 
 
     // creates a surface to load an image into the main memory 
-    SDL_Surface* surface; 
-
-    // please provide a path for your image 
-    surface = IMG_Load("./yellow_circle.png"); 
+    SDL_Surface* cursor_surface; 
+    cursor_surface = IMG_Load("./face.png"); // please provide a path for your image 
 
     // loads image to our graphics hardware memory. 
-    SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surface); 
+    SDL_Texture* cursor_tex = SDL_CreateTextureFromSurface(rend, cursor_surface); 
 
     // clears main-memory 
-    SDL_FreeSurface(surface); 
+    SDL_FreeSurface(cursor_surface); 
 
     SDL_ShowCursor(SDL_DISABLE);
 
     // let us control our image position 
     // so that we can move it with our keyboard. 
-    SDL_Rect dest; 
+    SDL_Rect cursor_dest;
+    SDL_Rect target_rect; 
+    target_rect.x = screenSize[0]/2;
+    target_rect.y = screenSize[1]/2; 
 
     // connects our texture with dest to control position 
-    SDL_QueryTexture(tex, NULL, NULL, &dest.w, &dest.h); 
+    SDL_QueryTexture(cursor_tex, NULL, NULL, &cursor_dest.w, &cursor_dest.h); 
 
-    // adjust height and width of our image box. 
-    dest.w /= 6; 
-    dest.h /= 6; 
+    // adjust height and width of our image box. is this hard coded right now?
+    cursor_dest.w = 50; 
+    cursor_dest.h = 50; 
 
     // sets initial x-position of object 
-    dest.x = (1920 - dest.w) / 2; 
+    cursor_dest.x = (screenSize[0] - cursor_dest.w) / 2; 
 
     // sets initial y-position of object 
-    dest.y = (1080 - dest.h) / 2; 
+    cursor_dest.y = (screenSize[1] - cursor_dest.h) / 2; 
 
     // controls annimation loop 
     int close = 0; 
@@ -166,29 +161,54 @@ int main() {
         
 
         // update the cursor x and y -- based around the center of the screen
-        dest.x = cursorPosition[0] + (1920 - dest.w) / 2;
-        dest.y = cursorPosition[1] + (1080 - dest.h) / 2;
+        cursor_dest.x = cursorPosition[0] + (screenSize[0] - cursor_dest.w) / 2;
+        cursor_dest.y = cursorPosition[1] + (screenSize[1] - cursor_dest.h) / 2;
 
+
+        // update the target x,y,w and h -- based around the center of the screen
+        target_rect.w = targetPosition[2];
+        target_rect.h = targetPosition[3];
+        target_rect.x = targetPosition[0] + (screenSize[0] - target_rect.w) / 2; 
+        target_rect.y = targetPosition[1] + (screenSize[1] - target_rect.h) / 2; 
 
         // right boundary 
-        if (dest.x + dest.w > 1920) 
-            dest.x = 1920 - dest.w; 
+        if (cursor_dest.x + cursor_dest.w > screenSize[0]) 
+            cursor_dest.x = screenSize[0] - cursor_dest.w; 
 
         // left boundary 
-        if (dest.x < 0) 
-            dest.x = 0; 
+        if (cursor_dest.x < 0) 
+            cursor_dest.x = 0; 
 
         // bottom boundary 
-        if (dest.y + dest.h > 1080) 
-            dest.y = 1080 - dest.h; 
+        if (cursor_dest.y + cursor_dest.h > screenSize[1]) 
+            cursor_dest.y = screenSize[1]- cursor_dest.h; 
 
         // upper boundary 
-        if (dest.y < 0) 
-            dest.y = 0; 
+        if (cursor_dest.y < 0) 
+            cursor_dest.y = 0; 
 
         // clears the screen
         SDL_RenderClear(rend); 
-        SDL_RenderCopy(rend, tex, NULL, &dest); 
+       
+         
+        SDL_RenderCopy(rend, cursor_tex, NULL, &cursor_dest); // render the cursor
+        // display the target as the desired color, based on the state
+        switch (targetPosition[4]){
+            case 0: // target off -- black
+                SDL_SetRenderDrawColor(rend,0,0,0,255);
+                break;
+
+            case 1: // target on -- red
+                SDL_SetRenderDrawColor(rend,255,0,0,255);
+                break;
+
+            case 2: // cursor over target -- green
+                SDL_SetRenderDrawColor(rend,0,255,0,255);
+                break;
+        }
+
+        SDL_RenderFillRect(rend, &target_rect); // draw the target rectangle*/
+        SDL_SetRenderDrawColor(rend, 0, 0, 0, 255); // render target rectangle on screen
 
         // triggers the double buffers 
         // for multiple rendering 
@@ -201,7 +221,7 @@ int main() {
 
     
     // destroy texture 
-    SDL_DestroyTexture(tex); 
+    SDL_DestroyTexture(cursor_tex); 
 
     // destroy renderer 
     SDL_DestroyRenderer(rend); 
