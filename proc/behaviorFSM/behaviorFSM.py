@@ -85,7 +85,7 @@ class target():
             return False
     
     def packTarget(self):
-        targetDict = {b'X': pack('h',self.x), b'Y': pack('h',self.y), b'width': pack('h',self.width), b'height': pack('h',self.height), b'state':pack('I',self.state)}
+        targetDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'width': pack('i',self.width), b'height': pack('i',self.height), b'state':pack('I',self.state)}
         return targetDict
 
 
@@ -127,7 +127,7 @@ class cursor:
         self.update_cursor(sensor0, sensor1)
     
     def packCurs(self):
-        cursorDict = {b'X': pack('h',self.x), b'Y': pack('h',self.y), b'state': pack('I',self.state)}
+        cursorDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'state': pack('I',self.state)}
         return cursorDict
 
 

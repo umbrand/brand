@@ -297,7 +297,7 @@ int main (int argc_main, char **argv_main) {
             }
 
             // Now check to see if we're getting a type 2 packet, which should contain 1 khz sampled data, meant to be task data
-            if (cerebus_packet_header->type == 4) {
+            if (cerebus_packet_header->type == 2) {
                 
                 // This gets the current system time
                 gettimeofday(&current_time,NULL);
