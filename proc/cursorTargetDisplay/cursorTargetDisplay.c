@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h> /* close() */
 #include <pthread.h>
 #include <fcntl.h> // File control definitions
@@ -20,6 +21,8 @@
 typedef struct yaml_parameters_t {
     int num_channels;
     int samples_per_redis_stream;
+    int screen_size[2];
+    char cursor_file[255];
 } yaml_parameters_t;
 
 
@@ -76,15 +79,21 @@ void * subscriberThread(void * thread_params) {
 int main() {
     int rc; //error value for the thread
 
-    int screenSize[2];
-    screenSize[0] = 1920; // horizontal screen size
-    screenSize[1] = 1080; // vertical screen size
 
     initialize_redis();
     initialize_signals();
 
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
+
+
+    int screenSize[2];
+    char cursorFile[255] = "./face.tga"; // initialize the name, give it 255 for the PATH_MAX of linux
+    screenSize[0] = 1920; // horizontal screen size
+    screenSize[1] = 1080; // vertical screen size
+    //screenSize = yaml_parameters->*screen_size;
+    //cursorFile = yaml_parameters->*cursor_file;
+
 
     /* Spawn Subcriber thread */
     printf("[%s] Starting Subcriber Threads \n", PROCESS);
@@ -121,7 +130,7 @@ int main() {
 
     // creates a surface to load an image into the main memory 
     SDL_Surface* cursor_surface; 
-    cursor_surface = IMG_Load("./face.png"); // please provide a path for your image 
+    cursor_surface = IMG_Load(cursorFile); // please provide a path for your image 
 
     // loads image to our graphics hardware memory. 
     SDL_Texture* cursor_tex = SDL_CreateTextureFromSurface(rend, cursor_surface); 
@@ -273,12 +282,21 @@ void initialize_parameters(yaml_parameters_t *p) {
 
     char num_channels_string[16] = {0};
     char samples_per_redis_stream_string[16] = {0};
+    char screen_size_x_string[16] = {0};
+    char screen_size_y_string[16] = {0};
+    char cursor_file_string[255] = {0}; // filenames are sometimes long. Following PATH_MAX
 
     load_YAML_variable_string(PROCESS, "num_channels", num_channels_string,   sizeof(num_channels_string));
     load_YAML_variable_string(PROCESS, "samples_per_redis_stream", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
+    load_YAML_variable_string(PROCESS, "screen_size_x", screen_size_x_string,   sizeof(screen_size_x_string));
+    load_YAML_variable_string(PROCESS, "screen_size_y", screen_size_y_string,   sizeof(screen_size_y_string));
+    load_YAML_variable_string(PROCESS, "cursor_file", cursor_file_string, sizeof(cursor_file_string));
 
     p->num_channels             = atoi(num_channels_string);
     p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);
+    p->screen_size[0] = atoi(screen_size_x_string);
+    p->screen_size[1] = atoi(screen_size_y_string);
+    (void)strncpy(p->cursor_file, cursor_file_string, 255);
 
 }
 
@@ -306,3 +324,4 @@ void shutdown_process() {
 void handler_SIGINT(int exitStatus) {
     flag_SIGINT++;
 }
+

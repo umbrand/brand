@@ -13,9 +13,19 @@ parameters:
   static: true
 
 # display configurations
-- name: screenSize
-  value: 1920, 1080
-  description: horizontal, vertical resolution of the screen
+- name: screen_size_x
+  value: 1920
+  description: horizontal resolution of the screen
+  static: true
+
+- name: screen_size_y
+  value: 1080
+  description: vertical resolution of the screen
+  static: true
+
+- name: cursor_file
+  value: ./face.tga
+  description: cursor image location
   static: true
 
 

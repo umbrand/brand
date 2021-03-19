@@ -130,6 +130,9 @@ class cursor:
         cursorDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'state': pack('I',self.state)}
         return cursorDict
 
+    def printCurs(self):
+        print("X: "+ str(curs.x) + ", Y: " + str(curs.y))
+
 
 # define the touchpad
 class touchpad():
@@ -209,7 +212,7 @@ touchpadThresh = get_parameter_value(behavior_yaml, 'touchpadThresh')
 try:
     redis_ip = get_parameter_value(behavior_yaml,'redis_ip')
     redis_port = get_parameter_value(behavior_yaml,'redis_port')
-    print('Redis IP', redis_ip, ';  Redis port:', redis_port)
+    print('[behaviorFSM] Redis IP', redis_ip, ';  Redis port:', redis_port)
     r = Redis(host = redis_ip, port = redis_port)
     print('[behaviorFSM] Connecting to Redis...')
 except:
@@ -237,6 +240,7 @@ while True:
     cursorFrame = r.xread({b'cerebusAdapter_task':'$'}, block=1, count=1)[0][1][0][1]
     sensors = unpack(unpackString, cursorFrame[b'samples']) # pulling a sensor in
     sensor0,sensor1 = sensors[0:2]
+    print("sensor 0: " + str(sensor0) + ", sensor1: " + str(sensor1))
     sensor2 = sensors[2]
     curs.update_cursor(sensor0, sensor1) # sensor names
     currTime = dt.now().timestamp() # the posix time at the beginning of the loop
