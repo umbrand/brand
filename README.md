@@ -16,6 +16,28 @@ conda activate rt
 make
 ```
 
+### Adding NI DAQ Support
+Download the 2020 version of the installer [here](https://www.ni.com/en-us/support/downloads/drivers/download.ni-linux-device-drivers.html#350003).
+
+1. Install the repository addon:   
+`sudo apt install ./<.deb file name>`   
+Example:   
+`sudo apt install ./ni-software-2020-bionic_20.1.0.49152-0+f0_all.deb`
+
+2. Refresh the package list:   
+`sudo apt update`   
+
+3. Use your distribution’s package manager to download and install the driver packages. Package names can be found in the NI Linux Device Drivers readme.
+`sudo apt install <package name>`   
+Example:   
+`sudo apt install ni-daqmx`
+
+4. Update the kernel:   
+`sudo dkms autoinstall`
+
+5. Reboot the system.
+
+
 # Session workflow
 
 Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
