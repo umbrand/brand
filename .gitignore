@@ -33,3 +33,5 @@ bin/
 # matlab data
 .mat
 
+# Duplicate .pyx files
+pyglet_display.pyx

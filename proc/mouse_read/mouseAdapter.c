@@ -134,11 +134,6 @@ int main() {
 			freeReplyObject(redisCommand(redis_context,
 				"XADD cursorData * dx %d dy %d dw %d",
 				mouseData[0], mouseData[1], mouseData[2]));
-			pthread_mutex_lock(&mouseDataMutex);
-			mouseData[0] = 0;
-			mouseData[1] = 0;
-			mouseData[2] = 0;
-			pthread_mutex_unlock(&mouseDataMutex);
 
 			flag_SIGUSR1--;
 		}
