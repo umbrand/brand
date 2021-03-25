@@ -45,6 +45,8 @@ int cursorPosition[3];   // [X Y state]
 int targetPosition[5];  // [X Y W H state]
 int *stringConv;
 
+
+/*
 void * subscriberThread(void * thread_params) {
     while(1) {
         //if (flag_SIGINT) 
@@ -86,7 +88,7 @@ void * subscriberThread(void * thread_params) {
     }
 }
 
-
+*/
 
 
 int main() {
@@ -109,14 +111,14 @@ int main() {
 
 
     /* Spawn Subcriber thread */
-    printf("[%s] Starting Subcriber Threads \n", PROCESS);
+/*    printf("[%s] Starting Subcriber Threads \n", PROCESS);
     rc = pthread_create(&subscriberThreadCursor, NULL, subscriberThread, NULL);
     if (rc)
     {
         printf("[%s] Subcriber thread failed to initialize!!\n", PROCESS);
     } else {
         printf("[%s] Started thread\n", PROCESS);
-    }
+    }*/
 
     // source: https://www.geeksforgeeks.org/sdl-library-in-c-c-with-examples/
     // returns zero on success else non-zero 
@@ -185,6 +187,33 @@ int main() {
         if (flag_SIGINT | close) 
             shutdown_process();
         
+
+        // get the current data from the redis stream
+ 
+        cursor_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS cursorData $"); 
+        if (cursor_reply->elements == 1) {
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            cursorPosition[0] = *stringConv; 
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
+            cursorPosition[1] = *stringConv;
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
+            cursorPosition[2] = *stringConv;
+        }
+
+        target_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS targetData $");
+        if (target_reply->elements == 1){
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            targetPosition[0] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
+            targetPosition[1] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
+            targetPosition[2] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //X
+            targetPosition[3] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //X
+            targetPosition[4] = *stringConv;
+
+        }
 
         // update the cursor x and y -- based around the center of the screen
         cursor_dest.x = cursorPosition[0] + (screenSize[0] - cursor_dest.w) / 2;

@@ -24,7 +24,9 @@ masterList=(
     session/behaviorTest/behaviorFSM.yaml
 
     bin/cursorTargetDisplay
+    session/behaviorTest/cursorXinitStart.sh
     session/behaviorTest/cursorTargetDisplay.yaml
+    session/behaviorTest/face.tga
 
     # CONFIGURATION
     session/behaviorTest/README.md

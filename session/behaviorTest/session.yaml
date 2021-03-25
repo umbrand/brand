@@ -26,7 +26,9 @@ modules:
    - name: cursorTargetControl
      links:
       - bin/cursorTargetControl
+      - session/cursorTargetControl/cursorXinitStart.sh
       - session/cursorTargetControl/cursorTargetControl.yaml
+      - session/cursorTargetControl/face.tga
   end:
     - name: finalizeRDB.py
       links: 
