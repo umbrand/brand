@@ -41,8 +41,9 @@ int flag_SIGINT = 0;
 
 pthread_t subscriberThreadCursor;
 
-int32_t cursorPosition[3];   // [X Y state]
-int32_t targetPosition[5];  // [X Y W H state]
+int cursorPosition[3];   // [X Y state]
+int targetPosition[5];  // [X Y W H state]
+int *stringConv;
 
 void * subscriberThread(void * thread_params) {
     while(1) {
@@ -50,26 +51,38 @@ void * subscriberThread(void * thread_params) {
          //   shutdown_process();
         cursor_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS cursorData $"); 
         if (cursor_reply->elements == 1) {
-            cursorPosition[0] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-            cursorPosition[1] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
-            // states: off = 0, on = 1
-            cursorPosition[2] = *(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //state
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            cursorPosition[0] = *stringConv; 
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
+            cursorPosition[1] = *stringConv;
+            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
+            cursorPosition[2] = *stringConv;
         }
 
         target_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS targetData $");
         if (target_reply->elements == 1){
-            targetPosition[0] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-            targetPosition[1] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //Y
-            targetPosition[2] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //W
-            targetPosition[3] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //H
-            // states: off = 0, on = 1, over = 2
-            targetPosition[4] = *(target_reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //state
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
+            targetPosition[0] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
+            targetPosition[1] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
+            targetPosition[2] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //X
+            targetPosition[3] = *stringConv;
+            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //X
+            targetPosition[4] = *stringConv;
+
         }
         
-        printf("cursor position: (x = %d, y = %d, state = %u)\n", cursorPosition[0],
-            cursorPosition[1], cursorPosition[2]);
-        printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %u)\n", targetPosition[0],
-            targetPosition[1], targetPosition[2], targetPosition[3], targetPosition[4]);
+        //printf("cursor position: (x = %d, y = %d, state = %u)\n", cursorPosition[0],
+        //    cursorPosition[1], cursorPosition[2]);
+        //printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %u)\n", targetPosition[0],
+            //targetPosition[1], targetPosition[2], targetPosition[3], targetPosition[4]);
+            //if (cursorPosition[0] >= 0){
+                //posNeg = cursorPosition[0];
+            //}else{
+                //printf("%i\n",posNeg);
+            //}
     }
 }
 
@@ -131,6 +144,10 @@ int main() {
     // creates a surface to load an image into the main memory 
     SDL_Surface* cursor_surface; 
     cursor_surface = IMG_Load(cursorFile); // please provide a path for your image 
+    if (!cursor_surface) {
+        printf("IMG_Load: %s\n", IMG_GetError());
+    }
+    //cursor_surface = IMG_Load(cursorFile); // please provide a path for your image 
 
     // loads image to our graphics hardware memory. 
     SDL_Texture* cursor_tex = SDL_CreateTextureFromSurface(rend, cursor_surface); 
@@ -200,24 +217,23 @@ int main() {
         SDL_RenderClear(rend); 
        
          
-        SDL_RenderCopy(rend, cursor_tex, NULL, &cursor_dest); // render the cursor
+        printf("%i\n",targetPosition[4]);
         // display the target as the desired color, based on the state
         switch (targetPosition[4]){
-            case 0: // target off -- black
-                SDL_SetRenderDrawColor(rend,0,0,0,255);
-                break;
 
             case 1: // target on -- red
                 SDL_SetRenderDrawColor(rend,255,0,0,255);
+                SDL_RenderFillRect(rend, &target_rect); // draw the target rectangle*/
                 break;
 
             case 2: // cursor over target -- green
                 SDL_SetRenderDrawColor(rend,0,255,0,255);
+                SDL_RenderFillRect(rend, &target_rect); // draw the target rectangle*/
                 break;
         }
 
-        SDL_RenderFillRect(rend, &target_rect); // draw the target rectangle*/
         SDL_SetRenderDrawColor(rend, 0, 0, 0, 255); // render target rectangle on screen
+        SDL_RenderCopy(rend, cursor_tex, NULL, &cursor_dest); // render the cursor
 
         // triggers the double buffers 
         // for multiple rendering 

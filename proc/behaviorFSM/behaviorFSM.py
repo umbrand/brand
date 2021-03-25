@@ -78,10 +78,9 @@ class target():
         y = self.y - curs.y
         # if the cursor is within the target's range
         if (abs(x) <= self.width/2) and (abs(y) <= self.height/2):
-            self.over
+            self.over()
             return True
         else:
-            self.on
             return False
     
     def packTarget(self):
@@ -117,8 +116,8 @@ class cursor:
         self.state = 1
     
     def update_cursor(self, s0, s1):
-        self.x = (s0*self.mX0) + (s1*self.mX1) + self.bX
-        self.y = (s0*self.mY0) + (s1*self.mY1) + self.bY
+        self.x = -(-(s0*self.mX0) + (s1*self.mX1) + self.bX)
+        self.y = -((s0*self.mY0) + (s1*self.mY1) + self.bY)
     
     def recenter(self, sensor0, sensor1):
         self.update_cursor(sensor0, sensor1)
@@ -127,7 +126,7 @@ class cursor:
         self.update_cursor(sensor0, sensor1)
     
     def packCurs(self):
-        cursorDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'state': pack('I',self.state)}
+        cursorDict = {b'X': pack('i', int(self.x)), b'Y': pack('i',int(self.y)), b'state': pack('I',int(self.state))}
         return cursorDict
 
     def printCurs(self):
@@ -157,6 +156,7 @@ class touchpad():
         redisPipe.xadd(b'behaviorControl', bControl)
     
     def tap_check(self, sensor):
+        print(sensor-self.thresh);
         if sensor > self.thresh:
             if self.touchStart == 0:
                 self.touchStart = dt.now().timestamp()
@@ -237,10 +237,9 @@ tPad = touchpad(touchpadTime['min'],touchpadTime['max'],touchpadThresh)
 while True:
     
     # update the current location of the cursor
-    cursorFrame = r.xread({b'cerebusAdapter_task':'$'}, block=1, count=1)[0][1][0][1]
+    cursorFrame = r.xread({b'cerebusAdapter_task':'$'}, block=10, count=1)[0][1][0][1]
     sensors = unpack(unpackString, cursorFrame[b'samples']) # pulling a sensor in
     sensor0,sensor1 = sensors[0:2]
-    print("sensor 0: " + str(sensor0) + ", sensor1: " + str(sensor1))
     sensor2 = sensors[2]
     curs.update_cursor(sensor0, sensor1) # sensor names
     currTime = dt.now().timestamp() # the posix time at the beginning of the loop
@@ -251,6 +250,7 @@ while True:
     if state == STATE_START_TRIAL:
         if tPad.tap_check(sensor2):
             p.xadd(b'state',{b'state': b'movement', b'time': currTime})
+            tgt.on()
             state = STATE_MOVEMENT
             stateTime = 0
             tPad.deactivate(behaviorControl, p)
@@ -259,7 +259,7 @@ while True:
         if tgt.isOver(curs):
             if stateTime == 0:
                 stateTime = currTime
-            elif (dt.now().timestamp() - inTgtTime) > targetHoldTime.current:
+            elif (dt.now().timestamp() - stateTime) > targetHoldTime.current:
                 state = STATE_REWARD # next state
                 p.xadd(b'state',{b'state':b'movement', b'time': currTime})
                 tgt.off()
@@ -273,6 +273,8 @@ while True:
     
     if state == STATE_REWARD:
         behaviorControl[b'reward'] = pack('?',True)
+        if stateTime == 0:
+            stateTime = currTime;
         if (currTime-stateTime) > dispenseTime.current:
             state = STATE_BETWEEN_TRIALS
             p.xadd(b'state',{b'state':b'movement',b'time':currTime})
