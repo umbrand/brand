@@ -154,15 +154,14 @@ int main() {
 			samples[0] = mouseData[0];
 			samples[1] = mouseData[1];
 			*argv[ind_samples + 1] = *samples;
-			
+
 			// read the current time into the array
-			// clock_gettime(CLOCK_MONOTONIC, &current_time);
-			// memcpy(&argv[ind_timestamps + 1][sizeof(struct timespec)], &current_time,
-			// 	sizeof(struct timespec));
+			clock_gettime(CLOCK_MONOTONIC, &current_time);
+			memcpy(&argv[ind_timestamps + 1][sizeof(struct timespec)], &current_time,
+				sizeof(struct timespec));
 
 			// send everything to Redis
-			// freeReplyObject(redisCommandArgv(redis_context, argc, (const char**) argv, argvlen));
-			freeReplyObject(redisCommand(redis_context, "XADD mouse_ac * timestamps %x samples %s", 5, (const char**) argv[ind_samples + 1]));
+			freeReplyObject(redisCommandArgv(redis_context, argc, (const char**) argv, argvlen));
 
 			flag_SIGUSR1--;
 		}
