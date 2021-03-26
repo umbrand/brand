@@ -1,0 +1,46 @@
+
+name: mouseBehaviorTest
+owner: Yahia
+
+modules:
+  start:
+      #   - name: rest.pyx
+      #     links: 
+      #      - proc/rest/rest.pyx
+      #      - proc/rest/static
+      #      - proc/rest/templates
+      #      - session/mouseBehaviorTest/rest.yaml 
+   - name: cerebusAdapter
+     links:
+      - bin/cerebusAdapter
+      - session/mouseBehaviorTest/cerebusAdapter.yaml
+  main:
+   - name: monitor
+     links: 
+      - bin/monitor 
+      - session/mouseBehaviorTest/monitor.yaml
+   - name: behaviorFSM.py
+     links:
+      - proc/behaviorFSM/behaviorFSM.py 
+      - session/mouseBehaviorTest/behaviorFSM.yaml
+   - name: cursorTargetControl
+     links:
+      - bin/cursorTargetControl
+      - session/cursorTargetControl/cursorTargetControl.yaml
+  end:
+    - name: finalizeRDB.py
+      links: 
+       - proc/finalizeRDB/finalizeRDB.py
+       - session/mouseBehaviorTest/finalizeRDB.yaml
+
+files:
+ - session/mouseBehaviorTest/README.md
+ - session/mouseBehaviorTest/session.yaml
+ - session/mouseBehaviorTest/run.sh
+  
+redis:
+ - session/mouseBehaviorTest/redis.realtime.conf
+ - session/mouseBehaviorTest/redis.rest.conf
+
+analysis:
+ - monitor_analysis.py

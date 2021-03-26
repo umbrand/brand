@@ -1,0 +1,17 @@
+
+# Some configuration options for mouse_ac.c
+
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+- name: samples_per_redis_stream
+  value: 1
+  description: Number of samples we're expecting to see per Redis stream entry
+  static: true
