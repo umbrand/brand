@@ -1,1 +1,34 @@
-../../proc/behaviorFSM/behaviorFSM.yaml
+###########################################
+# redis general info
+###########################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: redis_stream
+  value: 'mouse_ac'
+  description: Which redis stream should we read from
+  static: true
+
+###########################################
+# cursor location
+###########################################
+- name: cursor
+  value:
+       x_offset: 0
+       y_offset: 0
+       gain_x_0: 1 # gain from sensor 0 to x
+       gain_x_1: 0 # gain from sensor 1 to x
+       gain_y_0: 0 # gain from sensor 0 to y
+       gain_y_1: -1 # gain from sensor 1 to y
+       width: 5 # width and height of collision box
+       height: 5
+       recalc_center: true # should we recalculate the center at any point?
+  description: cursor settings
+  static: true
