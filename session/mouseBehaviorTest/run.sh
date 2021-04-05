@@ -2,7 +2,7 @@
 
 start_modules=()
 # main_modules=(monitor mouse_ac behaviorFSM.py cursorTargetDisplay)
-main_modules=(monitor mouse_ac)
+main_modules=(monitor mouse_ac behaviorFSM.py cursorTargetDisplay)
 end_modules=(finalizeRDB.py)
 
 ##############################################
@@ -59,7 +59,7 @@ fi
 # Load the modules
 ##############################################
 
-./redis-server ${redis_cfg} --dbfilename ${rdb} &
+chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${rdb} &
 sleep 2s
 
 echo "--------------------------------"
@@ -68,17 +68,16 @@ echo "--------------------------------"
 
 for proc in ${start_modules[*]}
 do
-    ./$proc &
+    chrt -f 99 ./$proc &
     sleep 1s
 done
 
 echo "--------------------------------"
 echo "Loading main modules"
 echo "--------------------------------"
-
 for proc in ${main_modules[*]}
 do
-    ./$proc &
+    chrt -f 99 ./$proc &
     sleep 1s
 done
 
@@ -86,7 +85,7 @@ echo "--------------------------------"
 echo "Starting timer"
 echo "--------------------------------"
 
-./timer &
+chrt -f 99 ./timer &
 sleep 1s
 
 echo "--------------------------------"

@@ -1,3 +1,5 @@
+parameters:
+
 ###########################################
 # redis general info
 ###########################################
@@ -17,6 +19,25 @@
   static: true
 
 ###########################################
+# target list
+###########################################
+- name: targetList
+  value:
+      target_1:
+        x:      0
+        y:      100
+        width:  400
+        height: 100
+      target_2:
+        x:      0
+        y:      200
+        width:  400
+        height: 100
+  description: List of target locations and sizes
+  static: true
+
+
+###########################################
 # cursor location
 ###########################################
 - name: cursor
@@ -32,3 +53,59 @@
        recalc_center: true # should we recalculate the center at any point?
   description: cursor settings
   static: true
+
+
+###########################################
+# timing information
+###########################################
+- name: targetHoldTime
+  value:
+       max: 0.75
+       min: 0.25
+  description: time range to be inside of the target
+       
+- name: dispenseTime
+  value:
+       max: 0.25
+       min: 0.5
+  description: range of time to dispense water
+
+- name: interTrialTime
+  value:
+       max: 5
+       min: 1.5
+  description: how long should we wait between trials?
+
+
+###########################################
+# touchpad information
+###########################################
+- name: touchpadTime
+  value: 
+       max: .75
+       min: .5
+  description: how long do we have to touch the touchpad?
+
+- name: touchpadThresh
+  value: 2000
+  description: sensor for the touchpad input
+
+- name: touchpadSensor
+  value: 2
+  description: sensor for the touchpad input
+
+###########################################
+# signal input information
+###########################################
+- name: unpackString
+  value: '3h'
+  description: format for the unpack string
+
+- name: cursorSensors
+  value: [0, 1]
+  description: which sensors are for the cursors?
+
+
+
+
+

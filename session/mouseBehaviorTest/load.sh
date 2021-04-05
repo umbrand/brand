@@ -22,6 +22,7 @@ masterList=(
 
     bin/cursorTargetDisplay
     session/mouseBehaviorTest/cursorTargetDisplay.yaml
+    session/mouseBehaviorTest/face.tga
 
     bin/mouse_ac
     session/mouseBehaviorTest/mouse_ac.yaml
