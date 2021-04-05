@@ -1,5 +1,5 @@
 
-name: thresholdDetection
+name: thresholdTest
 owner: Kevin Bodkin
 
 modules:
@@ -13,34 +13,34 @@ modules:
    - name: cerebusAdapter
      links:
       - bin/cerebusAdapter
-      - session/thresholdDetection/cerebusAdapter.yaml
+      - session/thresholdTest/cerebusAdapter.yaml
   main:
    - name: monitor
      links: 
       - bin/monitor 
-      - session/thresholdDetection/monitor.yaml
+      - session/thresholdTest/monitor.yaml
    - name: timer
      links: 
       - bin/timer 
-      - session/thresholdDetection/timer.yaml
+      - session/thresholdTest/timer.yaml
    - name: thresholdExtraction
      links: 
       - proc/thresholdExtraction/thresholdExtraction.py 
-      - session/thresholdDetection/thresholdExtraction.yaml
+      - session/thresholdTest/thresholdExtraction.yaml
   end:
     - name: finalizeRDB.py
       links: 
        - proc/finalizeRDB/finalizeRDB.py
-       - session/thresholdDetection/finalizeRDB.yaml
+       - session/thresholdTest/finalizeRDB.yaml
 
 files:
- - session/thresholdDetection/README.md
- - session/thresholdDetection/session.yaml
- - session/thresholdDetection/run.sh
+ - session/thresholdTest/README.md
+ - session/thresholdTest/session.yaml
+ - session/thresholdTest/run.sh
   
 redis:
- - session/thresholdDetection/redis.realtime.conf
- - session/thresholdDetection/redis.rest.conf
+ - session/thresholdTest/redis.realtime.conf
+ - session/thresholdTest/redis.rest.conf
 
 analysis:
  - monitor_analysis.py

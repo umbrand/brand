@@ -1,0 +1,247 @@
+
+# Sqlite3 types:
+
+# NULL. The value is a NULL value.
+# INTEGER. The value is a signed integer, stored in 1, 2, 3, 4, 6, or 8 bytes
+# REAL. The value is a floating point value, stored as an 8-byte IEEE floating point number.
+# TEXT. The value is a text string, stored using the database encoding (UTF-8, UTF-16BE or UTF-16LE).
+# BLOB. The value is a blob of data, stored exactly as it was input.
+
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: filename
+  value: cerebusTest
+  description: The prefix of SQL table filename. This will proceeded by a timestamp
+  static: true
+
+streams:
+ - stream_key: cerebusAdapter
+   table_name: cerebusAdapter
+   data:
+    - key: num_samples
+      type: INTEGER
+    - key: timestamps
+      type: BLOB
+    - key: cerebusAdapter_time
+      type: BLOB
+    - key: udp_received_time
+      type: BLOB
+    - key: chan0
+      type: BLOB
+    - key: chan1
+      type: BLOB
+    - key: chan2
+      type: BLOB
+    - key: chan3
+      type: BLOB
+    - key: chan4
+      type: BLOB
+    - key: chan5
+      type: BLOB
+    - key: chan6
+      type: BLOB
+    - key: chan7
+      type: BLOB
+    - key: chan8
+      type: BLOB
+    - key: chan9
+      type: BLOB
+    - key: chan10
+      type: BLOB
+    - key: chan11
+      type: BLOB
+    - key: chan12
+      type: BLOB
+    - key: chan13
+      type: BLOB
+    - key: chan14
+      type: BLOB
+    - key: chan15
+      type: BLOB
+    - key: chan16
+      type: BLOB
+    - key: chan17
+      type: BLOB
+    - key: chan18
+      type: BLOB
+    - key: chan19
+      type: BLOB
+    - key: chan20
+      type: BLOB
+    - key: chan21
+      type: BLOB
+    - key: chan22
+      type: BLOB
+    - key: chan23
+      type: BLOB
+    - key: chan24
+      type: BLOB
+    - key: chan25
+      type: BLOB
+    - key: chan26
+      type: BLOB
+    - key: chan27
+      type: BLOB
+    - key: chan28
+      type: BLOB
+    - key: chan29
+      type: BLOB
+    - key: chan30
+      type: BLOB
+    - key: chan31
+      type: BLOB
+    - key: chan32
+      type: BLOB
+    - key: chan33
+      type: BLOB
+    - key: chan34
+      type: BLOB
+    - key: chan35
+      type: BLOB
+    - key: chan36
+      type: BLOB
+    - key: chan37
+      type: BLOB
+    - key: chan38
+      type: BLOB
+    - key: chan39
+      type: BLOB
+    - key: chan40
+      type: BLOB
+    - key: chan41
+      type: BLOB
+    - key: chan42
+      type: BLOB
+    - key: chan43
+      type: BLOB
+    - key: chan44
+      type: BLOB
+    - key: chan45
+      type: BLOB
+    - key: chan46
+      type: BLOB
+    - key: chan47
+      type: BLOB
+    - key: chan48
+      type: BLOB
+    - key: chan49
+      type: BLOB
+    - key: chan50
+      type: BLOB
+    - key: chan51
+      type: BLOB
+    - key: chan52
+      type: BLOB
+    - key: chan53
+      type: BLOB
+    - key: chan54
+      type: BLOB
+    - key: chan55
+      type: BLOB
+    - key: chan56
+      type: BLOB
+    - key: chan57
+      type: BLOB
+    - key: chan58
+      type: BLOB
+    - key: chan59
+      type: BLOB
+    - key: chan60
+      type: BLOB
+    - key: chan61
+      type: BLOB
+    - key: chan62
+      type: BLOB
+    - key: chan63
+      type: BLOB
+    - key: chan64
+      type: BLOB
+    - key: chan65
+      type: BLOB
+    - key: chan66
+      type: BLOB
+    - key: chan67
+      type: BLOB
+    - key: chan68
+      type: BLOB
+    - key: chan69
+      type: BLOB
+    - key: chan70
+      type: BLOB
+    - key: chan71
+      type: BLOB
+    - key: chan72
+      type: BLOB
+    - key: chan73
+      type: BLOB
+    - key: chan74
+      type: BLOB
+    - key: chan75
+      type: BLOB
+    - key: chan76
+      type: BLOB
+    - key: chan77
+      type: BLOB
+    - key: chan78
+      type: BLOB
+    - key: chan79
+      type: BLOB
+    - key: chan80
+      type: BLOB
+    - key: chan81
+      type: BLOB
+    - key: chan82
+      type: BLOB
+    - key: chan83
+      type: BLOB
+    - key: chan84
+      type: BLOB
+    - key: chan85
+      type: BLOB
+    - key: chan86
+      type: BLOB
+    - key: chan87
+      type: BLOB
+    - key: chan88
+      type: BLOB
+    - key: chan89
+      type: BLOB
+    - key: chan90
+      type: BLOB
+    - key: chan91
+      type: BLOB
+    - key: chan92
+      type: BLOB
+    - key: chan93
+      type: BLOB
+    - key: chan94
+      type: BLOB
+    - key: chan95
+      type: BLOB
+ - stream_key: monitor
+   table_name: monitor
+   data:
+    - key: monitor_time
+      type: INTEGER
+    - key: cerebus_timestamp
+      type: INTEGER
+
+files:
+ - table_name: yaml
+   files:
+    - cerebusAdapter.yaml
+    - generator.yaml
+    - monitor.yaml
+ - table_name: readme
+   files:
+    - README.md
+

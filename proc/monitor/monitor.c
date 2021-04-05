@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
             // There is an issue with hiredis accessing streams. It appears
             // that if the stream doesn't exist, it doesn't inform you
             // in a nice way. So we first check if the stream exists.
-            reply = redisCommand(redis_context, "exists cerebusAdapter");
+            reply = redisCommand(redis_context, "exists cerebusAdapter_neural");
             if (reply == NULL || reply-> type != REDIS_REPLY_INTEGER) {
                 printf("[%s] There is a problem with checking redis.\n", PROCESS);
                 exit(1);
@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
             freeReplyObject(reply);
 
             // If we've come this far the stream exists
-            reply = redisCommand(redis_context, "xrevrange cerebusAdapter + - count 1");
+            reply = redisCommand(redis_context, "xrevrange cerebusAdapter_neural + - count 1");
             if (reply == NULL || reply->type != REDIS_REPLY_ARRAY) { //|| reply->len == 0) {
                 continue;
             }

@@ -30,7 +30,7 @@ import redis
 pagination_limit = 100000
 output_folder = "./"
 
-r = redis.Redis()
+r = redis.Redis('165.124.111.117','6379')
 num_rows = r.xinfo_stream('monitor')['length']
 
 ###############################################

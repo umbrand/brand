@@ -1,0 +1,37 @@
+
+# Some configuration options for nidaq_acquisition.c
+
+parameters:
+
+# redis connection info
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: samples_per_redis_stream
+  value: 1
+  description: Number of samples we're expecting to see per Redis stream entry
+  static: true
+
+- name: sched_fifo
+  value: false
+  description: Do we want to enable sched_fifo
+  static: true
+
+
+
+# nidaq connection info
+
+- name: sample_rate
+  value: 1000
+  description: Sampling rate for running the nidaq
+  static: true
+
+
+

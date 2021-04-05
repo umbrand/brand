@@ -6,18 +6,18 @@
  *
  * cerebusAdapter num_samples [string] timestamps [uint32 binary array] samples [int16 binary array] 
  * 
- * It makes use of the redisCommandArgv function, which has the form: (redis_context,  argc, (const char**) argv, argvlen));
+ * It makes use of the redisCommandArgv function, which has the form: (redis_context,  argc, (const char**) neural_argv, argvlen));
  *
- * Here, argc is the number of strings being sent. argv is the content of the string, and argvlen is the string lengths
+ * Here, argc is the number of strings being sent. neural_argv is the content of the string, and argvlen is the string lengths
  * for the strings. Note that Redis is binary safe, so we can store raw binaries nicely if we want.
  *
  * This function sits and blocks on a udp socket. When a new packet arrives it then creates a pointer
  * to the point of the UDP payload that we would expect to be a cerebus packet header. 
- * If it has the right data type, it copies the data from the UDP payload to populate argv.
- * It keeps track of the argvlen prior to submission to Redis.
+ * If it has the right data type, it copies the data from the UDP payload to populate neural_argv.
+ * It keeps track of the neural_argvlen prior to submission to Redis.
  *
  * When sufficient samples have been collected (defined in the cerebusAdapter.yaml file) it then
- * writes the collected argv to Redis and then starts again.
+ * writes the collected neural_argv to Redis and then starts again.
  *
  * One thing to keep in mind is that the keys for the stream will always be even numbers, and the
  * corresponding values will be odd. That's why there's so much +1 notation everywhere.
@@ -52,8 +52,10 @@ typedef struct cerebus_packet_header_t {
 
 // List of parameters read from the yaml file, facilitates function definition of initialize_parameters
 typedef struct yaml_parameters_t {
-    int num_channels;
-    int samples_per_redis_stream;
+    int num_neural_channels;
+    int neural_samples_per_redis_stream;
+    int num_task_channels;
+    int task_samples_per_redis_stream;
 } yaml_parameters_t;
 
 void initialize_redis();
@@ -89,19 +91,26 @@ int main (int argc_main, char **argv_main) {
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
 
-    int num_channels             = yaml_parameters.num_channels;
-    int samples_per_redis_stream = yaml_parameters.samples_per_redis_stream;
+    int num_neural_channels             = yaml_parameters.num_neural_channels;
+    int neural_samples_per_redis_stream = yaml_parameters.neural_samples_per_redis_stream;
+    int num_task_channels               = yaml_parameters.num_task_channels;
+    int task_samples_per_redis_stream   = yaml_parameters.task_samples_per_redis_stream;
 
 
     // argc    : The number of arguments in argv. The calculation is:
     //           int argc = 3 + 2 * 4;
     //           3                  -> xadd cerebusAdapter *
     //           4                  -> timestamps (3 types) and sample array
-    //           2 *              -> (key, value) pairs
+    //           2                  -> (key, value) pairs
     // argvlen : The length of the strings in each argument of argv
+    //
+    // We will be using the same argc and indices for all different frequencies,
+    // but we will use different argv and argvlen for each.
+    // Currently set for neural (30k) and task (1k) signals
     
     int argc        = 3 + (2 * 4); // argcount = xadd + key:value for everything else
-    size_t *argvlen = malloc(argc * sizeof(size_t));  // arvlen (length of each argv entry)
+    size_t *neural_argvlen = malloc(argc * sizeof(size_t));  // arvlen (length of each argv entry)
+    size_t *task_argvlen = malloc(argc * sizeof(size_t));  // arvlen (length of each argv entry)
 
     // argv : This contains the arguments to be executed by redis. 
     //        the argv has the form:
@@ -109,8 +118,11 @@ int main (int argc_main, char **argv_main) {
     //        We begin by populating the entries manually
     //        Starting at index position [3], we start adding the key data, always of form key [value]
     //        So that the key identifier (i.e. the string) is an odd number and the value is even
+    //        This format is the same for every frequency of Redis data, so we don't need to 
+    //        change the index locations etc
     
     // We keep track of the indexes. Each ind_ variable keeps track of where the (key value) begins
+    //
      
 
     int ind_xadd              = 0;                         	// xadd cerebusAdapter *
@@ -124,49 +136,68 @@ int main (int argc_main, char **argv_main) {
     // data of types strings, int16 and int32, so we need to be careful.
 
     int len = 16;
-    char *argv[argc];
+    char *neural_argv[argc];
+    char *task_argv[argc];
 
     // allocating memory for xadd cerebus *
     for (int i = 0; i < ind_timestamps; i++) {
-        argv[i] = malloc(len);
+        neural_argv[i] = malloc(len);
+        task_argv[i] = malloc(len);
     }
 
 
     // allocating memory for timestamps [data]
-    argv[ind_timestamps]     = malloc(len);
-    argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * samples_per_redis_stream);
+    neural_argv[ind_timestamps]     = malloc(len);
+    neural_argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * neural_samples_per_redis_stream);
+    task_argv[ind_timestamps]     = malloc(len);
+    task_argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * task_samples_per_redis_stream);
     
     // allocating memory for current_time [data]
-    argv[ind_current_time]     = malloc(len);
-    argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * samples_per_redis_stream);
+    neural_argv[ind_current_time]     = malloc(len);
+    neural_argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
+    task_argv[ind_current_time]     = malloc(len);
+    task_argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
     
     // allocating memory for udp_received_time [data]
-    argv[ind_udp_received_time]     = malloc(len);
-    argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * samples_per_redis_stream);
+    neural_argv[ind_udp_received_time]     = malloc(len);
+    neural_argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
+    task_argv[ind_udp_received_time]     = malloc(len);
+    task_argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
   
 
  
     // allocating memory for samples:  [data0 ... dataX]
-    argv[ind_samples] = malloc(len);
-    argv[ind_samples + 1] = malloc(sizeof(int16_t) * samples_per_redis_stream * num_channels);
+    neural_argv[ind_samples] = malloc(len);
+    neural_argv[ind_samples + 1] = malloc(sizeof(int16_t) * neural_samples_per_redis_stream * num_neural_channels);
+    task_argv[ind_samples] = malloc(len);
+    task_argv[ind_samples + 1] = malloc(sizeof(int16_t) * task_samples_per_redis_stream * num_task_channels);
     
     //
     //////////////////////////////////////////
 
 
-    // At this point we start populating argv strings
+    // At this point we start populating neural_argv strings
     // Start by adding xadd cerebusAdapter *
     // And then add the keys for num_samples, timestamps, channel list, and sample array
 
-    argvlen[0] = sprintf(argv[0], "%s", "xadd");
-    argvlen[1] = sprintf(argv[1], "%s", "cerebusAdapter");
-    argvlen[2] = sprintf(argv[2], "%s", "*");
+    neural_argvlen[0] = sprintf(neural_argv[0], "%s", "xadd");
+    neural_argvlen[1] = sprintf(neural_argv[1], "%s", "cerebusAdapter_neural");
+    neural_argvlen[2] = sprintf(neural_argv[2], "%s", "*");
     
-    argvlen[ind_timestamps]        = sprintf(argv[ind_timestamps]  , "%s", "timestamps");
-    argvlen[ind_current_time]      = sprintf(argv[ind_current_time]  , "%s", "cerebusAdapter_time");
-    argvlen[ind_udp_received_time] = sprintf(argv[ind_udp_received_time]  , "%s", "udp_received_time");
-    argvlen[ind_samples]           = sprintf(argv[ind_samples], "%s", "samples");
+    neural_argvlen[ind_timestamps]        = sprintf(neural_argv[ind_timestamps]  , "%s", "timestamps");
+    neural_argvlen[ind_current_time]      = sprintf(neural_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
+    neural_argvlen[ind_udp_received_time] = sprintf(neural_argv[ind_udp_received_time]  , "%s", "udp_received_time");
+    neural_argvlen[ind_samples]           = sprintf(neural_argv[ind_samples], "%s", "samples");
 
+    // task argvlen
+    task_argvlen[0] = sprintf(task_argv[0], "%s", "xadd");
+    task_argvlen[1] = sprintf(task_argv[1], "%s", "cerebusAdapter_task");
+    task_argvlen[2] = sprintf(task_argv[2], "%s", "*");
+    
+    task_argvlen[ind_timestamps]        = sprintf(task_argv[ind_timestamps]  , "%s", "timestamps");
+    task_argvlen[ind_current_time]      = sprintf(task_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
+    task_argvlen[ind_udp_received_time] = sprintf(task_argv[ind_udp_received_time]  , "%s", "udp_received_time");
+    task_argvlen[ind_samples]           = sprintf(task_argv[ind_samples], "%s", "samples");
 
 
     // Sending kill causes tmux to close
@@ -176,8 +207,9 @@ int main (int argc_main, char **argv_main) {
 
     printf("[%s] Entering loop...\n", PROCESS);
     
-    // How many samples have we copied for argv?
-    int n = 0;
+    // How many samples have we copied 
+    int n = 0; // for neural_argv?
+    int m = 0; // for task_argv?
 
     // We use rcvmsg because we want to know when the kernel received the UDP packet
     // and because we want the socket read to timeout, allowing us to gracefully
@@ -211,6 +243,7 @@ int main (int argc_main, char **argv_main) {
 
         // The timer has timed out or there was an error with the recvmsg() call
         if (udp_packet_size  <= 0) {
+            printf("[%s] timer has timed out or there was an error with the recvmsg() call!\n",PROCESS);
             continue;
         }
 
@@ -248,20 +281,42 @@ int main (int argc_main, char **argv_main) {
                 // This gets the current system time
                 gettimeofday(&current_time,NULL);
 
-                // Copy the timestamp information into argv
-                memcpy(&argv[ind_timestamps        + 1][n * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
-                memcpy(&argv[ind_current_time      + 1][n * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
-                memcpy(&argv[ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
+                // Copy the timestamp information into neural_argv
+                memcpy(&neural_argv[ind_timestamps        + 1][n * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
+                memcpy(&neural_argv[ind_current_time      + 1][n * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
+                memcpy(&neural_argv[ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
 
                 // The index where the data starts in the UDP payload
                 int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
 
-                // Copy each payload entry directly to the argv. dlen contains the number of 4 bytes of payload
+                // Copy each payload entry directly to the neural_argv. dlen contains the number of 4 bytes of payload
                 for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
-                    memcpy(&argv[ind_samples + 1][(n + i*samples_per_redis_stream) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
+                    memcpy(&neural_argv[ind_samples + 1][(n + i*neural_samples_per_redis_stream) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
                 }
                 n++;
             }
+
+            // Now check to see if we're getting a type 2 packet, which should contain 1 khz sampled data, meant to be task data
+            if (cerebus_packet_header->type == 2) {
+                
+                // This gets the current system time
+                gettimeofday(&current_time,NULL);
+
+                // Copy the timestamp information into neural_argv
+                memcpy(&task_argv[ind_timestamps        + 1][m * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
+                memcpy(&task_argv[ind_current_time      + 1][m * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
+                memcpy(&task_argv[ind_udp_received_time + 1][m * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
+
+                // The index where the data starts in the UDP payload
+                int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
+
+                // Copy each payload entry directly to the task_argv. dlen contains the number of 4 bytes of payload
+                for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
+                    memcpy(&task_argv[ind_samples + 1][(m + i*task_samples_per_redis_stream) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
+                }
+                m++;
+            }
+            
 
             // Regardless of what type of packet we got, advance to the next cerebus packet start location
             cb_packet_ind = cb_packet_ind + sizeof(cerebus_packet_header_t) + (4 * cerebus_packet_header->dlen);
@@ -269,36 +324,60 @@ int main (int argc_main, char **argv_main) {
 
 
             // Now, if we are at the point of transfering data to Redis, we will do so.
-            // Begin by assigning argvlen for the channel and timestamp data
+            // Begin by assigning neural_argvlen for the channel and timestamp data
             // And then write to num_samples the string instructing just hwo much data we have
 
-            if (n == samples_per_redis_stream) {
+            //neural data
+            if (n == neural_samples_per_redis_stream) {
 
-                argvlen[ind_samples + 1] = sizeof(int16_t) * n * num_channels;
+                neural_argvlen[ind_samples + 1] = sizeof(int16_t) * n * num_neural_channels;
 
-                argvlen[ind_timestamps + 1]        = sizeof(int32_t) * n;
-                argvlen[ind_current_time + 1]      = sizeof(struct timeval) * n;
-                argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * n;
+                neural_argvlen[ind_timestamps + 1]        = sizeof(int32_t) * n;
+                neural_argvlen[ind_current_time + 1]      = sizeof(struct timeval) * n;
+                neural_argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * n;
                 
                 /* printf("n = %d\n", n); */
-                /* print_argv(argc, argv, argvlen); */
+                /* print_neural_argv(argc, argv, argvlen); */
                 /* return 0; */
 
                 // Everything we've done is just to get to this one line. Whew!
-                freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argv, argvlen));
+                freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) neural_argv, neural_argvlen));
 
                 
                 // Since we've pushed our data to Redis, restart the data collection
                 n = 0;
             }
+            
+            // task data
+            if (m == task_samples_per_redis_stream) {
+
+                task_argvlen[ind_samples + 1] = sizeof(int16_t) * m * num_task_channels;
+
+                task_argvlen[ind_timestamps + 1]        = sizeof(int32_t) * m;
+                task_argvlen[ind_current_time + 1]      = sizeof(struct timeval) * m;
+                task_argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * m;
+                
+                //printf("m = %d\n", m); 
+                //print_argv(argc, task_argv, task_argvlen); 
+                /* return 0; */
+
+                // Everything we've done is just to get to this one line. Whew!
+                freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) task_argv, task_argvlen));
+
+                
+                // Since we've pushed our data to Redis, restart the data collection
+                m = 0;
+            }
+
+
         }
     }
 
     // We should never get here, but we should clean our data anyway.
     for (int i = 0; i < argc; i++) {
-        free(argv[i]);
+        free(neural_argv[i]);
     }
-    free(argvlen);
+    free(neural_argvlen);
     free(buffer);
     return 0;
 }
@@ -399,15 +478,21 @@ int initialize_socket() {
 
 void initialize_parameters(yaml_parameters_t *p) {
 
-    char num_channels_string[16] = {0};
-    char samples_per_redis_stream_string[16] = {0};
+    char num_neural_channels_string[16] = {0};
+    char neural_samples_per_redis_stream_string[16] = {0};
+    char num_task_channels_string[16] = {0};
+    char task_samples_per_redis_stream_string[16] = {0};
 
-    load_YAML_variable_string(PROCESS, "num_channels", num_channels_string,   sizeof(num_channels_string));
-    load_YAML_variable_string(PROCESS, "samples_per_redis_stream", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
+    load_YAML_variable_string(PROCESS, "num_neural_channels", num_neural_channels_string,   sizeof(num_neural_channels_string));
+    load_YAML_variable_string(PROCESS, "neural_samples_per_redis_stream", neural_samples_per_redis_stream_string,   sizeof(neural_samples_per_redis_stream_string));
+    load_YAML_variable_string(PROCESS, "num_task_channels", num_task_channels_string,   sizeof(num_task_channels_string));
+    load_YAML_variable_string(PROCESS, "task_samples_per_redis_stream", task_samples_per_redis_stream_string,   sizeof(task_samples_per_redis_stream_string));
 
-    p->num_channels             = atoi(num_channels_string);
-    p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);
-
+    p->num_neural_channels              = atoi(num_neural_channels_string);
+    p->neural_samples_per_redis_stream  = atoi(neural_samples_per_redis_stream_string);
+    p->num_task_channels                = atoi(num_task_channels_string);
+    p->task_samples_per_redis_stream    = atoi(task_samples_per_redis_stream_string);
+    
 }
 
 // Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80

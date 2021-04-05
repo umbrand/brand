@@ -14,7 +14,7 @@ load () {
 
 run () {
     pushd run
-    ./run.sh
+    sudo -E env "PATH=$PATH" ./run.sh
     popd
 }
 

@@ -1,0 +1,27 @@
+
+# This contains the configuration file for the timer.c
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: timer_period
+  value: 1000
+  description: Period (milliseconds) at which the timer fires and coordinates the system
+  static: true
+
+- name: modules
+  value: [monitor, mouse_ac]
+  description: List of commands to run
+  static: true
+
+- name: sched_fifo
+  value: true
+  description: Enable real-time scheduler
+  static: true

@@ -4,12 +4,12 @@ owner: David Brandman
 
 modules:
   start:
-      #   - name: rest.pyx
-      #     links: 
-      #      - proc/rest/rest.pyx
-      #      - proc/rest/static
-      #      - proc/rest/templates
-      #      - session/cerebusTest/rest.yaml 
+   - name: rest.pyx
+     links: 
+      - proc/rest/rest.pyx
+      - proc/rest/static
+      - proc/rest/templates
+      - session/cerebusTest/rest.yaml 
    - name: generator
      links:
       - bin/generator

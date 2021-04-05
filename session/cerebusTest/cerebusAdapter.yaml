@@ -17,17 +17,27 @@ parameters:
   description: What is the port the cerebrusAdapter listens to
   static: true
 
-- name: num_channels
-  value: 96
-  description: Number of channels that we're expecting to see
+- name: num_neural_channels
+  value: 2
+  description: Number of channels from the cereport/digital headstage that we're expecting to see
   static: true
 
-- name: samples_per_redis_stream
-  value: 10
+- name: neural_samples_per_redis_stream
+  value: 30
+  description: Number of samples we're expecting to see per Redis stream entry
+  static: true
+
+- name: num_task_channels
+  value: 2
+  description: Number of channels from the cereport/digital headstage that we're expecting to see
+  static: true
+
+- name: task_samples_per_redis_stream
+  value: 1
   description: Number of samples we're expecting to see per Redis stream entry
   static: true
 
 - name: sched_fifo
-  value: true
+  value: false
   description: Do we want to enable sched_fifo
   static: true

@@ -16,6 +16,28 @@ conda activate rt
 make
 ```
 
+### Adding NI DAQ Support
+Download the 2020 version of the installer [here](https://www.ni.com/en-us/support/downloads/drivers/download.ni-linux-device-drivers.html#350003).
+
+1. Install the repository addon:   
+`sudo apt install ./<.deb file name>`   
+Example:   
+`sudo apt install ./ni-software-2020-bionic_20.1.0.49152-0+f0_all.deb`
+
+2. Refresh the package list:   
+`sudo apt update`   
+
+3. Use your distribution’s package manager to download and install the driver packages. Package names can be found in the NI Linux Device Drivers readme.
+`sudo apt install <package name>`   
+Example:   
+`sudo apt install ni-daqmx`
+
+4. Update the kernel:   
+`sudo dkms autoinstall`
+
+5. Reboot the system.
+
+
 # Session workflow
 
 Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
@@ -166,6 +188,26 @@ At a minimum, a module should have the following characteristics:
 
 Since it's inpredictable how modules will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the module.
 
+# Performance Optimization
+CPUs will scale their operating frequency according to load, which makes it difficult to get predictable timing. To get around this, we'll use `cpufrequtils`:
+```
+sudo apt install cpufrequtils
+sudo systemctl disable ondemand
+sudo systemctl enable cpufrequtils
+```
+
+Setting the CPU at its maximum allowable frequency (which will still be reduced if the CPU gets too hot):
+```
+sudo cpufreq-set -g performance
+```
+
+Renabling CPU scaling to save power:
+```
+sudo cpufreq-set -g powersave
+```
+
+This was tested on Intel CPUs. The commands may be difference for CPUs from other manufacturers.
+
 # Gotchas
 
 ### PREEMPT_RT kernel bash fork error.
@@ -189,3 +231,33 @@ One option is to simply remove the `save` configuration parameters in the `.conf
 ### Alarms and reading from file
 
 If a process is reading from a file descriptor and an alarm goes off, there can be unforunate consequence. For instance, if SIGALRM goes off while python is reading a file, reading will be interrupted and downstream processes can crash. If a process is setting an alarm, be sure to start it right before entering its main loop (and after the handlers have been installed), after all of the relevant configuration has been set.
+
+### Permission denied for a scripts
+```
+$ load cerebrusTest
+bash: ./session/cerebrusTest/load.sh: Permission denied
+```
+If you see this error, run `chmod +x ./session/cerebrusTest/load.sh` to make the script executable.
+
+
+### `run` command does not execute the `run.sh` script corresponding to the loaded session
+This can happen if a `run/` folder already exists prior to running `load mysession`. The `load.sh` script in each session is usually designed to not overwrite an existing `run/` folder. If a run folder exists already you will need to move it before a new session can be loaded.
+
+
+### Running a script with sudo privileges within the current conda environment
+```
+sudo -E env "PATH=$PATH" ./myscript
+```
+
+### Removing headers from UDP packet capture
+Dependencies: [tshark](https://packages.ubuntu.com/bionic/tshark), [bittwist](https://packages.ubuntu.com/bionic/bittwist)   
+
+If you have `.pcapng` files, convert them to `.pcap`:
+```
+tshark -F pcap -r mypackets.pcapng -w mypackets.pcap
+```
+Use Wireshark to check the size of the header. In our case, the header is the first 42 bytes in each packet, so we run:
+```
+bittwiste -I mypackets.pcap -O mypackets_no_headers.pcap -D 1-42
+```
+Now `mypackets_no_headers.pcap` is a copy of our `mypackets.pcap` file with headers removed.

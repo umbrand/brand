@@ -1,6 +1,6 @@
 #!/bin/bash
 
-start_modules=(cerebusAdapter)
+start_modules=(cerebusAdapter rest.pyx)
 main_modules=(monitor)
 end_modules=(finalizeRDB.py)
 

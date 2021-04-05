@@ -1,0 +1,24 @@
+parameters:
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+files:
+ - key: cerebusAdapter.yaml
+   file: cerebusAdapter.yaml
+   type: text
+ - key: monitor.yaml
+   file: monitor.yaml
+   type: text
+ - key: thresholdExtraction.yaml
+   file: thresholdExtraction.yaml
+   type: text
+ - key: README.md
+   file: README.md
+   type: text
