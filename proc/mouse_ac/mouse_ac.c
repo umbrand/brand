@@ -6,6 +6,7 @@
 #include <linux/input.h>
 #include <signal.h>
 #include <string.h>
+#include <sys/time.h>
 #include "redisTools.h"
 #include "hiredis.h"
 
@@ -33,7 +34,7 @@ redisContext *redis_context;
 int flag_SIGINT = 0;
 int flag_SIGUSR1 = 0;
 
-int32_t mouseData[2];  // (change in) X, Y position
+int16_t mouseData[2];  // (change in) X, Y position
 int mouseMode = 0;
 pthread_t listenerThread;
 pthread_t publisherThread;
@@ -86,10 +87,10 @@ int main() {
 	// bring in parameters from the yaml setup file
 	yaml_parameters_t yaml_parameters = {};
 	initialize_parameters(&yaml_parameters);
-	int32_t sampPerRedis = yaml_parameters.samples_per_redis_stream;
+	int16_t sampPerRedis = yaml_parameters.samples_per_redis_stream;
 
 	// array to keep track of system time
-	struct timespec current_time;
+	struct timeval current_time;
 
 	// number of arguments etc for calls to redis
 	int argc = 7; // number of arguments: "xadd mouse_ac * timestamps [timestamps] samples [X Y]"
@@ -100,7 +101,7 @@ int main() {
 	int ind_samples = ind_timestamps + 2; // samples [X Y] -- putting them in an array together rather than having a separate entry for each
 	
 	// allocating memory for the actual data being passed
-	int len = 16;
+	int len = 16;  // maximum length of command entry
 	char *argv[argc];
 
 	// xadd mouse_ac *
@@ -108,12 +109,14 @@ int main() {
 		argv[i] = malloc(len);
 	} 
 
-	// timestamps and sample array
+	// timestamps
 	argv[ind_timestamps] = malloc(len);
-	argv[ind_timestamps+1] = malloc(sizeof(struct timespec));
+	argv[ind_timestamps+1] = malloc(sizeof(struct timeval));
 	argv[ind_samples]   = malloc(len);
-	double samples[2 * sampPerRedis];
-	argv[ind_samples+1] = malloc(2 * sampPerRedis * sizeof(double)); // number of samples * two inputs * float64 size
+	argv[ind_samples+1] = malloc(2 * sampPerRedis * sizeof(int16_t)); // number of samples * two inputs * float64 size
+
+	// initialize sample array
+	int16_t samples[3 * sampPerRedis];
 
 	// populating the argv strings
 	// start with the "xadd mouse_ac"
@@ -123,8 +126,9 @@ int main() {
 
 	// and the samples array label
 	argvlen[ind_timestamps] = sprintf(argv[ind_timestamps], "%s", "timestamps");
+	argvlen[ind_timestamps+1] = sizeof(struct timeval);
 	argvlen[ind_samples] = sprintf(argv[ind_samples], "%s", "samples"); // samples label
-
+	argvlen[ind_samples+1] = sizeof(samples);
 
 	mouse_fd = open("/dev/input/by-id/usb-Razer_Razer_Viper-event-mouse",
 		O_RDONLY);
@@ -153,15 +157,28 @@ int main() {
 			// read from the mouse
 			samples[0] = mouseData[0];
 			samples[1] = mouseData[1];
-			*argv[ind_samples + 1] = *samples;
+			samples[2] = 3000;  // set "touch" value above threshold
 
 			// read the current time into the array
-			clock_gettime(CLOCK_MONOTONIC, &current_time);
-			memcpy(&argv[ind_timestamps + 1][sizeof(struct timespec)], &current_time,
-				sizeof(struct timespec));
+			gettimeofday(&current_time, NULL);
+			memcpy(&argv[ind_timestamps+1][0],
+				&current_time, sizeof(struct timeval));
+
+			// update argvlen[timestamps+1]
+			argvlen[ind_timestamps+1] = sizeof(current_time);
+
+			// copy each sample directly to the argv
+			for(int i = 0; i < 3; i++) {
+				memcpy(&argv[ind_samples + 1][i * sizeof(int16_t)], 
+				&samples[i], sizeof(int16_t));
+			}
+
+			// update argvlen[samples+1]
+			argvlen[ind_samples+1] = sizeof(samples);
 
 			// send everything to Redis
-			freeReplyObject(redisCommandArgv(redis_context, argc, (const char**) argv, argvlen));
+			freeReplyObject(redisCommandArgv(redis_context, argc,
+				(const char**) argv, argvlen));
 
 			flag_SIGUSR1--;
 		}

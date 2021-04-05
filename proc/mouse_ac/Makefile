@@ -23,9 +23,6 @@ TARGET=$(BIN_PATH)/$(PROJECT)
 
 all: mouse_ac
 
-redis_test: redis_test.c
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) redis_test.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
-
 mouse_ac: mouse_ac.c
 	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) mouse_ac.c -pthread $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
 
