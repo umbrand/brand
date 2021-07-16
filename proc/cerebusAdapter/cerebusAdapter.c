@@ -41,7 +41,7 @@
 #include "hiredis.h"
 
 // Cerebrus packet definition, adapted from the standard Blackrock library
-// https://github.com/neurosuite/libcbsdk. 
+// https://github.com/neurosuite/libcbsdk/cbhwlib/cbhwlib.h
 typedef struct cerebus_packet_header_t {
     uint32_t time;
     uint16_t chid;
@@ -125,11 +125,11 @@ int main (int argc_main, char **argv_main) {
     //
      
 
-    int ind_xadd              = 0;                         	// xadd cerebusAdapter *
-    int ind_timestamps        = ind_xadd + 3;              	// timestamps [data]
-    int ind_current_time      = ind_timestamps + 2;        	// current_time [data]
-    int ind_udp_received_time = ind_current_time + 2;      	// udp_received_time [data]
-    int ind_samples           = ind_udp_received_time + 2;      // samples [data array] 
+    int ind_xadd                        = 0;                         	// xadd cerebusAdapter *
+    int ind_cerebus_timestamps          = ind_xadd + 3;              	// timestamps [data]
+    int ind_current_time                = ind_cerebus_timestamps + 2;   // current_time [data]
+    int ind_udp_received_time           = ind_current_time + 2;      	// udp_received_time [data]
+    int ind_samples                     = ind_udp_received_time + 2;    // samples [data array] 
     
     //////////////////////////////////////////
     // Now we begin the arduous task of allocating memory. We want to be able to hold
@@ -140,37 +140,37 @@ int main (int argc_main, char **argv_main) {
     char *task_argv[argc];
 
     // allocating memory for xadd cerebus *
-    for (int i = 0; i < ind_timestamps; i++) {
+    for (int i = 0; i < ind_cerebus_timestamps; i++) {
         neural_argv[i] = malloc(len);
         task_argv[i] = malloc(len);
     }
 
 
     // allocating memory for timestamps [data]
-    neural_argv[ind_timestamps]     = malloc(len);
-    neural_argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * neural_samples_per_redis_stream);
-    task_argv[ind_timestamps]     = malloc(len);
-    task_argv[ind_timestamps + 1] = malloc(sizeof(int32_t) * task_samples_per_redis_stream);
+    neural_argv[ind_cerebus_timestamps]             = malloc(len);
+    neural_argv[ind_cerebus_timestamps + 1]         = malloc(sizeof(int32_t) * neural_samples_per_redis_stream);
+    task_argv[ind_cerebus_timestamps]               = malloc(len);
+    task_argv[ind_cerebus_timestamps + 1]           = malloc(sizeof(int32_t) * task_samples_per_redis_stream);
     
     // allocating memory for current_time [data]
-    neural_argv[ind_current_time]     = malloc(len);
-    neural_argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
-    task_argv[ind_current_time]     = malloc(len);
-    task_argv[ind_current_time + 1] = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
+    neural_argv[ind_current_time]                   = malloc(len);
+    neural_argv[ind_current_time + 1]               = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
+    task_argv[ind_current_time]                     = malloc(len);
+    task_argv[ind_current_time + 1]                 = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
     
     // allocating memory for udp_received_time [data]
-    neural_argv[ind_udp_received_time]     = malloc(len);
-    neural_argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
-    task_argv[ind_udp_received_time]     = malloc(len);
-    task_argv[ind_udp_received_time + 1] = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
+    neural_argv[ind_udp_received_time]              = malloc(len);
+    neural_argv[ind_udp_received_time + 1]          = malloc(sizeof(struct timeval) * neural_samples_per_redis_stream);
+    task_argv[ind_udp_received_time]                = malloc(len);
+    task_argv[ind_udp_received_time + 1]            = malloc(sizeof(struct timeval) * task_samples_per_redis_stream);
   
 
  
     // allocating memory for samples:  [data0 ... dataX]
-    neural_argv[ind_samples] = malloc(len);
-    neural_argv[ind_samples + 1] = malloc(sizeof(int16_t) * neural_samples_per_redis_stream * num_neural_channels);
-    task_argv[ind_samples] = malloc(len);
-    task_argv[ind_samples + 1] = malloc(sizeof(int16_t) * task_samples_per_redis_stream * num_task_channels);
+    neural_argv[ind_samples]                        = malloc(len);
+    neural_argv[ind_samples + 1]                    = malloc(sizeof(int16_t) * neural_samples_per_redis_stream * num_neural_channels);
+    task_argv[ind_samples]                          = malloc(len);
+    task_argv[ind_samples + 1]                      = malloc(sizeof(int16_t) * task_samples_per_redis_stream * num_task_channels);
     
     //
     //////////////////////////////////////////
@@ -184,20 +184,20 @@ int main (int argc_main, char **argv_main) {
     neural_argvlen[1] = sprintf(neural_argv[1], "%s", "cerebusAdapter_neural");
     neural_argvlen[2] = sprintf(neural_argv[2], "%s", "*");
     
-    neural_argvlen[ind_timestamps]        = sprintf(neural_argv[ind_timestamps]  , "%s", "timestamps");
-    neural_argvlen[ind_current_time]      = sprintf(neural_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
-    neural_argvlen[ind_udp_received_time] = sprintf(neural_argv[ind_udp_received_time]  , "%s", "udp_received_time");
-    neural_argvlen[ind_samples]           = sprintf(neural_argv[ind_samples], "%s", "samples");
+    neural_argvlen[ind_cerebus_timestamps]      = sprintf(neural_argv[ind_cerebus_timestamps]  , "%s", "timestamps");
+    neural_argvlen[ind_current_time]            = sprintf(neural_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
+    neural_argvlen[ind_udp_received_time]       = sprintf(neural_argv[ind_udp_received_time]  , "%s", "udp_received_time");
+    neural_argvlen[ind_samples]                 = sprintf(neural_argv[ind_samples], "%s", "samples");
 
     // task argvlen
     task_argvlen[0] = sprintf(task_argv[0], "%s", "xadd");
     task_argvlen[1] = sprintf(task_argv[1], "%s", "cerebusAdapter_task");
     task_argvlen[2] = sprintf(task_argv[2], "%s", "*");
     
-    task_argvlen[ind_timestamps]        = sprintf(task_argv[ind_timestamps]  , "%s", "timestamps");
-    task_argvlen[ind_current_time]      = sprintf(task_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
-    task_argvlen[ind_udp_received_time] = sprintf(task_argv[ind_udp_received_time]  , "%s", "udp_received_time");
-    task_argvlen[ind_samples]           = sprintf(task_argv[ind_samples], "%s", "samples");
+    task_argvlen[ind_cerebus_timestamps]        = sprintf(task_argv[ind_cerebus_timestamps]  , "%s", "timestamps");
+    task_argvlen[ind_current_time]              = sprintf(task_argv[ind_current_time]  , "%s", "cerebusAdapter_time");
+    task_argvlen[ind_udp_received_time]         = sprintf(task_argv[ind_udp_received_time]  , "%s", "udp_received_time");
+    task_argvlen[ind_samples]                   = sprintf(task_argv[ind_samples], "%s", "samples");
 
 
     // Sending kill causes tmux to close
@@ -282,7 +282,7 @@ int main (int argc_main, char **argv_main) {
                 gettimeofday(&current_time,NULL);
 
                 // Copy the timestamp information into neural_argv
-                memcpy(&neural_argv[ind_timestamps        + 1][n * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
+                memcpy(&neural_argv[ind_cerebus_timestamps        + 1][n * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
                 memcpy(&neural_argv[ind_current_time      + 1][n * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
                 memcpy(&neural_argv[ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
 
@@ -303,7 +303,7 @@ int main (int argc_main, char **argv_main) {
                 gettimeofday(&current_time,NULL);
 
                 // Copy the timestamp information into neural_argv
-                memcpy(&task_argv[ind_timestamps        + 1][m * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
+                memcpy(&task_argv[ind_cerebus_timestamps        + 1][m * sizeof(uint32_t)       ], &cerebus_packet_header->time, sizeof(uint32_t));
                 memcpy(&task_argv[ind_current_time      + 1][m * sizeof(struct timeval)], &current_time,                sizeof(struct timeval));
                 memcpy(&task_argv[ind_udp_received_time + 1][m * sizeof(struct timeval)], &udp_received_time,           sizeof(struct timeval));
 
@@ -332,9 +332,9 @@ int main (int argc_main, char **argv_main) {
 
                 neural_argvlen[ind_samples + 1] = sizeof(int16_t) * n * num_neural_channels;
 
-                neural_argvlen[ind_timestamps + 1]        = sizeof(int32_t) * n;
-                neural_argvlen[ind_current_time + 1]      = sizeof(struct timeval) * n;
-                neural_argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * n;
+                neural_argvlen[ind_cerebus_timestamps + 1]      = sizeof(int32_t) * n;
+                neural_argvlen[ind_current_time + 1]            = sizeof(struct timeval) * n;
+                neural_argvlen[ind_udp_received_time + 1]       = sizeof(struct timeval) * n;
                 
                 /* printf("n = %d\n", n); */
                 /* print_neural_argv(argc, argv, argvlen); */
@@ -353,9 +353,9 @@ int main (int argc_main, char **argv_main) {
 
                 task_argvlen[ind_samples + 1] = sizeof(int16_t) * m * num_task_channels;
 
-                task_argvlen[ind_timestamps + 1]        = sizeof(int32_t) * m;
-                task_argvlen[ind_current_time + 1]      = sizeof(struct timeval) * m;
-                task_argvlen[ind_udp_received_time + 1] = sizeof(struct timeval) * m;
+                task_argvlen[ind_cerebus_timestamps + 1]        = sizeof(int32_t) * m;
+                task_argvlen[ind_current_time + 1]              = sizeof(struct timeval) * m;
+                task_argvlen[ind_udp_received_time + 1]         = sizeof(struct timeval) * m;
                 
                 //printf("m = %d\n", m); 
                 //print_argv(argc, task_argv, task_argvlen); 

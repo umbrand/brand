@@ -81,6 +81,7 @@ class target():
             self.over()
             return True
         else:
+            self.on()
             return False
     
     def packTarget(self):
@@ -239,8 +240,8 @@ while True:
     # update the current location of the cursor
     cursorFrame = r.xread({b'cerebusAdapter_task':'$'}, block=10, count=1)[0][1][0][1]
     sensors = unpack(unpackString, cursorFrame[b'samples']) # pulling a sensor in
-    sensor0,sensor1 = sensors[0:2]
-    sensor2 = sensors[2]
+    sensor0,sensor1 = sensors[1:3]
+    sensTouch = sensors[0]
     curs.update_cursor(sensor0, sensor1) # sensor names
     currTime = dt.now().timestamp() # the posix time at the beginning of the loop
     p = r.pipeline()
@@ -248,7 +249,7 @@ while True:
     p.xadd(b'targetData',tgt.packTarget())
     
     if state == STATE_START_TRIAL:
-        if tPad.tap_check(sensor2):
+        if tPad.tap_check(sensTouch):
             p.xadd(b'state',{b'state': b'movement', b'time': currTime})
             tgt.on()
             state = STATE_MOVEMENT

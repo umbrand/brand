@@ -13,8 +13,8 @@
 #include <signal.h>
 #include "redisTools.h"
 #include "hiredis.h"
-#include <SDL2/SDL.h> 
-#include <SDL2/SDL_image.h> 
+#include <SDL2/SDL.h> //general SDL stuff
+#include <SDL2/SDL_image.h> // SDL image work
 #include <SDL2/SDL_timer.h> 
 
 // List of parameters read from the yaml file, facilitates function definition of initialize_parameters
@@ -46,58 +46,16 @@ int targetPosition[5];  // [X Y W H state]
 int *stringConv;
 
 
-/*
-void * subscriberThread(void * thread_params) {
-    while(1) {
-        //if (flag_SIGINT) 
-         //   shutdown_process();
-        cursor_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS cursorData $"); 
-        if (cursor_reply->elements == 1) {
-            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-            cursorPosition[0] = *stringConv; 
-            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
-            cursorPosition[1] = *stringConv;
-            stringConv = (int*)(cursor_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
-            cursorPosition[2] = *stringConv;
-        }
-
-        target_reply = redisCommand(redis_context,"XREAD BLOCK 1 STREAMS targetData $");
-        if (target_reply->elements == 1){
-            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[1]->str); //X
-            targetPosition[0] = *stringConv;
-            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[3]->str); //X
-            targetPosition[1] = *stringConv;
-            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[5]->str); //X
-            targetPosition[2] = *stringConv;
-            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[7]->str); //X
-            targetPosition[3] = *stringConv;
-            stringConv = (int*)(target_reply->element[0]->element[1]->element[0]->element[1]->element[9]->str); //X
-            targetPosition[4] = *stringConv;
-
-        }
-        
-        //printf("cursor position: (x = %d, y = %d, state = %u)\n", cursorPosition[0],
-        //    cursorPosition[1], cursorPosition[2]);
-        //printf("target position: (x = %d, y = %d, w = %d, h = %d, state = %u)\n", targetPosition[0],
-            //targetPosition[1], targetPosition[2], targetPosition[3], targetPosition[4]);
-            //if (cursorPosition[0] >= 0){
-                //posNeg = cursorPosition[0];
-            //}else{
-                //printf("%i\n",posNeg);
-            //}
-    }
-}
-
-*/
-
 
 int main() {
     int rc; //error value for the thread
 
-
-    initialize_redis();
-    initialize_signals();
-
+    
+    // run our general initialization functions
+    initialize_redis(); //does what it says on the box
+    initialize_signals(); // all of the flags for quitting etc
+    
+    // pull in all of the parameters from the yaml file
     yaml_parameters_t yaml_parameters = {0};
     initialize_parameters(&yaml_parameters);
 
@@ -110,25 +68,14 @@ int main() {
     //cursorFile = yaml_parameters->*cursor_file;
 
 
-    /* Spawn Subcriber thread */
-/*    printf("[%s] Starting Subcriber Threads \n", PROCESS);
-    rc = pthread_create(&subscriberThreadCursor, NULL, subscriberThread, NULL);
-    if (rc)
-    {
-        printf("[%s] Subcriber thread failed to initialize!!\n", PROCESS);
-    } else {
-        printf("[%s] Started thread\n", PROCESS);
-    }*/
-
-    // source: https://www.geeksforgeeks.org/sdl-library-in-c-c-with-examples/
-    // returns zero on success else non-zero 
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) { 
         printf("[%s] error initializing SDL: %s\n", PROCESS, SDL_GetError()); 
     } 
     SDL_Window* win = SDL_CreateWindow("GAME", // creates a window 
                                        SDL_WINDOWPOS_CENTERED, 
                                        SDL_WINDOWPOS_CENTERED, 
-                                       1920, 1080, SDL_WINDOW_OPENGL); 
+                                       screenSize[0], screenSize[1], 
+                                       SDL_WINDOW_OPENGL); 
 
     // SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN);
 
@@ -179,14 +126,30 @@ int main() {
     // sets initial y-position of object 
     cursor_dest.y = (screenSize[1] - cursor_dest.h) / 2; 
 
-    // controls annimation loop 
+    // for closing the GUI etc
     int close = 0; 
+    SDL_Event event; // create an event pointer to pull in keyboard events
+    //SDL_EnableUNICODE(1); // enable unicode translation
 
     // annimation loop 
     while (1) { 
         if (flag_SIGINT | close) 
             shutdown_process();
         
+        // SDL polling for events
+        while( SDL_PollEvent( &event) ){
+            switch(event.type){
+                case SDL_KEYDOWN:
+                case SDL_KEYUP:
+                    if (event.key.keysym.scancode == 20){
+                        close = 1;
+                    }
+                default:
+                    break;
+            }
+        }
+
+
 
         // get the current data from the redis stream
  
@@ -246,7 +209,6 @@ int main() {
         SDL_RenderClear(rend); 
        
          
-        printf("%i\n",targetPosition[4]);
         // display the target as the desired color, based on the state
         switch (targetPosition[4]){
 
