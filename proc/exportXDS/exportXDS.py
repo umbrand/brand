@@ -16,10 +16,19 @@ to allow for larger files
 @author Kevin Human Primate
 """
 
-import h5py, scipy
+import h5py, scipy, os, sys
 from redis import Redis
 import numpy as np
 from struct import pack,unpack
+
+# check to see if we're trying to run this from the base directory of from inside of 'run'
+# for debugging purposes when I'm jumping between files a lot
+if os.getcwd().split('/')[-1] == 'realtime_rig_dev':
+    sys.path.insert(1,'lib/redisTools/')
+else: # assumes we're only one directly above the base
+    sys.path.insert(1,'lib/redisTools/')
+from redisTools import get_parameter_value
+xds_yaml = 'exportXDS.yaml'
 
 
 
@@ -28,7 +37,7 @@ from struct import pack,unpack
 ######################################################'''
 def initialize_xds():
     # start with initalizing the easy fields
-    xds = {
+    emptyXDS = {
             u'bin_width'            :   0,
             u'time_frame'           :   None,
             u'has_EMG'              :   0,
@@ -56,7 +65,7 @@ def initialize_xds():
     
     
     # then add the meta sub-dictionary
-    xds[u'meta'] = {
+    emptyXDS[u'meta'] = {
             u'cdsVersion'       :   None, # not applicable -- not converting from CDS
             u'processedTime'    :   '',
             u'rawFileName'      :   '',
@@ -93,17 +102,38 @@ def initialize_xds():
             u'dataWindow'       :   (0,0),
             u'duration'         :   0}
 
-    return xds
+    return emptyXDS
 
 
 
 
 '''######################################################
-###    initialize the xds dict (python)
+###    initializations -- xds and redis
 ######################################################'''
 xds = initialize_xds()
 
+# connect to redis
+try:
+    redis_ip = get_parameter_value(xds_yaml,'redis_ip')
+    redis_port = get_parameter_value(xds_yaml,'redis_port')
+    print('[exportXDS] Redis IP', redis_ip, ':Redis Port:', redis_port)
+    r = Redis(host = redis_ip, port = redis_port)
+    print('[exportXDS] Connecting to Redis...')
+except:
+    print('[exportXDS] Failed to connect to Redis. Exiting.')
+    sys.exit()
 
+
+ 
+# get all xds fields and flip all of the relevant 'has_*' flags
+xdsFields = get_parameter_value(xds_yaml,'xdsFields')
+for flds in xdsFields:
+    if flds == 'EMG':
+        xds['has_EMG'] = True
+    if flds == 'force':
+        xds['has_force'] = True
+    if flds == 'kinematics'
+        xds['has_kinematics'] = True
 
 
 
