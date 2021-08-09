@@ -4,22 +4,12 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 
-LG_LOG = 'MnoSJ0WH71PJKjBk.h5'
+LG_LOG = 'simple_viz_no_plot.h5'
 
 this_dir = os.path.dirname(__file__)
 h5_file = os.path.join(this_dir, LG_LOG)
 # %%
 h5f = h5py.File(h5_file, 'r')
-
-# %%
-data = h5f['noise_avg'].value
-real_sample_interval = np.diff(data['timestamp'])
-
-# %%
-np.mean(real_sample_interval)
-
-# %%
-np.std(real_sample_interval)
 
 # %%
 noise_input = np.array(h5f['noise_input']['data'].tolist())
@@ -50,4 +40,6 @@ plt.xlabel(f'Noise to rolling avg time: ({np.mean(noise_to_avg_time) :.4} '
            f'+- {np.std(noise_to_avg_time) :.4} s)')
 plt.ylabel('Samples')
 plt.savefig('noise_to_avg_time.png')
+
 # %%
+h5f.close()
