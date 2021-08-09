@@ -200,11 +200,13 @@ class Demo(lg.Graph):
         return ((self.AVERAGED_NOISE.OUTPUT, self.PLOT.INPUT), )
 
     def process_modules(self) -> Tuple[lg.Module, ...]:
-        return (self.AVERAGED_NOISE, self.PLOT)
+        return (self.AVERAGED_NOISE,)
 
     def logging(self) -> Dict[str, Topic]:
-        return {'noise_input': self.AVERAGED_NOISE.GENERATOR.OUTPUT,
-                'noise_avg': self.AVERAGED_NOISE.OUTPUT}
+        return {
+            'noise_input': self.AVERAGED_NOISE.GENERATOR.OUTPUT,
+            'noise_avg': self.AVERAGED_NOISE.OUTPUT
+        }
 
 
 # %%
@@ -216,7 +218,8 @@ if __name__ == "__main__":
     graph.configure(config)
 
     # configure the logger
-    logger_config = lg.LoggerConfig(output_directory=os.getcwd())
+    logger_config = lg.LoggerConfig(output_directory=os.getcwd(),
+                                    recording_name='simple_viz_no_plot')
 
     # run the graph
     runner = lg.ParallelRunner(
