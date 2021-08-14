@@ -20,6 +20,6 @@ all:
 	cp $(PROJECT).py $(PROJECT).pyx
 	cython --embed $(PROJECT).pyx -o $(CYTHON_TARGET)
 	gcc $(CYTHON_TARGET) -o $(TARGET) -I $(INCPYTHON) -L $(LIBPYTHON)  -Wl,-rpath=$(LIBPYTHON) -l$(PYTHON_LIB) -lpthread -lm -lutil -ldl
-
+	$(RM) $(PROJECT).pyx
 clean:
-	$(RM) $(TARGET) $(CYTHON_TARGET)
+	$(RM) $(CYTHON_TARGET) $(PROJECT).pyx
