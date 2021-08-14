@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 # publisher.py
 
+import logging
 import signal
 import sys
-from datetime import datetime
+import time
 
+import numpy as np
 import yaml
 from redis import Redis
-import numpy as np
-import logging
 
 YAML_FILE = 'publisher.yaml'
 
@@ -54,7 +54,7 @@ logging.info(f'Sending {nbytes} byte messages')
 while True:
     data = np.zeros(nbytes, dtype=np.uint64)
     r.xadd('publisher', {
-        'ts': datetime.now().timestamp(),
+        'ts': time.perf_counter(),
         'val': data.tobytes(),
         'size': nbytes
     })

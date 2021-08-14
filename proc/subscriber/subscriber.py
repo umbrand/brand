@@ -1,7 +1,7 @@
 import logging
 import signal
 import sys
-from datetime import datetime
+import time
 
 import numpy as np
 import yaml
@@ -41,6 +41,7 @@ while True:
     ts = float(entry_dict[b'ts'])
     val = np.frombuffer(entry_dict[b'val'])
     r.xadd('subscriber', {
-        'ts': datetime.now().timestamp(),
+        'ts': time.perf_counter(),
         'id': entry_id,
+        'ts_sent': ts,
     })
