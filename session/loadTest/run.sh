@@ -2,7 +2,7 @@
 
 start_modules=()
 main_modules=(subscriber publisher)
-end_modules=()
+end_modules=(analyze_load_test.py)
 
 ##############################################
 # Check to see if there is already an .rdb file
@@ -129,7 +129,7 @@ echo "--------------------------------"
 
 for proc in ${end_modules[*]}
 do
-    ./$proc &
+    ./$proc
     sleep 1s
 done
 

@@ -18,6 +18,9 @@ masterList=(
     session/loadTest/redis.realtime.conf
     bin/redis-server
     bin/redis-cli
+
+    # ANALYSIS
+    session/loadTest/analyze_load_test.py
 )
 
 ####################################
