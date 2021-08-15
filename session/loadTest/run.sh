@@ -1,7 +1,7 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(subscriber publisher)
+main_modules=(subscriber)
 end_modules=(analyze_load_test.py)
 
 ##############################################
@@ -80,23 +80,10 @@ do
     sleep 1s
 done
 
-# echo "--------------------------------"
-# echo "Starting timer"
-# echo "--------------------------------"
-
-# chrt -f 99 ./timer &
-# sleep 1s
-
 echo "--------------------------------"
-echo "Waiting"
+echo "Running publisher"
 echo "--------------------------------"
-
-userInput=""
-while [[ "$userInput" != "q" ]]
-do
-    echo "Type q to quit"
-    read userInput
-done
+chrt -f 99 ./publisher
 
 
 echo "--------------------------------"
