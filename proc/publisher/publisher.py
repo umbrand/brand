@@ -46,17 +46,22 @@ except Exception:
     logging.info('Failed to connect to Redis. Exiting.')
     sys.exit()
 
-dynamic_sizes = np.logspace(3, 23, base=2, num=21, dtype=np.uint64)
-nbytes = int(dynamic_sizes[0])
-logging.info(f'Sending {nbytes} byte messages')
+if get_parameter_value(YAML_FILE, 'many_dynamic_sizes'):
+    dynamic_sizes = np.logspace(3, 23, base=2, num=21, dtype=np.uint64)
+else:
+    dynamic_sizes = [8]
 
+DURATION = get_parameter_value(YAML_FILE, 'duration')  # seconds
 # main loop
-while True:
-    data = np.zeros(nbytes, dtype=np.uint64)
-    r.xadd('publisher', {
-        'ts': time.perf_counter(),
-        'val': data.tobytes(),
-        'size': nbytes
-    })
+for nbytes in dynamic_sizes:
+    logging.info(f'Sending {nbytes} byte messages for {DURATION} seconds')
+    start_time = time.perf_counter()
+    while time.perf_counter() - start_time < DURATION:
+        data = np.zeros(nbytes, dtype=np.uint64)
+        r.xadd('publisher', {
+            'ts': time.perf_counter(),
+            'val': data.tobytes(),
+            'size': int(nbytes)
+        })
 
-# https://stackoverflow.com/questions/55311399
+# Encoding numpy arrays in Redis: https://stackoverflow.com/questions/55311399

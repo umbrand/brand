@@ -18,7 +18,7 @@ parameters:
 
 # module options
 - name: many_dynamic_sizes
-  value: false
+  value: true
   description: Whether to run the test using multiple array sizes
   static: true
 

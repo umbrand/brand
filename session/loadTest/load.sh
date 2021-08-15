@@ -5,7 +5,7 @@ masterList=(
     proc/timer/timer.yaml
 
     bin/publisher
-    proc/publisher/publisher.yaml
+    session/loadTest/publisher.yaml
 
     bin/subscriber
     proc/subscriber/subscriber.yaml
