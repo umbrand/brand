@@ -35,8 +35,9 @@ redis_port = get_parameter_value(YAML_FILE, 'redis_port')
 
 r = Redis(host=redis_ip, port=redis_port)
 
+entry_id = '$'
 while True:
-    entry = r.xread({b'publisher': '$'}, block=0)
+    entry = r.xread({b'publisher': entry_id}, block=0)
     entry_id, entry_dict = entry[0][1][0]
     ts = float(entry_dict[b'ts'])
     val = np.frombuffer(entry_dict[b'val'])
