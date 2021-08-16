@@ -6,6 +6,7 @@ import redis
 import datetime
 import sys
 import argparse
+import errno
 
 
 #############################################
@@ -25,7 +26,7 @@ def get_parameter_value(fileName, field):
 
     except IOError as e:
         if e.errno == errno.EPIPE:
-            return "THERE HAS BEEN AN EGRGIOUS EPIPE ERROR"
+            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
     for record in yamlData['parameters']:
         if record['name'] == field:
