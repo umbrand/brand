@@ -26,3 +26,13 @@ parameters:
   value: 30.0  # seconds
   description: Duration of the test for each array size
   static: true
+
+- name: sample_rate
+  value: 1000.0  # Hz
+  description: Rate at which to send samples
+  static: true
+
+- name: data_type
+  value: 'uint64'  # must be understood by numpy.dtype()
+  description: Numpy data type for elements of the published array
+  static: true
