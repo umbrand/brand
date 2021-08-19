@@ -3,7 +3,6 @@ import signal
 import sys
 import time
 
-import numpy as np
 import yaml
 from redis import Redis
 
@@ -30,18 +29,23 @@ def signal_handler(sig, frame):  # setup the clean exit code with a warning
 
 signal.signal(signal.SIGINT, signal_handler)
 
-redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
-redis_port = get_parameter_value(YAML_FILE, 'redis_port')
-
-r = Redis(host=redis_ip, port=redis_port)
+redis_socket = get_parameter_value(YAML_FILE, 'redis_socket')
+if redis_socket:
+    logging.info(f'Redis Socket Path {redis_socket}')
+    r = Redis(unix_socket_path=redis_socket)
+else:
+    redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
+    redis_port = get_parameter_value(YAML_FILE, 'redis_port')
+    r = Redis(host=redis_ip, port=redis_port)
 
 entry_id = '$'
 while True:
     entry = r.xread({b'publisher': entry_id}, block=0)
     entry_id, entry_dict = entry[0][1][0]
-    r.xadd('subscriber', {
-        'ts': time.perf_counter(),
-        'ts_sent': float(entry_dict[b'ts']),
-        'size': int(entry_dict[b'size']),
-        'counter': int(entry_dict[b'counter'])
-    })
+    r.xadd(
+        'subscriber', {
+            'ts': time.perf_counter(),
+            'ts_sent': float(entry_dict[b'ts']),
+            'size': int(entry_dict[b'size']),
+            'counter': int(entry_dict[b'counter']),
+        })

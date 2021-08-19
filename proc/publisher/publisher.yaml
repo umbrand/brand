@@ -15,6 +15,10 @@ parameters:
   description: What is the port of our Redis instance
   static: true
 
+- name: redis_socket
+  value: ~
+  description: What is the unix socket path of our Redis instance
+  static: true
 
 # module options
 - name: many_dynamic_sizes
@@ -35,4 +39,9 @@ parameters:
 - name: data_type
   value: 'uint64'  # must be understood by numpy.dtype()
   description: Numpy data type for elements of the published array
+  static: true
+
+- name: maxlen
+  value: ~
+  description: Truncate old Redis stream members beyond this size
   static: true

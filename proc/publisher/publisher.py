@@ -37,24 +37,29 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # connect to redis, figure out the streams of interest
 try:
-    redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
-    redis_port = get_parameter_value(YAML_FILE, 'redis_port')
-    logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
-    r = Redis(host=redis_ip, port=redis_port)
+    redis_socket = get_parameter_value(YAML_FILE, 'redis_socket')
+    if redis_socket:
+        logging.info(f'Redis Socket Path {redis_socket}')
+        r = Redis(unix_socket_path=redis_socket)
+    else:
+        redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
+        redis_port = get_parameter_value(YAML_FILE, 'redis_port')
+        logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
+        r = Redis(host=redis_ip, port=redis_port)
     logging.info('Connecting to Redis...')
 except Exception:
     logging.info('Failed to connect to Redis. Exiting.')
     sys.exit()
 
-n_arrays = 6
 if get_parameter_value(YAML_FILE, 'many_dynamic_sizes'):
     dynamic_sizes = 30 * 128 * np.arange(1, n_arrays + 1)
 else:
-    dynamic_sizes = [8]
+    dynamic_sizes = [30 * 128 * 2]
 
 DURATION = get_parameter_value(YAML_FILE, 'duration')  # seconds
 SAMPLE_RATE = get_parameter_value(YAML_FILE, 'sample_rate')  # Hz
 DTYPE = get_parameter_value(YAML_FILE, 'data_type')
+MAXLEN = get_parameter_value(YAML_FILE, 'maxlen')
 
 try:
     data_type = np.dtype(DTYPE)
@@ -69,19 +74,20 @@ for n_items in dynamic_sizes:
     counter = np.uint64(0)
     last_time = 0
     logging.info(f'Sending {n_items}-item {DTYPE} arrays for '
-                 f'{DURATION} seconds')
+                 f'{DURATION} seconds. MAXLEN = {MAXLEN}.')
     start_time = time.perf_counter()
     while time.perf_counter() - start_time < DURATION:
         current_time = time.perf_counter()
         if current_time - last_time >= 1 / SAMPLE_RATE:
             data = np.zeros(n_items, dtype=data_type)
-            r.xadd(
-                'publisher', {
-                    'ts': current_time,
-                    'val': data.tobytes(),
-                    'size': int(n_items),
-                    'counter': int(counter),
-                })
+            r.xadd(name='publisher',
+                   fields={
+                       'ts': current_time,
+                       'val': data.tobytes(),
+                       'size': int(n_items),
+                       'counter': int(counter),
+                   },
+                   maxlen=MAXLEN)
             counter += 1
             last_time = current_time
 # Encoding numpy arrays in Redis: https://stackoverflow.com/questions/55311399
