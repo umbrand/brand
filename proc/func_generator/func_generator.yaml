@@ -1,0 +1,24 @@
+parameters:
+
+###########################################
+# redis general info
+###########################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: redis_socket
+  value: /var/run/redis.sock
+  description: What is the unix socket path of our Redis instance
+  static: true
+
+- name: log
+  value: INFO
+  description: Logging level for the process
+  static: true
