@@ -56,7 +56,9 @@ class Decoder():
 
     def run(self):
         while True:
-            entry = self.r.xread({b'func_generator': self.entry_id}, block=0)
+            entry = self.r.xread({b'func_generator': self.entry_id},
+                                 block=0,
+                                 count=1)
             logging.debug('Received data')
             self.entry_id, entry_dict = entry[0][1][0]
             x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
@@ -74,7 +76,7 @@ class Decoder():
 
 if __name__ == "__main__":
     # setup
-    logging.debug(f'PID: {os.getpid()}')
+    logging.info(f'PID: {os.getpid()}')
     dec = Decoder()
     logging.info('Waiting for data...')
 
