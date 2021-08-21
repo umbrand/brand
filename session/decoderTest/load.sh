@@ -14,6 +14,9 @@ masterList=(
     bin/plotter
     # proc/plotter/plotter.yaml
 
+    bin/udp_send
+    proc/udp_send/udp_send.yaml
+
     # CONFIGURATION
     session/decoderTest/run.sh
     session/decoderTest/load.sh
@@ -22,6 +25,9 @@ masterList=(
     session/decoderTest/redis.realtime.conf
     bin/redis-server
     bin/redis-cli
+
+    # ANALYSIS
+    session/decoderTest/analyze.py
 )
 
 ####################################

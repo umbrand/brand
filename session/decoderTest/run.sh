@@ -1,8 +1,8 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(func_generator decoder plotter)
-end_modules=()
+main_modules=(func_generator decoder udp_send)
+end_modules=(analyze.py)
 
 ##############################################
 # Check to see if there is already an .rdb file
@@ -122,6 +122,18 @@ for proc in ${start_modules[*]}
 do
     pkill -SIGINT $proc
     sleep 1s
+done
+
+# for debugging
+echo "--------------------------------"
+echo "Waiting"
+echo "--------------------------------"
+
+userInput=""
+while [[ "$userInput" != "q" ]]
+do
+    echo "Type q to quit"
+    read userInput
 done
 
 echo "--------------------------------"
