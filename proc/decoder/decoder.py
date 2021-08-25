@@ -12,6 +12,10 @@ import numpy as np
 import yaml
 from redis import Redis
 
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
 
 def get_parameter_value(fileName, field):
     with open(fileName, 'r') as f:
@@ -43,7 +47,10 @@ class Decoder():
         self.r = Redis(host=redis_ip, port=redis_port)
         logging.info('Connecting to Redis...')
 
-        self.A = np.ones([100, 1], dtype=np.float64)
+        self.n_features = get_parameter_value(YAML_FILE, 'n_features')
+        self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
+
+        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
 
         self.entry_id = '$'
 
@@ -62,11 +69,12 @@ class Decoder():
             logging.debug('Received data')
             self.entry_id, entry_dict = entry[0][1][0]
             x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
+            y = self.decode(x)
             self.r.xadd(
                 'decoder', {
                     'ts': time.time(),
                     'ts_gen': float(entry_dict[b'ts']),
-                    'y': self.decode(x).tobytes()
+                    'y': y.tobytes(),
                 })
 
     def terminate(self, sig, frame):
@@ -74,10 +82,34 @@ class Decoder():
         sys.exit(0)
 
 
+class RNNDecoder(Decoder):
+    def __init__(self):
+        super().__init__()
+        self.seq_len = 1
+
+        self.model = keras.Sequential()
+        self.model.add(layers.Input(shape=(self.seq_len, self.n_features)))
+        self.model.add(
+            layers.SimpleRNN(self.n_features, return_sequences=False))
+        self.model.add(layers.Dense(self.n_targets))
+        self.model(np.random.rand(1, self.seq_len, self.n_features))  # compile
+
+    def decode(self, x):
+        y = self.model(x[None, None, :]).numpy()[0, :]
+        logging.debug(y)
+        return y
+
+
 if __name__ == "__main__":
+    decoder_type = get_parameter_value(YAML_FILE, 'decoder_type')
+
     # setup
     logging.info(f'PID: {os.getpid()}')
-    dec = Decoder()
+    logging.info(f'Decoder type: {decoder_type}')
+    if decoder_type.lower() == 'rnn':
+        dec = RNNDecoder()
+    else:
+        dec = Decoder()
     logging.info('Waiting for data...')
 
     # main

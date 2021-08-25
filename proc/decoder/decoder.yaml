@@ -17,3 +17,19 @@ parameters:
   value: INFO
   description: Logging level for the process
   static: true
+
+- name: n_targets
+  value: 2
+  description: Number of targets the decoder should predict
+    (e.g. n_targets=2 for decoding x and y channels)
+  static: true
+
+- name: n_features
+  value: 10
+  description: Number of features to use for decoding
+  static: true
+
+- name: decoder_type
+  value: rnn
+  description: Type of decoder to use
+  static: true
