@@ -5,9 +5,13 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
+try:
+    plt.close(plt.figure())
+except Exception:
+    plt.switch_backend('Agg')
+
 # %%
-LOG_FILE = os.path.join('load_test_results',
-                        'load_test_python_linux_20210806_103650.h5')
+LOG_FILE = ('/tmp/load_test_python_linux_20210818_111700.h5')
 
 this_dir = os.path.dirname(__file__)
 h5_file = os.path.join(this_dir, LOG_FILE)
@@ -44,9 +48,6 @@ plt.tight_layout()
 plt.savefig('latency_distribution.png')
 
 # %%
-safe_sample_rate = 1 / (np.mean(latencies) + 3 * np.std(latencies))
-safe_sample_rate
-# %%
 latency_summary = [None] * len(block_sizes)
 for i_block, bs in enumerate(block_sizes):
     block_data = {'block_size': bs}
@@ -80,6 +81,12 @@ for i_block, bs in enumerate(block_sizes):
     latency_summary[i_block] = block_data
 # %%
 latency_df = pd.DataFrame(latency_summary)
+
+# %%
+# mask
+MiB = 1024**2
+b_mask = latency_df['block_size'] < 0.5 * MiB
+
 # %%
 fields = [
     'send_latency',
@@ -91,39 +98,43 @@ labels = [
     'Time between send and receive'
 ]
 # shading the standard deviation
-fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 18), sharey=True)
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 18), sharey=False)
 for i_ax, (field, label) in enumerate(zip(fields, labels)):
     ax = axes[i_ax]
-    ax.plot(latency_df.index, latency_df[f'{field}_mean'])
-    ax.fill_between(latency_df.index,
-                    latency_df[f'{field}_mean'] - latency_df[f'{field}_std'],
-                    latency_df[f'{field}_mean'] + latency_df[f'{field}_std'],
+    ax.plot(latency_df.index[b_mask], latency_df[f'{field}_mean'][b_mask])
+    ax.fill_between(latency_df.index[b_mask],
+                    latency_df[f'{field}_mean'][b_mask] - latency_df[f'{field}_std'][b_mask],
+                    latency_df[f'{field}_mean'][b_mask] + latency_df[f'{field}_std'][b_mask],
                     alpha=0.5)
-    ax.set_xticks(latency_df.index)
+    ax.set_xticks(latency_df.index[b_mask])
     ax.set_xticklabels(latency_df['block_size'], rotation=90)
     ax.set_xlabel('Block Size (bytes)')
     ax.set_ylabel('Mean Latency (milliseconds)\n(shading: standard deviation)')
     ax.set_title(label)
 
 plt.tight_layout()
+plt.subplots_adjust(top=0.95)
+plt.suptitle('Shading: standard deviation')
 plt.savefig('latency_by_block_size_std.png')
 # %%
 # Shading the full range of data
-fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 18), sharey=True)
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 18), sharey=False)
 for i_ax, (field, label) in enumerate(zip(fields, labels)):
     ax = axes[i_ax]
-    ax.plot(latency_df.index, latency_df[f'{field}_mean'])
-    ax.fill_between(latency_df.index,
-                    latency_df[f'{field}_min'],
-                    latency_df[f'{field}_max'],
+    ax.plot(latency_df.index[b_mask], latency_df[f'{field}_mean'][b_mask])
+    ax.fill_between(latency_df.index[b_mask],
+                    latency_df[f'{field}_min'][b_mask],
+                    latency_df[f'{field}_max'][b_mask],
                     alpha=0.5)
-    ax.set_xticks(latency_df.index)
+    ax.set_xticks(latency_df.index[b_mask])
     ax.set_xticklabels(latency_df['block_size'], rotation=90)
     ax.set_xlabel('Block Size (bytes)')
     ax.set_ylabel('Mean Latency (milliseconds)\n(shading: min to max)')
     ax.set_title(label)
 
 plt.tight_layout()
+plt.subplots_adjust(top=0.95)
+plt.suptitle('Shading: min to max')
 plt.savefig('latency_by_block_size_range.png')
 # %%
 latency_df.to_csv('labgraph_latencies.csv')
