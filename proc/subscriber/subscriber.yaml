@@ -15,4 +15,7 @@ parameters:
   description: What is the port of our Redis instance
   static: true
 
-
+- name: redis_socket
+  value: ~
+  description: What is the unix socket path of our Redis instance
+  static: true

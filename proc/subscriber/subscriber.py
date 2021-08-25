@@ -40,7 +40,7 @@ else:
 
 entry_id = '$'
 while True:
-    entry = r.xread({b'publisher': entry_id}, block=0)
+    entry = r.xread({b'publisher': entry_id}, block=0, count=1)
     entry_id, entry_dict = entry[0][1][0]
     r.xadd(
         'subscriber', {
