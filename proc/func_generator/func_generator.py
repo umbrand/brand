@@ -37,9 +37,15 @@ logging.basicConfig(format='%(levelname)s:func_generator:%(message)s',
 
 class Generator():
     def __init__(self):
+        self.sample_rate = get_parameter_value(YAML_FILE, 'sample_rate')
+        self.use_timer = get_parameter_value(YAML_FILE, 'use_timer')
+
         # signal handlers
-        signal.signal(signal.SIGUSR1, self.send_sample)
         signal.signal(signal.SIGINT, self.terminate)
+        if self.use_timer:
+            signal.signal(signal.SIGUSR1, self.send_sample)
+        else:
+            signal.signal(signal.SIGUSR1, signal.SIG_IGN)
 
         self.t = 0
 
@@ -49,16 +55,35 @@ class Generator():
         self.r = Redis(host=redis_ip, port=redis_port)
         logging.info('Connecting to Redis...')
 
-        self.mat = np.ones([100, 1], dtype=np.float64)
+        self.n_features = get_parameter_value(YAML_FILE, 'n_features')
+        self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
 
-    def send_sample(self, signum, frame):
-        x = np.sin(self.t * 0.05 * 2 * np.pi, dtype=np.float64) * self.mat
+        # set initial offsets for each target
+        self.t_arr = np.arange(self.n_targets)
+        # create array used to generate features
+        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
+
+    def send_sample(self, *args, **kwargs):
+        x = np.sin(self.t_arr + (self.t * 0.05 * 2 * np.pi),
+                   dtype=np.float64).dot(self.A.T)
         self.r.xadd('func_generator', {
             'ts': time.time(),
             't': self.t,
             'x': x.tobytes(),
         })
         self.t += 1
+
+    def run(self):
+        if self.use_timer:
+            while True:
+                signal.pause()
+        else:
+            last_time = 0
+            while True:
+                current_time = time.perf_counter()
+                if current_time - last_time >= 1 / self.sample_rate:
+                    self.send_sample()
+                    last_time = current_time
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
@@ -72,5 +97,4 @@ if __name__ == "__main__":
     logging.info('Waiting for signals...')
 
     # main
-    while True:
-        signal.pause()
+    gen.run()
