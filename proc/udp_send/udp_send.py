@@ -77,6 +77,8 @@ class UDPSender():
                     'ts': time.time(),  # time sent
                     'ts_dec': float(entry_dict[b'ts']),  # time decoded
                     'ts_gen': float(entry_dict[b'ts_gen']),  # time generated
+                    'n_features': float(entry_dict[b'n_features']),
+                    'n_targets': float(entry_dict[b'n_targets']),
                 })
 
     def terminate(self, sig, frame):

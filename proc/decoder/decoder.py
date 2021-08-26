@@ -41,20 +41,27 @@ logging.basicConfig(format='%(levelname)s:decoder:%(message)s',
 
 class Decoder():
     def __init__(self):
+        # connect to Redis
         redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
         redis_port = get_parameter_value(YAML_FILE, 'redis_port')
         logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
         self.r = Redis(host=redis_ip, port=redis_port)
         logging.info('Connecting to Redis...')
 
+        # build the decoder
         self.n_features = get_parameter_value(YAML_FILE, 'n_features')
         self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
+        self.build()
 
-        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
+        # initialize IDs for the two Redis streams
+        self.data_id = '$'
+        self.param_id = '0'
 
-        self.entry_id = '$'
-
+        # terminate on SIGINT
         signal.signal(signal.SIGINT, self.terminate)
+
+    def build(self):
+        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
 
     def decode(self, x):
         y = self.A.T.dot(x)
@@ -63,19 +70,38 @@ class Decoder():
 
     def run(self):
         while True:
-            entry = self.r.xread({b'func_generator': self.entry_id},
-                                 block=0,
-                                 count=1)
+            stream_dict = {
+                b'func_generator': self.data_id,
+                b'decoder_params': self.param_id
+            }
+            streams = self.r.xread(stream_dict, block=0, count=1)
             logging.debug('Received data')
-            self.entry_id, entry_dict = entry[0][1][0]
-            x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
-            y = self.decode(x)
-            self.r.xadd(
-                'decoder', {
-                    'ts': time.time(),
-                    'ts_gen': float(entry_dict[b'ts']),
-                    'y': y.tobytes(),
-                })
+            stream_name, stream_entries = streams[0]
+            if stream_name == b'decoder_params':
+                self.param_id, entry_dict = stream_entries[0]
+                self.n_features = int(entry_dict[b'n_features'])
+                self.n_targets = int(entry_dict[b'n_targets'])
+                logging.info('Updating decoder params: '
+                             f'n_features={self.n_features}, '
+                             f'n_targets={self.n_targets}')
+                self.build()
+                self.data_id = '$'  # skip to the latest entry in the stream
+            elif stream_name == b'func_generator':
+                self.data_id, entry_dict = stream_entries[0]
+                x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
+                ts_gen = float(entry_dict[b'ts'])
+                try:
+                    y = self.decode(x)
+                    self.r.xadd(
+                        'decoder', {
+                            'ts': time.time(),
+                            'ts_gen': ts_gen,
+                            'y': y.tobytes(),
+                            'n_features': self.n_features,
+                            'n_targets': self.n_targets,
+                        })
+                except ValueError as exc:
+                    logging.warn(repr(exc))
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
@@ -83,16 +109,18 @@ class Decoder():
 
 
 class RNNDecoder(Decoder):
-    def __init__(self):
-        super().__init__()
+    def build(self):
         self.seq_len = 1
-
         self.model = keras.Sequential()
-        self.model.add(layers.Input(shape=(self.seq_len, self.n_features)))
         self.model.add(
-            layers.SimpleRNN(self.n_features, return_sequences=False))
+            layers.Input(shape=(self.seq_len, self.n_features), batch_size=1))
+        self.model.add(
+            layers.SimpleRNN(self.n_features,
+                             return_sequences=False,
+                             stateful=True,
+                             unroll=True))
         self.model.add(layers.Dense(self.n_targets))
-        self.model(np.random.rand(1, self.seq_len, self.n_features))  # compile
+        self.model(np.random.rand(1, self.seq_len, self.n_features))  # init
 
     def decode(self, x):
         y = self.model(x[None, None, :]).numpy()[0, :]

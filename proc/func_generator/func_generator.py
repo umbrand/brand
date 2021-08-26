@@ -44,6 +44,7 @@ class Generator():
         signal.signal(signal.SIGINT, self.terminate)
         if self.use_timer:
             signal.signal(signal.SIGUSR1, self.send_sample)
+            logging.info('Waiting for timer signal...')
         else:
             signal.signal(signal.SIGUSR1, signal.SIG_IGN)
 
@@ -58,10 +59,7 @@ class Generator():
         self.n_features = get_parameter_value(YAML_FILE, 'n_features')
         self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
 
-        # set initial offsets for each target
-        self.t_arr = np.arange(self.n_targets)
-        # create array used to generate features
-        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
+        self.build()
 
     def send_sample(self, *args, **kwargs):
         x = np.sin(self.t_arr + (self.t * 0.05 * 2 * np.pi),
@@ -73,17 +71,37 @@ class Generator():
         })
         self.t += 1
 
+    def build(self):
+        # set initial offsets for each target
+        self.t_arr = np.arange(self.n_targets)
+        # create array used to generate features
+        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
+        self.r.xadd(
+            'decoder_params', {
+                'ts': time.time(),
+                'n_features': int(self.n_features),
+                'n_targets': int(self.n_targets),
+            })
+
     def run(self):
         if self.use_timer:
             while True:
                 signal.pause()
         else:
-            last_time = 0
-            while True:
-                current_time = time.perf_counter()
-                if current_time - last_time >= 1 / self.sample_rate:
-                    self.send_sample()
-                    last_time = current_time
+            logging.info('Sending data')
+            for self.n_features in 64 * np.arange(1, 6):
+                logging.info('Updating function generator: '
+                             f'n_features={self.n_features}, '
+                             f'n_targets={self.n_targets}')
+                self.build()
+                last_time = 0
+                start_time = time.perf_counter()
+                while time.perf_counter() - start_time < 30:
+                    current_time = time.perf_counter()
+                    if current_time - last_time >= 1 / self.sample_rate:
+                        self.send_sample()
+                        last_time = current_time
+            logging.info('Exiting')
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
@@ -94,7 +112,6 @@ if __name__ == "__main__":
     # setup
     logging.info(f'PID: {os.getpid()}')
     gen = Generator()
-    logging.info('Waiting for signals...')
 
     # main
     gen.run()
