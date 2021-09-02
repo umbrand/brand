@@ -1,0 +1,48 @@
+
+name: behaviorTest
+owner: Kevin Human Primate
+
+modules:
+  start:
+      #   - name: rest.pyx
+      #     links: 
+      #      - proc/rest/rest.pyx
+      #      - proc/rest/static
+      #      - proc/rest/templates
+      #      - session/behaviorTest/rest.yaml 
+   - name: cerebusAdapter
+     links:
+      - bin/cerebusAdapter
+      - session/behaviorTest/cerebusAdapter.yaml
+  main:
+   - name: monitor
+     links: 
+      - bin/monitor 
+      - session/behaviorTest/monitor.yaml
+   - name: behaviorFSM.py
+     links:
+      - proc/behaviorFSM/behaviorFSM.py 
+      - session/behaviorTest/behaviorFSM.yaml
+   - name: cursorTargetControl
+     links:
+      - bin/cursorTargetControl
+      - session/cursorTargetControl/cursorXinitStart.sh
+      - session/cursorTargetControl/cursorTargetControl.yaml
+      - session/cursorTargetControl/face.tga
+  end:
+    - name: finalizeRDB.py
+      links: 
+       - proc/finalizeRDB/finalizeRDB.py
+       - session/behaviorTest/finalizeRDB.yaml
+
+files:
+ - session/behaviorTest/README.md
+ - session/behaviorTest/session.yaml
+ - session/behaviorTest/run.sh
+  
+redis:
+ - session/behaviorTest/redis.realtime.conf
+ - session/behaviorTest/redis.rest.conf
+
+analysis:
+ - monitor_analysis.py

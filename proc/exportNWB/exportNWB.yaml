@@ -1,0 +1,90 @@
+parameters:
+
+##############################################
+# redis general info
+##############################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+
+##############################################
+#  NWB metadata
+##############################################
+# likely to only exist until improved BRANDS
+- name:         sessionDescription
+  value:        This is a test. Dont Panic
+  description:  What was going on during this nonsense?
+  static:       True
+
+- name:         nwbFileName
+  value:        nwbFile_test
+  description:  a filename
+  static:       True
+
+
+
+##############################################
+# data source name info
+##############################################
+- name:          dataSourceNames
+  value:         continuousNeuralData
+  static:        true
+  description:   a list of all of the files available
+
+
+
+
+- name: continuousNeuralData
+  value:
+    redisDataType:      stream
+    redisDataName:      cerebusAdapter
+    redisTimestamps:    timestamps
+    redisTimePack:      "I" # 4 byte unsigned int
+    samplesPerPack:     10
+    redisSamples:       samples
+    redisPackString:    "h" # 2 byte signed integer 
+    sampleUnits:        V
+    gain:               25E-8
+    NWBDataType:        TimeSeries
+    NWBDataName:        continuousNeuralData
+    dataWidth:          96
+  description: exporting the continuous neural data stream
+
+- name: thresholdNeuralData
+  value:
+    redisDataType:      stream
+    redisDataName:      thresholdCrossings
+    redisTimestamps:    sampleTimes
+    redisSamples:       samples
+    redisPackString:    
+    samplesPerPacket:   10
+    sampleunits:        .25*uV
+    NWBDataType:        TimeSeries
+    NWBDataName:        thresholdCrossings
+    dataWidth:          
+  description: exporting the threshold crossing times
+
+- name: taskForce
+  value:
+    redisDataType:      stream
+    redisDataName:      cerebusAdapter_task
+    redisTimestamps:    timestamps
+    redisSamples:       samples
+    redisPackString:    
+    samplesPerPacket:   1
+    NWBDataType:        SpatialSeries
+    NWBDataName:        
+    dataWidth:          2
+  description: where does the force come from?
+
+
+
+
+
