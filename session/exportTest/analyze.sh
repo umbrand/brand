@@ -1,6 +1,6 @@
 #!/bin/bash
 
-modules=(cerebusAdapter_analysis.py  monitor_analysis.py)
+modules=(exportNWB.py cerebusAdapter_analysis.py  monitor_analysis.py)
 
 ./redis-server redis.realtime.conf &
 

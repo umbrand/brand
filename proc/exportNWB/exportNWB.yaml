@@ -14,6 +14,21 @@ parameters:
   static: true
 
 
+##############################################
+#  NWB metadata
+##############################################
+# likely to only exist until improved BRANDS
+- name:         sessionDescription
+  value:        This is a test. Dont Panic
+  description:  What was going on during this nonsense?
+  static:       True
+
+- name:         nwbFileName
+  value:        nwbFile_test
+  description:  a filename
+  static:       True
+
+
 
 ##############################################
 # data source name info
@@ -29,10 +44,10 @@ parameters:
 - name: continuousNeuralData
   value:
     redisDataType:      stream
-    redisDataName:      cerebusAdapter_neural
+    redisDataName:      cerebusAdapter
     redisTimestamps:    timestamps
     redisTimePack:      "I" # 4 byte unsigned int
-    samplesPerPack:     30
+    samplesPerPack:     10
     redisSamples:       samples
     redisPackString:    "h" # 2 byte signed integer 
     sampleUnits:        V

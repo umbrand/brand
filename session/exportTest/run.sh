@@ -1,7 +1,7 @@
 #!/bin/bash
 
-start_modules=(cerebusAdapter)
-main_modules=(monitor behaviorFSM.py cursorXinitStart.sh)
+start_modules=()
+main_modules=(exportNWB.py)
 end_modules=(finalizeRDB.py)
 
 ##############################################

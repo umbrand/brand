@@ -1,32 +1,10 @@
 #!/bin/bash
 masterList=(
 
-    # REST
-    #proc/rest/rest.pyx
-    #proc/rest/static
-    #proc/rest/templates
-    #session/behaviorTest/rest.yaml 
-
     # MODULES
-    bin/cerebusAdapter
-    session/behaviorTest/cerebusAdapter.yaml
-
-    bin/monitor 
-    session/behaviorTest/monitor.yaml
-
-    bin/timer 
-    session/behaviorTest/timer.yaml
-
-    proc/finalizeRDB/finalizeRDB.py
-    session/behaviorTest/finalizeRDB.yaml
-
-    proc/behaviorFSM/behaviorFSM.py
-    session/behaviorTest/behaviorFSM.yaml
-
-    bin/cursorTargetDisplay
-    session/behaviorTest/cursorXinitStart.sh
-    session/behaviorTest/cursorTargetDisplay.yaml
-    session/behaviorTest/face.tga
+    session/exportTest/exportNWB.py
+    session/exportTest/exportNWB.yaml
+    
 
     # CONFIGURATION
     session/behaviorTest/README.md
