@@ -71,7 +71,7 @@ for ikey, key in enumerate(['decoder', 'udp_send', 'total']):
     ax.violinplot(data[key], showmeans=True)
     ax.set_xticks(np.arange(len(data[key])) + 1)
     ax.set_xticklabels(labels)
-    ax.set_xlabel('Number of Neural Channels (ms)')
+    ax.set_xlabel('Number of Neural Channels')
     ax.set_ylabel('Latency (ms)')
     ax.set_title(key)
 plt.tight_layout()
