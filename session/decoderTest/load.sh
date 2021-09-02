@@ -28,6 +28,7 @@ masterList=(
 
     # ANALYSIS
     session/decoderTest/analyze.py
+    session/decoderTest/analyze_decoder_sweep.py
 )
 
 ####################################

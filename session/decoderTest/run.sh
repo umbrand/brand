@@ -1,8 +1,8 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(func_generator decoder udp_send)
-end_modules=(analyze.py)
+main_modules=(decoder udp_send)
+end_modules=()
 
 ##############################################
 # Check to see if there is already an .rdb file
@@ -82,11 +82,10 @@ do
 done
 
 echo "--------------------------------"
-echo "Starting timer"
+echo "Running function generator"
 echo "--------------------------------"
 
-./timer &
-sleep 1s
+./func_generator
 
 echo "--------------------------------"
 echo "Waiting"
@@ -98,14 +97,6 @@ do
     echo "Type q to quit"
     read userInput
 done
-
-
-echo "--------------------------------"
-echo "Shutting down timer"
-echo "--------------------------------"
-
-pkill -SIGINT timer
-sleep 1s
 
 
 echo "--------------------------------"
@@ -125,16 +116,16 @@ do
 done
 
 # for debugging
-echo "--------------------------------"
-echo "Waiting"
-echo "--------------------------------"
+# echo "--------------------------------"
+# echo "Waiting"
+# echo "--------------------------------"
 
-userInput=""
-while [[ "$userInput" != "q" ]]
-do
-    echo "Type q to quit"
-    read userInput
-done
+# userInput=""
+# while [[ "$userInput" != "q" ]]
+# do
+#     echo "Type q to quit"
+#     read userInput
+# done
 
 echo "--------------------------------"
 echo "Loading finalize modules"
