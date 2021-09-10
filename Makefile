@@ -1,8 +1,8 @@
 export ROOT ?= $(shell pwd)
 include $(ROOT)/setenv.mk
 
-# Get all directories in proc/ that contain a Makefile
-SUBDIR_BASE_PATH=proc
+# Get all directories in nodes/ that contain a Makefile
+SUBDIR_BASE_PATH=nodes
 SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
 
 # make some clean targets for all subdirs
