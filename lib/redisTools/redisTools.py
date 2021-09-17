@@ -36,41 +36,39 @@ def get_parameter_value(fileName, field):
 #############################################
 #############################################
 
-def initializeRedisFromYAML(fileName):
+def initializeRedisFromYAML(fileName, processName):
 
-    # fileName = yamlFolderPath + proc + '.yaml'
 
-    print("[InitializeFromRedis] Loading configuration file: " , fileName)
+    print("[" + processName + "] connecting to Redis using: " + fileName)
 
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
 
     except IOError:
-        sys.exit( "Could not read file:", fileName)
+        sys.exit( "[" + processName + "] could not read file:" + fileName)
 
     # Start by specifically reading the IP and port based on YAML configuration
 
     redisIP = ""
     redisPort = ""
-    for record in yamlData['parameters']:
-        if record['name'] == "redis_ip":
-            redisIP = record['value']
-        if record['name'] == "redis_port":
-            redisPort = record['value']
+    try:
+        redisIP = yamlData['RedisConnection']['Parameters']['redis_realtime_ip']
+        redisPort = yamlData['RedisConnection']['Parameters']['redis_realtime_port']
+    except:
+        sys.exit("[" + processName + "] could not set redis IP and port names")
+        
 
-    if redisIP == "" or redisPort == "":
-        print("[InitializeFromRedis] Your configuration file does not include the variables redis_ip and redis_port. Aborting!")
-        sys.exit(1)
-
-
-    print("[InitializeFromRedis] Initializing Redis with IP : " , redisIP, ", port: ", redisPort)
+    print("[" + processName + "] Initializing Redis with IP : " + redisIP + ", port: " + str(redisPort))
 
     # Having gotten to this point we can now initialize all of the variables
 
-    r = redis.Redis(host=redisIP, port=redisPort, db=0)
+    r = redis.Redis(host=redisIP, port=redisPort)
+    return r
 
-    print("[InitializeFromRedis] Here are the other variables:")
+
+""" -- probably don't want to push all of the data into the redis instance repeatedly -- that will be for the graph as a whole
+    print("[" + processName + "] Here are the other variables:")
 
     # Get the name of the process based on the filename. Expect: /path/to/processName.yaml
     processName = fileName.split("/")[-1].split(".")[0]
@@ -98,6 +96,25 @@ def initializeRedisFromYAML(fileName):
             r.set(record['name'], record['value'])
     
     return r
+"""
+
+#############################################
+## load settings using with the graph setup
+#############################################
+#def loadNodeSettings(fileName, processName):
+
+    
+
+
+
+
+
+
+
+
+
+
+
 
 #############################################
 ## Publishing data from Redis

@@ -23,10 +23,11 @@ from time import sleep
 #   sys.path.insert(1,'../../lib/redisTools')
 #else:
 #   sys.path.insert(1,'../lib/redisTools/')
-sys.path.insert(1,'../lib/redisTools/')
-from redisTools import get_parameter_value
+sys.path.insert(1,'lib/redisTools/')
+from redisTools import get_parameter_value, initializeRedisFromYAML
 threshold_yaml = 'thresholdExtraction.yaml'
 cerebusAdapter_yaml = 'cerebusAdapter.yaml'
+graphYAML = 'graphs/sharedDev/reorgDev/0.0/reorgDev_0.0.yaml'
 
 
 ###############################################################
@@ -60,6 +61,10 @@ def numpy_export(crossDict, filtDict, rConnection):
 
 # -----------------------------------------------------------
     
+# connect to Redis -- using redisTools
+r = initializeRedisFromYAML(graphYAML,'thresholdExtractor')
+
+"""
 
 # connect to redis
 def connect_to_redis(threshold_yaml):
@@ -68,7 +73,7 @@ def connect_to_redis(threshold_yaml):
     r = redis.Redis(host = redis_ip, port = redis_port, db = 0)
     print("[thresholdExtractor] Connecting to Redis with IP :", redis_ip, ", port: ", redis_port)
     return r
-
+"""
 
 # -----------------------------------------------------------
 ### Various filter versions
