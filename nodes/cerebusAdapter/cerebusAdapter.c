@@ -67,13 +67,13 @@ typedef struct graph_parameters_t {
 
 
 // intialize support functions
-void initialize_redis();
+void initialize_redis(char *yaml_path);
 void initialize_signals();
-int  initialize_socket();
+int  initialize_socket(char *yaml_path);
 //void initialize_parameters(yaml_parameters_t *p);
-void initialize_parameters(graph_parameters_t *p);
-void parameter_array_parser(int num_elem, char in_string, int[] out_array);
-void initialize_realtime();
+void initialize_parameters(graph_parameters_t *p, char *yaml_path);
+void parameter_array_parser(int is_char, char *in_string, void **array_ind);
+void initialize_realtime(char *yaml_path);
 void handler_SIGINT(int exitStatus);
 void shutdown_process();
 void print_argv(int, char **, size_t *);
@@ -88,21 +88,30 @@ int flag_SIGINT = 0;
 
 int main (int argc_main, char **argv_main) {
 
+    // initializing the input arguments -- should give us the yaml name
+    if(argc_main<2){
+        printf("Please supply a path to a yaml file");
+        return 1;
+    }
+
+    char *yaml_path = argv_main[1];
+
+
     //debugging file output
 
-    initialize_redis();
+    initialize_redis(yaml_path);
 
     initialize_signals();
 
     // Uncommenting this results in bash fork error since cerebusAdapter uses Redis
     //initialize_realtime();
 
-    int udp_fd = initialize_socket();
+    int udp_fd = initialize_socket(yaml_path);
 
     //yaml_parameters_t yaml_parameters = {0};
-    graph_parameters_t graph_parameters = {0};
-    initialize_parameters(&graph_parameters); // this is a little more complicated with a var num IOs
-    numStreams = graph_parameters.num_streams; //will use this a lot, so pull it out
+    graph_parameters_t graph_parameters;
+    initialize_parameters(&graph_parameters, yaml_path); // this is a little more complicated with a var num IOs
+    int numStreams = graph_parameters.num_streams; //will use this a lot, so pull it out
 
 
     // argc    : The number of arguments in argv. The calculation is:
@@ -175,7 +184,7 @@ int main (int argc_main, char **argv_main) {
    
         // allocating memory for samples:  [data0 ... dataX]
         argv[ind_samples]                        = malloc(len);
-        argv[ind_samples + 1]                    = malloc(sizeof(int16_t) * neural_samples_per_redis_stream * num_neural_channels);
+        argv[ind_samples + 1]                    = malloc(sizeof(int16_t) * samp_per_stream * chan_per_stream);
  
         // At this point we start populating neural_argv strings
         // Start by adding xadd cerebusAdapter *
@@ -192,7 +201,7 @@ int main (int argc_main, char **argv_main) {
         
 
 
-        argvPtr[ii] = *argv;
+        argvPtr[ii] = argv;
     }
 
 
@@ -200,7 +209,8 @@ int main (int argc_main, char **argv_main) {
     printf("[%s] Entering loop...\n", PROCESS);
     
     // How many samples have we copied 
-    int n[numStreams] = {0};  
+    int n[numStreams];  
+    memset(n, 0, sizeof(numStreams));
 
     // We use rcvmsg because we want to know when the kernel received the UDP packet
     // and because we want the socket read to timeout, allowing us to gracefully
@@ -274,26 +284,26 @@ int main (int argc_main, char **argv_main) {
                     gettimeofday(&current_time,NULL);
     
                     // Copy the timestamp information into argvPtr
-                    memcpy( &argvPtr[ii][ind_cerebus_timestamps + 1][n * sizeof(uint32_t)],      &cerebus_packet_header->time,  sizeof(uint32_t));
-                    memcpy( &argvPtr[ii][ind_current_time + 1][n * sizeof(struct timeval)],      &current_time,                 sizeof(struct timeval));
-                    memcpy( &argvPtr[ii][ind_udp_received_time + 1][n * sizeof(struct timeval)], &udp_received_time,            sizeof(struct timeval));
+                    memcpy( &argvPtr[ii][ind_cerebus_timestamps + 1][n[ii] * sizeof(uint32_t)],      &cerebus_packet_header->time,  sizeof(uint32_t));
+                    memcpy( &argvPtr[ii][ind_current_time + 1][n[ii] * sizeof(struct timeval)],      &current_time,                 sizeof(struct timeval));
+                    memcpy( &argvPtr[ii][ind_udp_received_time + 1][n[ii] * sizeof(struct timeval)], &udp_received_time,            sizeof(struct timeval));
     
                     // The index where the data starts in the UDP payload
                     int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
     
                     // Copy each payload entry directly to the argvPtr. dlen contains the number of 4 bytes of payload
-                    for(int i = 0; i < cerebus_packet_header->dlen * 2; i++) {
-                        memcpy(&argvPtr[ii][ind_samples + 1][(n + i*graph_parameters.chan_per_stream[ii]) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*i], sizeof(int16_t));
+                    for(int jj = 0; jj < cerebus_packet_header->dlen * 2; jj++) {
+                        memcpy(&argvPtr[ii][ind_samples + 1][(n[ii] + jj*graph_parameters.chan_per_stream[ii]) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*jj], sizeof(int16_t));
                     }
                     n[ii]++;
                 }
                 if (n[ii] == graph_parameters.samp_per_stream[ii]) {
 
-                    argvlen[ii][ind_samples + 1] = sizeof(int16_t) * n * graph_parameters.chan_per_stream[ii];
+                    argvlen[ii][ind_samples + 1] = sizeof(int16_t) * n[ii] * graph_parameters.chan_per_stream[ii];
 
-                    argvlen[ii][ind_cerebus_timestamps + 1]      = sizeof(int32_t) * n;
-                    argvlen[ii][ind_current_time + 1]            = sizeof(struct timeval) * n;
-                    argvlen[ii][ind_udp_received_time + 1]       = sizeof(struct timeval) * n;
+                    argvlen[ii][ind_cerebus_timestamps + 1]      = sizeof(int32_t) * n[ii];
+                    argvlen[ii][ind_current_time + 1]            = sizeof(struct timeval) * n[ii];
+                    argvlen[ii][ind_udp_received_time + 1]       = sizeof(struct timeval) * n[ii];
                 
                     /* printf("n = %d\n", n); */
                     /* print_neural_argv(argc, argv, argvlen); */
@@ -319,10 +329,12 @@ int main (int argc_main, char **argv_main) {
     }
 
     // We should never get here, but we should clean our data anyway.
-    for (int ii = 0; ii < argc; ii++) {
-        free(neural_argv[ii]);
+    for (int ii = 0; ii < numStreams; ii++) {
+        for (int jj = 0; jj < argc; jj++) {
+            free(argvPtr[ii][jj]);
+        }
     }
-    free(neural_argvlen);
+    free(argvlen);
     free(buffer);
     return 0;
 }
@@ -332,15 +344,15 @@ int main (int argc_main, char **argv_main) {
 //------------------------------------
 
 
-void initialize_redis() {
+void initialize_redis(char *yaml_path) {
 
     printf("[%s] Initializing Redis...\n", PROCESS);
 
     char redis_ip[16]       = {0};
     char redis_port[16]     = {0};
 
-    load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
-    load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
+    load_YAML_variable_string(PROCESS, yaml_path, "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string(PROCESS, yaml_path, "redis_port", redis_port, sizeof(redis_port));
 
     printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
 
@@ -365,7 +377,7 @@ void initialize_signals() {
     printf("[%s] Signal handlers installed.\n", PROCESS);
 }
 
-int initialize_socket() {
+int initialize_socket(char *yaml_path) {
 
     // Create a UDP socket
    	int fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP ); 
@@ -398,7 +410,7 @@ int initialize_socket() {
 
 
     char broadcast_port_string[16] = {0};
-    load_YAML_variable_string(PROCESS, "broadcast_port", broadcast_port_string, sizeof(broadcast_port_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "broadcast_port", broadcast_port_string, sizeof(broadcast_port_string));
     int broadcast_port = atoi(broadcast_port_string);
     printf("[%s] I will be listening on port %d\n", PROCESS, broadcast_port);
 
@@ -421,7 +433,7 @@ int initialize_socket() {
      return fd;
 } 
 
-void initialize_parameters(yaml_parameters_t *p) {
+void initialize_parameters(graph_parameters_t *p, char *yaml_path) {
     char broadcast_port_string[16] = {0};
     char num_streams_string[16] = {0};
     char stream_names_string[256] = {0};
@@ -431,26 +443,27 @@ void initialize_parameters(yaml_parameters_t *p) {
     char samp_per_stream_string[32] = {0};
 
     // brings in the parameters -- this returns everything as a char
-    load_YAML_variable_string(PROCESS, "broadcast_port",    broadcast_port_string,  sizeof(broadcast_port_string));
-    load_YAML_variable_string(PROCESS, "num_streams",       num_streams_string,     sizeof(num_streams_string));
-    load_YAML_variable_string(PROCESS, "stream_names",      stream_names_string,    sizeof(stream_names_string));
-    load_YAML_variable_string(PROCESS, "samp_freq",         samp_freq_string,       sizeof(samp_freq_string));
-    load_YAML_variable_string(PROCESS, "packet_type",       packet_type_string,     sizeof(packet_type_string));
-    load_YAML_variable_string(PROCESS, "chan_per_stream",   chan_per_stream_string, sizeof(chan_per_stream_string));
-    load_YAML_variable_string(PROCESS, "samp_per_stream",   samp_per_stream_string, sizeof(samp_per_stream_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "broadcast_port",    broadcast_port_string,  sizeof(broadcast_port_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "num_streams",       num_streams_string,     sizeof(num_streams_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "stream_names",      stream_names_string,    sizeof(stream_names_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "samp_freq",         samp_freq_string,       sizeof(samp_freq_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "packet_type",       packet_type_string,     sizeof(packet_type_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "chan_per_stream",   chan_per_stream_string, sizeof(chan_per_stream_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "samp_per_stream",   samp_per_stream_string, sizeof(samp_per_stream_string));
 
     // parsing the strings into usable content
     p->num_streams =    atoi(num_streams_string);
     p->broadcast_port = atoi(broadcast_port_string);
     // now for the tricker ones -- with potentially multiple entries
 
-    parameter_array_parser(1, stream_names_string, &p.stream_names);
-    parameter_array_parser(0, samp_freq_string, &p.samp_freq);
-    parameter_array_parser(0, packet_type_string, &p.packet_type); 
-    parameter_array_parser(0, chan_per_stream_string, &p.chan_per_stream); 
-    parameter_array_parser(0, samp_per_stream_string, &p.samp_per_stream); 
+    
 
-    }
+    parameter_array_parser(1, stream_names_string, (void **) p->stream_names);
+    parameter_array_parser(0, samp_freq_string, (void **) p->samp_freq);
+    parameter_array_parser(0, packet_type_string, (void **) p->packet_type); 
+    parameter_array_parser(0, chan_per_stream_string, (void **) p->chan_per_stream); 
+    parameter_array_parser(0, samp_per_stream_string, (void **) p->samp_per_stream); 
+
 
 }
 
@@ -458,7 +471,7 @@ void initialize_parameters(yaml_parameters_t *p) {
 // traverse an input string with CSVs and stores it into the array at *array_ind
 // this takes advantage of strtok_r to keep everything threadsafe, which isn't
 // defined in c99 but is in most posix implementations
-void parameter_array_parser(bool is_char, char *in_string, size_t **array_ind) {
+void parameter_array_parser(int is_char, char *in_string, void **array_ind) {
     // initialize an int array and a char array
     int intArr[MAXSTREAMS] = {0};
     char *charArr[MAXSTREAMS]; 
@@ -469,21 +482,23 @@ void parameter_array_parser(bool is_char, char *in_string, size_t **array_ind) {
 
     // repeatedly run through the string while we're not getting a NULL
     // or passing beyond the length of the arrays.
-    for (ii=0, tempstr = in_string; ii<MAXSTREAMS; ii++, tempStr = NULL) {
-        token = strtok_r(tempStr, delim, &saveptr);
+    for (ii=0, tempstr = in_string; ii<MAXSTREAMS; ii++, tempstr = NULL) {
+        token = strtok_r(tempstr, delim, &saveptr);
         if(token == NULL)
             break;
         if(is_char)
             charArr[ii] = token; // store the token if it's a string
         else
-            indArr[ii] = atoi(token); // store if it's an int
+            intArr[ii] = atoi(token); // store if it's an int
     } 
 
     // pass back either the character or integer array
-    if(is_char)
+    if(is_char){
         *array_ind = charArr;
-    else
-        *array_ind = indArr;
+    }
+    else {
+        *array_ind = intArr;
+    }
 
 
 }
@@ -491,10 +506,10 @@ void parameter_array_parser(bool is_char, char *in_string, size_t **array_ind) {
 
 
 // Do we want the system to be realtime?  Setting the Scheduler to be real-time, priority 80
-void initialize_realtime() {
+void initialize_realtime(char *yaml_path) {
 
     char sched_fifo_string[16] = {0};
-    load_YAML_variable_string(PROCESS, "sched_fifo", sched_fifo_string, sizeof(sched_fifo_string));
+    load_YAML_variable_string(PROCESS, yaml_path, "sched_fifo", sched_fifo_string, sizeof(sched_fifo_string));
 
     if (strcmp(sched_fifo_string, "True") != 0) {
         return;

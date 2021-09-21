@@ -3,7 +3,7 @@
 
 #define ROOT_PATH ".."
 
-int load_YAML_variable_string(char *process, char *value, char *buffer, int n);
+int load_YAML_variable_string(char *process, char *yaml_path, char *value, char *buffer, int n);
 int initialize_redis_from_YAML(char *process);
 int load_redis_context(redisContext **redis_context, char *redis_ip, char *redis_port);
 

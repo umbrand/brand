@@ -1,6 +1,6 @@
 Metadata:
     Parameters:
-        participant_id:             18E3
+        participant_id:             42
         session_description:        "Don't Panic"
         
 
@@ -14,10 +14,23 @@ RedisConnection:
 Nodes:
     - Name:         cerebusAdapter
       Version:      0.0
+      redis_outputs:
+            continuousNeural:
+                chan_per_stream:    96
+                samp_per_stream:    30
+                var_type:           int16
+            rawEMG:
+                chan_per_stream:    12
+                samp_per_stream:    10
+                var_type:           int16
+            taskInput:
+                chan_per_stream:    3
+                samp_per_stream:    1
+                var_type:           int16
       Parameters:   
             broadcast_port:         51002
             num_streams:            3
-            stream_names:           [continuousNeural, EMG, task]
+            stream_names:           [continuousNeural, rawEMG, taskInput]
             samp_freq:              [30000, 2000, 1000]
             packet_type:            [6, 3, 2]
             chan_per_stream:        [96, 3, 12]
@@ -25,6 +38,14 @@ Nodes:
 
     - Name:         thresholdExtractor 
       Version:      0.0 
+      redis_inputs:
+            continuousNeural:
+                node:               cerebusAdapter
+      redis_outputs:
+            continuousNeural:
+                chan_per_stream:    96
+                samp_per_stream:    30
+                var_type:           int16
       Parameters:
             pack_per_call:          1       # number of redis packets to pull per loop
             thresh_mult:            -4.25   # threshold Values
@@ -41,6 +62,10 @@ Nodes:
 
     - Name:         behaviorFSM
       Version:      0.0
+      redis_input:
+            
+      redis_output:
+            
       Parameters:
             unpack_string:          '3h' 
             cursor_sensors:         [0, 1] 
@@ -91,7 +116,7 @@ Nodes:
             data_sources:
                 continuousNeural:
                     redis_data_type:    stream
-                    redis_data_name:    cerebusAdapter
+                    redis_data_name:    continuousNeural
                     redis_timestamps:   timestamps
                     redis_time_pack:    "I"
                     samples_per_pack:   10
@@ -100,8 +125,34 @@ Nodes:
                     sample_units:       V
                     gain:               25E-8
                     NWB_data_type:      TimeSeries
-                    NWB_data_name:      continuousNeuralData
+                    NWB_data_name:      continuousNeural
                     data_width:          96
+                rawEMG:
+                    redis_data_type:    stream
+                    redis_data_name:    rawEMG
+                    redis_timestamps:   timestamps
+                    redis_time_pack:    "I"
+                    samples_per_pack:   1
+                    redis_samples:      samples
+                    redis_pack_string:  "h"
+                    sample_units:       V
+                    gain:               25E-8
+                    NWB_data_type:      TimeSeries
+                    NWB_data_name:      rawEMG
+                    data_width:         12
+                taskInput:
+                    redis_data_type:    stream
+                    redis_data_name:    taskInput
+                    redis_timestamps:   timestamps
+                    redis_time_pack:    "I"
+                    samples_per_pack:   1
+                    redis_samples:      samples
+                    redis_pack_string:  "h"
+                    sample_units:       V
+                    gain:               25E-8
+                    NWB_data_type:      TimeSeries
+                    NWB_data_name:      taskInput
+                    data_width:         3
                 thresholdNeuralData:
                     redis_data_type:    stream
                     redis_data_name:    thresholdCrossings
@@ -114,6 +165,6 @@ Nodes:
                     gain:               25E-8
                     NWB_data_type:      TimeSeries
                     NWB_data_name:      continuousNeuralData
-                    data_width:          96
+                    data_width:         96
                     
 

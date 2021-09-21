@@ -10,7 +10,7 @@
  * the string YAML value.
  */
 
-int load_YAML_variable_string(char *process, char *value, char *buffer, int n) {
+int load_YAML_variable_string(char *process, char *yaml_path, char *value, char *buffer, int n) {
 
     char bashCommand[1024]         = {0};
     char redisToolsPythonFile[256] = {0};
@@ -19,11 +19,12 @@ int load_YAML_variable_string(char *process, char *value, char *buffer, int n) {
     FILE *fp;
 
     sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
-    sprintf(configurationFile, "%s.yaml", process);
+    strcpy(configurationFile, (const char *) yaml_path);
+    //sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
     
-    sprintf(bashCommand, "python %s %s --name %s", redisToolsPythonFile, configurationFile, value);
+    sprintf(bashCommand, "python %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
 
 
     fp = popen(bashCommand, "r");

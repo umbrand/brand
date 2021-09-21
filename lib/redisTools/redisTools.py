@@ -15,9 +15,10 @@ import errno
 #############################################
 #############################################
 
-# This function is designed to be used from a .c code, which is
-# going to be reading the output of the stream. So it shouts
-# no errors. Probably shouldn't use this code in pythonesque code
+# this is designed for the older yaml parameter style.
+# should likely remove this, though I'm not sure if we
+# need it for a convenient way to get redis conneciton
+# information
 
 def get_parameter_value(fileName, field):
     try:
@@ -31,6 +32,46 @@ def get_parameter_value(fileName, field):
     for record in yamlData['parameters']:
         if record['name'] == field:
             return record['value']
+
+
+#############################################
+#############################################
+
+# This function is designed to be used from a .c code, which is
+# going to be reading the output of the stream. So it shouts
+# no errors. Probably shouldn't use this code in pythonesque code
+
+def get_node_parameter_value(fileName, node, field):
+    try:
+        with open(fileName, 'r') as f:
+            yamlData = yaml.safe_load(f)
+
+    except IOError as e:
+        if e.errno == errno.EPIPE:
+            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
+
+    for node_list in yamlData['Nodes']:
+        if node_list['Name'] == node:
+            return node_list['Parameters'][field]
+
+
+#############################################
+#############################################
+# This function is designed to be used from a .c code, which is
+# going to be reading the output of the stream. So it shouts
+# no errors. Probably shouldn't use this code in pythonesque code
+
+def get_node_parameters(fileName, node, field):
+    try:
+        with open(fileName, 'r') as f:
+            yamlData = yaml.safe_load(f)
+
+    except IOError as e:
+        if e.errno == errno.EPIPE:
+            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
+
+    for node_list in yamlData['Nodes']:
+        return node_list['Parameters']
 
 
 #############################################
@@ -165,12 +206,18 @@ def main():
         the script and print it. This should be used only for .c processes"""
 
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('--name', help='Return the value in the YAML file')
+    parser.add_argument('--name', help='Return the value in the YAML file', type=str)
+    parser.add_argument('--node', help='Which node to use', type=str)
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
 
     args = parser.parse_args()
 
-    if args.name:
+    if args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
+        if args.name: # if we have a particular value
+            print(get_node_parameter_value(args.file, args.node, args.name), end="")
+        else: # return all values
+            print(get_node_parameters(args.file, args.node), end="") 
+    else if args.name: # if no node name is supplied... probably mostly for the redis connection
         print(get_parameter_value(args.file, args.name), end="")
     else:
         initializeRedisFromYAML(args.file)
