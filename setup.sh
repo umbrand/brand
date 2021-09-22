@@ -19,6 +19,7 @@ createGraph () {
         >&2 echo "creating graph with name DEFAULT"
         $2 = "DEFAULT"
     fi
+    mkdir ./graphs/$1/$2
     mkdir ./graphs/$1/$2/0.0
     cp ./graphs/templateLocation/templateGraph/0.0/templateGraph.yaml ./graphs/$1/$2/0.0/$2.yaml
     
@@ -30,7 +31,7 @@ conda activate rt
 
 
 load () {
-    ./graphs/$1/load.sh
+    ./graphs/sharedDevelopment/$1/0.0/load.sh
 }
 
 run () {
