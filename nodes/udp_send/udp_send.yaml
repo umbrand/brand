@@ -1,0 +1,30 @@
+parameters:
+
+###########################################
+# redis general info
+###########################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+- name: log
+  value: INFO
+  description: Logging level for the process
+  static: true
+
+# UDP
+- name: udp_ip
+  value: 127.0.0.1
+  description: IP address to which UDP packets are sent
+  static: true
+
+- name: udp_port
+  value: 5005
+  description: port to which UDP packets are sent
+  static: true
