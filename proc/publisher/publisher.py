@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # publisher.py
 
+import gc
 import logging
 import signal
 import sys
@@ -10,6 +11,8 @@ import time
 import numpy as np
 import yaml
 from redis import Redis
+
+gc.disable()
 
 YAML_FILE = 'publisher.yaml'
 
@@ -51,8 +54,10 @@ except Exception:
     logging.info('Failed to connect to Redis. Exiting.')
     sys.exit()
 
+n_arrays = 6
 if get_parameter_value(YAML_FILE, 'many_dynamic_sizes'):
-    dynamic_sizes = 30 * 128 * np.arange(1, n_arrays + 1)
+    # dynamic_sizes = 30 * 128 * np.arange(1, n_arrays + 1)
+    dynamic_sizes = np.logspace(3, 23, base=2, num=21, dtype=np.uint64)
 else:
     dynamic_sizes = [30 * 128 * 2]
 
@@ -70,24 +75,37 @@ except TypeError:
     sys.exit(0)
 
 # main loop
-for n_items in dynamic_sizes:
-    counter = np.uint64(0)
-    last_time = 0
-    logging.info(f'Sending {n_items}-item {DTYPE} arrays for '
+for dynamic_size in dynamic_sizes:
+    n_items: int = int(dynamic_size) // np.dtype(data_type).itemsize
+    counter: int = 0
+    last_time: float = 0
+    logging.info(f'Sending {dynamic_size} byte {DTYPE} arrays for '
                  f'{DURATION} seconds. MAXLEN = {MAXLEN}.')
+    stream_dict = {
+        'ts': float(),
+        'val': np.ones(n_items, dtype=data_type).tobytes(),
+        'size': int(dynamic_size),
+        'counter': counter,
+    }
     start_time = time.perf_counter()
     while time.perf_counter() - start_time < DURATION:
-        current_time = time.perf_counter()
+        current_time: float = time.perf_counter()
         if current_time - last_time >= 1 / SAMPLE_RATE:
-            data = np.zeros(n_items, dtype=data_type)
+            stream_dict['ts'] = current_time
+            stream_dict['counter'] = counter
             r.xadd(name='publisher',
-                   fields={
-                       'ts': current_time,
-                       'val': data.tobytes(),
-                       'size': int(n_items),
-                       'counter': int(counter),
-                   },
+                   fields=stream_dict,
                    maxlen=MAXLEN)
             counter += 1
             last_time = current_time
-# Encoding numpy arrays in Redis: https://stackoverflow.com/questions/55311399
+
+    # wait for the subscriber to finish
+    waiting = True
+    while waiting:
+        entry_dict = r.xrevrange('subscriber', count=1)[0][1]
+        if int(entry_dict[b'counter']) != counter - 1:
+            time.sleep(1)
+        else:
+            waiting = False
+
+    gc.collect()
