@@ -35,3 +35,6 @@ bin/
 
 # Duplicate .pyx files
 pyglet_display.pyx
+
+# Python
+*.egg-info
