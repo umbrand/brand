@@ -130,11 +130,28 @@ def initializeRedisFromYAML(fileName, processName):
 
     print("[" + processName + "] Initializing Redis with IP : " + redisIP + ", port: " + str(redisPort))
 
-    # Having gotten to this point we can now initialize all of the variables
-
+    # Having gotten to this point we can now create our redis connection
     r = redis.Redis(host=redisIP, port=redisPort)
     return r
 
+
+
+
+
+
+#############################################
+#############################################
+def get_redis_info(yaml_path,field):
+    # return info about the redis session from the associated yaml
+    with open(fileName, 'r') as f:
+        yamlData = yaml.safe_load(f)
+        returnValue = yamlData['RedisConnection']['Parameters'][field]
+
+    return returnValue
+
+
+#############################################
+#############################################
 
 """ -- probably don't want to push all of the data into the redis instance repeatedly -- that will be for the graph as a whole
     print("[" + processName + "] Here are the other variables:")
@@ -166,24 +183,6 @@ def initializeRedisFromYAML(fileName, processName):
     
     return r
 """
-
-#############################################
-## load settings using with the graph setup
-#############################################
-#def loadNodeSettings(fileName, processName):
-
-    
-
-
-
-
-
-
-
-
-
-
-
 
 #############################################
 ## Publishing data from Redis
@@ -237,19 +236,24 @@ def main():
     parser.add_argument('--name', help='Return the value in the YAML file', type=str)
     parser.add_argument('--node', help='Which node to use', type=str)
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
+    parser.add_argument('--redis', help="Return the port and ip for the redis instance")
+    redisGroup = parser.add_mutually_exclusive_group()
+    redisGroup.add_argument('--ip', help='IP for the redis instance', type=str)
+    redisGroup.add_argument('--port', help='port for the redis instance', type=str)
 
     args = parser.parse_args()
 
-    if args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
+    if args.ip:
+        print(get_redis_info(args.file,'redis_realtime_ip'))
+    elif args.ip:
+        print(get_redis_info(args.file,'redis_realtime_port'))
+    elif args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
         if args.name: # if we have a particular value
             print(get_node_parameter_value(args.file, args.node, args.name), end="")
         else: # return all values
             print(get_node_parameters(args.file, args.node), end="") 
     elif args.name: # if no node name is supplied... probably mostly for the redis connection
         print(get_parameter_value(args.file, args.name), end="")
-    else:
-        initializeRedisFromYAML(args.file)
-
 
 
 if __name__ == '__main__':
