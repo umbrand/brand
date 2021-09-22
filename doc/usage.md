@@ -37,7 +37,7 @@ Fill in the run script with commands that will start the nodes needed to run you
 
 Load your graph
 ```bash
-$ load sharedDevelopment/decoderTest/0.0
+$ load mygraph
 ```
 Run your graph
 ```bash
