@@ -13,7 +13,7 @@ all: $(SUBDIRS) hiredis lpcnet redis
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
 
-# make targets for all relevant paths under proc/
+# make targets for all relevant paths under nodes/
 $(SUBDIRS): hiredis lpcnet redis
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
 
