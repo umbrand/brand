@@ -1,14 +1,18 @@
 Metadata:
-    Parameters:
-        participant_id:             42
-        session_description:        "Don't Panic"
-        
+    participant_id:             42
+    session_description:        "Don't Panic"
+
+# -----------------------------------------------------        
 
 RedisConnection:
     Parameters:
         redis_realtime_ip: 127.0.0.1
         redis_realtime_port: 6379
         redis_realtime_config: redis.realtime.conf
+
+
+# -----------------------------------------------------        
+
 
 # -- stream definitions --
 # expected format:
@@ -21,8 +25,6 @@ RedisConnection:
 #       sample_type:        [required]
 #       timestamp_type:     [required]
 #       samp_freq:          [optional]
-
-
 
 RedisStreams:
     continuousNeural:
@@ -46,14 +48,14 @@ RedisStreams:
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uInt32
-    filtDict:
+    filteredCerebusAdapter:
         chan_per_stream:    96
         samp_per_stream:    30 # since packet from continuousNeural for the moment
         sample_name:        samples
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uInt32
-    crossDict:
+    thresholdCrossings:
         chan_per_stream:    96
         samp_per_stream:    1
         sample_name:        crossings
@@ -61,6 +63,10 @@ RedisStreams:
         sample_type:        int16
         timestamp_type:     uint32
     
+
+# -----------------------------------------------------        
+
+
 Nodes:
     - Name:         cerebusAdapter
       Version:      0.0

@@ -15,20 +15,14 @@ from datetime import datetime as dt
 from time import sleep
 import argparse
 
-# try this without cython to start
-#import cython
-#cimport numpy as np
+# need to take more advantage of cython
+import cython
+cimport numpy as np
 
 
-# pathway to redisTools.py
-#if __name__ == '__main__': # allow us to run this from inside of proc, for testing sake
-#   sys.path.insert(1,'../../lib/redisTools')
-#else:
-#   sys.path.insert(1,'../lib/redisTools/')
+# bring in redisTools
 sys.path.insert(1,'lib/redisTools/')
-from redisTools import get_parameter_value, initializeRedisFromYAML
-threshold_yaml = 'thresholdExtraction.yaml'
-cerebusAdapter_yaml = 'cerebusAdapter.yaml'
+from redisTools import initializeRedisFromYAML, get_node_parameter_value, get_node_parameter, get_node_io
 graphYAML = 'graphs/sharedDev/reorgDev/0.0/reorgDev_0.0.yaml'
 
 
@@ -225,7 +219,6 @@ sampTimes = np.zeros((packetLength*cerPack,),dtype='uint32') # noneed to run a f
 print(sampTimes.dtype)
 
 # initial data read -- this is to allow us to test using old redis dump files
-#prevKey = get_parameter_value(threshold_yaml, 'start_key') # initial key to use. Will either be $ or 0 
 prevKey = '$'
 
 

@@ -3,12 +3,28 @@ Metadata:
         participant_id:             42
         session_description:        "Don't Panic"
         
+# ---------------------------------------------------
 
 RedisConnection:
     Parameters:
         redis_realtime_ip: 127.0.0.1
         redis_realtime_port: 6379
         redis_realtime_config: redis.realtime.conf
+
+# ---------------------------------------------------
+
+
+# -- stream definitions --
+# expected format:
+# RedisStreams:
+#   <streamName>:
+#       chan_per_stream:    [required]
+#       samp_per_stream:    [required]
+#       sample_name:        [required]
+#       timestamp_name:     [required]
+#       sample_type:        [required]
+#       timestamp_type:     [required]
+#       samp_freq:          [optional]
 
 RedisStreams:
     template_stream_A:
@@ -21,6 +37,7 @@ RedisStreams:
 
 
 
+# ---------------------------------------------------
 
     
 Nodes:
