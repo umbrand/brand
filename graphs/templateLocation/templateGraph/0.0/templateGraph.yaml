@@ -10,16 +10,24 @@ RedisConnection:
         redis_realtime_port: 6379
         redis_realtime_config: redis.realtime.conf
 
+RedisStreams:
+    template_stream_A:
+        chan_per_stream:    96 # of channels
+        samp_per_stream:    30 # samples per channel per redis entry
+        sample_name:        samples
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     int32
+
+
+
+
     
 Nodes:
-    - Name:         templateNode_A
+    - Name:         template_node_A
       Version:      0.0
       redis_inputs:
-      redis_outputs:
-            templateSink_A:
-                chan_per_stream:    96 # of channels
-                samp_per_stream:    30 # samples per channel per redis entry
-                var_type:           int16
+      redis_outputs:                [template_stream_A] # for general info look in the RedisStreams section
       Parameters:   
             publishing_house:       megaDodo
             galaxy:                 ursaMinor
@@ -27,9 +35,7 @@ Nodes:
 
     - Name:         templateNode_B 
       Version:      0.0 
-      redis_inputs:
-            templateSink_A:
-                node:               templateNode_A
+      redis_inputs:                 [template_stream_A] # for general info look in the RedisStreams section
       redis_outputs:
       Parameters:
             ship:                   heart_of_gold
@@ -39,8 +45,6 @@ Nodes:
     - Name:         exportNWB
       Version:      0.0
       redis_inputs:
-            templateNode_A:
-                node:                   cerebusAdapter
-            
+      redis_outputs:                [template_stream_A] # for general info look in the RedisStreams section
       Parameters:
             nwb_file_name:              nwbFile_test
