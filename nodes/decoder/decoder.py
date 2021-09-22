@@ -9,26 +9,14 @@ import sys
 import time
 
 import numpy as np
-import tensorflow as tf
-import yaml
-from redis import Redis
+from brand import get_node_parameter_value, initializeRedisFromYAML
 from tensorflow import keras
 from tensorflow.keras import layers
 
-
-def get_parameter_value(fileName, field):
-    with open(fileName, 'r') as f:
-        yamlData = yaml.safe_load(f)
-
-    for record in yamlData['parameters']:
-        if record['name'] == field:
-            return record['value']
-
-
-YAML_FILE = 'decoder.yaml'
+YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'decoder.yaml'
 
 # setup up logging
-loglevel = get_parameter_value(YAML_FILE, 'log')
+loglevel = get_node_parameter_value(YAML_FILE, 'decoder', 'log')
 numeric_level = getattr(logging, loglevel.upper(), None)
 
 if not isinstance(numeric_level, int):
@@ -41,15 +29,13 @@ logging.basicConfig(format='%(levelname)s:decoder:%(message)s',
 class Decoder():
     def __init__(self):
         # connect to Redis
-        redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
-        redis_port = get_parameter_value(YAML_FILE, 'redis_port')
-        logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
-        self.r = Redis(host=redis_ip, port=redis_port)
-        logging.info('Connecting to Redis...')
+        self.r = initializeRedisFromYAML('decoder.yaml')
 
         # build the decoder
-        self.n_features = get_parameter_value(YAML_FILE, 'n_features')
-        self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
+        self.n_features = get_node_parameter_value(YAML_FILE, 'decoder',
+                                                   'n_features')
+        self.n_targets = get_node_parameter_value(YAML_FILE, 'decoder',
+                                                  'n_targets')
         self.build()
 
         # initialize IDs for the two Redis streams
@@ -128,7 +114,8 @@ class RNNDecoder(Decoder):
 
 
 if __name__ == "__main__":
-    decoder_type = get_parameter_value(YAML_FILE, 'decoder_type')
+    decoder_type = get_node_parameter_value(YAML_FILE, 'decoder',
+                                            'decoder_type')
 
     # setup
     logging.info(f'PID: {os.getpid()}')
