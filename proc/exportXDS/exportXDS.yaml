@@ -1,0 +1,51 @@
+parameters:
+
+##############################################
+# redis general info
+##############################################
+- name: redis_ip
+  value: 127.0.0.1
+  description: What is the IP of our Redis instance
+  static: true
+
+- name: redis_port
+  value: 6379
+  description: What is the port of our Redis instance
+  static: true
+
+
+
+##############################################
+# data list
+##############################################
+
+# list of data fields
+#
+# potential fields:
+#   spike_counts        -- binned firing rates
+#   spike_timestamps    -- timestamps of threshold crossings
+#   force               -- filtered and binned force
+#   raw_force           -- force straight from the DAQ
+#   EMG                 -- filtered, rectified and binned EMG
+#   raw_EMG             -- raw EMG signal
+#   kinematics          -- kinematics. THIS IS NOT THE CURSOR! this should be present for encoder-based tasks
+#   task_cursor         -- task cursor - what we saw on the screen
+#   task_target         -- current target
+#   task_state          -- state of the task
+
+
+- name: xdsFields
+  value:
+    spike_timestamps:   thresholdCrossings
+    raw_force:          cerebusAdapter_task
+    task_cursor:        cursorData
+    task_target:        targetData
+    task_state:         state
+  description: a list of all recorded data relevant to the XDS system
+  static: true # not going to change this while the script is running, are we?
+
+
+
+
+
+
