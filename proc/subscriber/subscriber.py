@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# subscriber.py
+
+import gc
 import logging
 import signal
 import sys
@@ -5,6 +10,8 @@ import time
 
 import yaml
 from redis import Redis
+
+gc.disable()
 
 YAML_FILE = 'subscriber.yaml'
 
@@ -39,13 +46,20 @@ else:
     r = Redis(host=redis_ip, port=redis_port)
 
 entry_id = '$'
+xread_dict = {b'publisher': entry_id}
+xadd_dict = {
+    'ts': float(),
+    'ts_sent': float(),
+    'size': int(),
+    'counter': int(),
+}
 while True:
-    entry = r.xread({b'publisher': entry_id}, block=0, count=1)
+    entry = r.xread(xread_dict, block=0, count=1)
     entry_id, entry_dict = entry[0][1][0]
-    r.xadd(
-        'subscriber', {
-            'ts': time.perf_counter(),
-            'ts_sent': float(entry_dict[b'ts']),
-            'size': int(entry_dict[b'size']),
-            'counter': int(entry_dict[b'counter']),
-        })
+    xread_dict[b'publisher'] = entry_id
+
+    xadd_dict['ts'] = time.perf_counter()
+    xadd_dict['ts_sent'] = float(entry_dict[b'ts'])
+    xadd_dict['size'] = int(entry_dict[b'size'])
+    xadd_dict['counter'] = int(entry_dict[b'counter'])
+    r.xadd('subscriber', xadd_dict)
