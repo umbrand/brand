@@ -29,7 +29,7 @@ logging.basicConfig(format='%(levelname)s:decoder:%(message)s',
 class Decoder():
     def __init__(self):
         # connect to Redis
-        self.r = initializeRedisFromYAML('decoder.yaml')
+        self.r = initializeRedisFromYAML(YAML_FILE)
 
         # build the decoder
         self.n_features = get_node_parameter_value(YAML_FILE, 'decoder',
