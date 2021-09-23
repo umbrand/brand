@@ -39,17 +39,13 @@ def get_parameter_value(fileName, field):
 # if you're wanting the input/output info, use
 # get_node_io
 
-def get_node_parameter_value(fileName, node, field):
-    try:
-        with open(fileName, 'r') as f:
-            yamlData = yaml.safe_load(f)
-            for node_list in yamlData['Nodes']:
-                if node_list['Name'] == node:
-                    return node_list['Parameters'][field]
+def get_node_parameter_value(yaml_path, node):
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+        for node_list in yamlData['Nodes']:
+            if node_list['Name'] == node:
+                return node_list['Parameters'][field]
 
-    except IOError as e:
-        if e.errno == errno.EPIPE:
-            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
 
 #############################################
@@ -58,35 +54,29 @@ def get_node_parameter_value(fileName, node, field):
 # if you're wanting the input/output info, use
 # get_node_io
 
-def get_node_io(fileName, node):
+def get_node_io(yaml_path, node):
     io = {'redis_inputs':[], 'redis_outputs':[]}
     
-    try:
-        with open(fileName, 'r') as f:
-            yamlData = yaml.safe_load(f)
-            
-            # get the list of inputs and outputs for the matching node
-            for node_data in yamlData['Nodes']:
-                if node_data['Name'] == node:
-                    redis_inputs = node_data['redis_inputs']
-                    if type(redis_inputs) == str: # we need a list
-                        redis_inputs = list(redis_inputs)
-                    redis_outputs = node_data['redis_outputs']
-                    if type(redis_outputs) == str: # we need a list
-                        redis_outputs = list(redis_outputs)
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+        
+        # get the list of inputs and outputs for the matching node
+        for node_data in yamlData['Nodes']:
+            if node_data['Name'] == node:
+                redis_inputs = node_data['redis_inputs']
+                redis_outputs = node_data['redis_outputs']
+                if type(redis_inputs) == str: # we need a list
+                    redis_inputs = list(redis_inputs)
+                if type(redis_outputs) == str: # we need a list
+                    redis_outputs = list(redis_outputs)
 
-            # put all of the associated info from the streams into the 
-            # output dictionary
-            for in_stream in redis_inputs:
-                io['redis_inputs'][in_stream] = yamlData['RedisStreams'][in_stream]
-            for out_stream in redis_outputs:
-                io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
+        # put all of the associated info from the streams into the 
+        # output dictionary
+        for in_stream in redis_inputs:
+            io['redis_inputs'][in_stream] = yamlData['RedisStreams'][in_stream]
+        for out_stream in redis_outputs:
+            io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
                 
-
-    except IOError as e:
-        if e.errno == errno.EPIPE:
-            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
-
 
     return io
 
@@ -95,36 +85,32 @@ def get_node_io(fileName, node):
 # really just for python -- dump a dictionary with all of the
 # values for the node inside of the "Parameters" section
 
-def get_node_parameters_dump(fileName, node):
-    try:
-        with open(fileName, 'r') as f:
-            yamlData = yaml.safe_load(f)
-            for node_list in yamlData['Nodes']:
-                if node_list['Name'] == node:
-                    return node_list['Parameters']
+def get_node_parameters_dump(yaml_path, node):
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+        for node_list in yamlData['Nodes']:
+            if node_list['Name'] == node:
+                return node_list['Parameters']
 
-    except IOError as e:
-        if e.errno == errno.EPIPE:
-            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
 
 
 #############################################
 #############################################
 
-def initializeRedisFromYAML(fileName, processName):
+def initializeRedisFromYAML(yaml_path, processName):
 
 
     print("[" + processName + "] connecting to Redis using: " + fileName)
 
     try:
-        with open(fileName, 'r') as f:
+        with open(yaml_path, 'r') as f:
             yamlData = yaml.safe_load(f)
-            redisIP = yamlData['RedisConnection']['Parameters']['redis_realtime_ip']
-            redisPort = yamlData['RedisConnection']['Parameters']['redis_realtime_port']
+            redisIP = yamlData['RedisConnection']['redis_realtime_ip']
+            redisPort = yamlData['RedisConnection']['redis_realtime_port']
 
     except IOError:
-        sys.exit( "[" + processName + "] could not read file:" + fileName)
+        sys.exit( "[" + processName + "] could not read file:" + yaml_path)
     
         
 
@@ -143,9 +129,9 @@ def initializeRedisFromYAML(fileName, processName):
 #############################################
 def get_redis_info(yaml_path,field):
     # return info about the redis session from the associated yaml
-    with open(fileName, 'r') as f:
+    with open(yaml_path, 'r') as f:
         yamlData = yaml.safe_load(f)
-        returnValue = yamlData['RedisConnection']['Parameters'][field]
+        returnValue = yamlData['RedisConnection'][field]
 
     return returnValue
 
@@ -238,14 +224,14 @@ def main():
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
     parser.add_argument('--redis', help="Return the port and ip for the redis instance")
     redisGroup = parser.add_mutually_exclusive_group()
-    redisGroup.add_argument('--ip', help='IP for the redis instance', type=str)
-    redisGroup.add_argument('--port', help='port for the redis instance', type=str)
+    redisGroup.add_argument('--ip', help='IP for the redis instance', action="store_true")
+    redisGroup.add_argument('--port', help='port for the redis instance',  action="store_true")
 
     args = parser.parse_args()
 
     if args.ip:
         print(get_redis_info(args.file,'redis_realtime_ip'))
-    elif args.ip:
+    elif args.port:
         print(get_redis_info(args.file,'redis_realtime_port'))
     elif args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
         if args.name: # if we have a particular value
