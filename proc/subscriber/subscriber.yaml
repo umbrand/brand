@@ -16,6 +16,6 @@ parameters:
   static: true
 
 - name: redis_socket
-  value: ~
+  value: /var/run/redis.sock
   description: What is the unix socket path of our Redis instance
   static: true

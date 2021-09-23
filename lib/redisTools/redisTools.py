@@ -17,61 +17,96 @@ import errno
 
 # this is designed for the older yaml parameter style.
 # should likely remove this, though I'm not sure if we
-# need it for a convenient way to get redis conneciton
+# need it for a convenient way to get redis connection
 # information
 
 def get_parameter_value(fileName, field):
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
+            for record in yamlData['parameters']:
+                if record['name'] == field:
+                    return record['value']
 
     except IOError as e:
         if e.errno == errno.EPIPE:
             return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
-    for record in yamlData['parameters']:
-        if record['name'] == field:
-            return record['value']
-
 
 #############################################
 #############################################
-
-# This function is designed to be used from a .c code, which is
-# going to be reading the output of the stream. So it shouts
-# no errors. Probably shouldn't use this code in pythonesque code
+# return specific parameters from a specific node. 
+# if you're wanting the input/output info, use
+# get_node_io
 
 def get_node_parameter_value(fileName, node, field):
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
+            for node_list in yamlData['Nodes']:
+                if node_list['Name'] == node:
+                    return node_list['Parameters'][field]
 
     except IOError as e:
         if e.errno == errno.EPIPE:
             return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
-    for node_list in yamlData['Nodes']:
-        if node_list['Name'] == node:
-            return node_list['Parameters'][field]
-
 
 #############################################
 #############################################
-# This function is designed to be used from a .c code, which is
-# going to be reading the output of the stream. So it shouts
-# no errors. Probably shouldn't use this code in pythonesque code
+# return specific parameters from a specific node. 
+# if you're wanting the input/output info, use
+# get_node_io
 
-def get_node_parameters(fileName, node, field):
+def get_node_io(fileName, node):
+    io = {'redis_inputs':[], 'redis_outputs':[]}
+    
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
+            
+            # get the list of inputs and outputs for the matching node
+            for node_data in yamlData['Nodes']:
+                if node_data['Name'] == node:
+                    redis_inputs = node_data['redis_inputs']
+                    if type(redis_inputs) == str: # we need a list
+                        redis_inputs = list(redis_inputs)
+                    redis_outputs = node_data['redis_outputs']
+                    if type(redis_outputs) == str: # we need a list
+                        redis_outputs = list(redis_outputs)
+
+            # put all of the associated info from the streams into the 
+            # output dictionary
+            for in_stream in redis_inputs:
+                io['redis_inputs'][in_stream] = yamlData['RedisStreams'][in_stream]
+            for out_stream in redis_outputs:
+                io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
+                
 
     except IOError as e:
         if e.errno == errno.EPIPE:
             return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
 
-    for node_list in yamlData['Nodes']:
-        return node_list['Parameters']
+
+    return io
+
+#############################################
+#############################################
+# really just for python -- dump a dictionary with all of the
+# values for the node inside of the "Parameters" section
+
+def get_node_parameters_dump(fileName, node):
+    try:
+        with open(fileName, 'r') as f:
+            yamlData = yaml.safe_load(f)
+            for node_list in yamlData['Nodes']:
+                if node_list['Name'] == node:
+                    return node_list['Parameters']
+
+    except IOError as e:
+        if e.errno == errno.EPIPE:
+            return "THERE HAS BEEN AN EGREGIOUS EPIPE ERROR"
+
 
 
 #############################################
@@ -85,28 +120,38 @@ def initializeRedisFromYAML(fileName, processName):
     try:
         with open(fileName, 'r') as f:
             yamlData = yaml.safe_load(f)
+            redisIP = yamlData['RedisConnection']['Parameters']['redis_realtime_ip']
+            redisPort = yamlData['RedisConnection']['Parameters']['redis_realtime_port']
 
     except IOError:
         sys.exit( "[" + processName + "] could not read file:" + fileName)
-
-    # Start by specifically reading the IP and port based on YAML configuration
-
-    redisIP = ""
-    redisPort = ""
-    try:
-        redisIP = yamlData['RedisConnection']['Parameters']['redis_realtime_ip']
-        redisPort = yamlData['RedisConnection']['Parameters']['redis_realtime_port']
-    except:
-        sys.exit("[" + processName + "] could not set redis IP and port names")
+    
         
 
     print("[" + processName + "] Initializing Redis with IP : " + redisIP + ", port: " + str(redisPort))
 
-    # Having gotten to this point we can now initialize all of the variables
-
+    # Having gotten to this point we can now create our redis connection
     r = redis.Redis(host=redisIP, port=redisPort)
     return r
 
+
+
+
+
+
+#############################################
+#############################################
+def get_redis_info(yaml_path,field):
+    # return info about the redis session from the associated yaml
+    with open(fileName, 'r') as f:
+        yamlData = yaml.safe_load(f)
+        returnValue = yamlData['RedisConnection']['Parameters'][field]
+
+    return returnValue
+
+
+#############################################
+#############################################
 
 """ -- probably don't want to push all of the data into the redis instance repeatedly -- that will be for the graph as a whole
     print("[" + processName + "] Here are the other variables:")
@@ -138,24 +183,6 @@ def initializeRedisFromYAML(fileName, processName):
     
     return r
 """
-
-#############################################
-## load settings using with the graph setup
-#############################################
-#def loadNodeSettings(fileName, processName):
-
-    
-
-
-
-
-
-
-
-
-
-
-
 
 #############################################
 ## Publishing data from Redis
@@ -209,19 +236,24 @@ def main():
     parser.add_argument('--name', help='Return the value in the YAML file', type=str)
     parser.add_argument('--node', help='Which node to use', type=str)
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
+    parser.add_argument('--redis', help="Return the port and ip for the redis instance")
+    redisGroup = parser.add_mutually_exclusive_group()
+    redisGroup.add_argument('--ip', help='IP for the redis instance', type=str)
+    redisGroup.add_argument('--port', help='port for the redis instance', type=str)
 
     args = parser.parse_args()
 
-    if args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
+    if args.ip:
+        print(get_redis_info(args.file,'redis_realtime_ip'))
+    elif args.ip:
+        print(get_redis_info(args.file,'redis_realtime_port'))
+    elif args.node: ## if we got a node name, look inside of that specific node -- standard behavior now!
         if args.name: # if we have a particular value
             print(get_node_parameter_value(args.file, args.node, args.name), end="")
         else: # return all values
             print(get_node_parameters(args.file, args.node), end="") 
-    else if args.name: # if no node name is supplied... probably mostly for the redis connection
+    elif args.name: # if no node name is supplied... probably mostly for the redis connection
         print(get_parameter_value(args.file, args.name), end="")
-    else:
-        initializeRedisFromYAML(args.file)
-
 
 
 if __name__ == '__main__':

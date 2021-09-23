@@ -72,7 +72,7 @@ void initialize_signals();
 int  initialize_socket(char *yaml_path);
 //void initialize_parameters(yaml_parameters_t *p);
 void initialize_parameters(graph_parameters_t *p, char *yaml_path);
-void parameter_array_parser(int is_char, char *in_string, void **array_ind);
+void parameter_array_parser(int is_char, char *in_string, void *array_ind);
 void initialize_realtime(char *yaml_path);
 void handler_SIGINT(int exitStatus);
 void shutdown_process();
@@ -458,11 +458,11 @@ void initialize_parameters(graph_parameters_t *p, char *yaml_path) {
 
     
 
-    parameter_array_parser(1, stream_names_string, (void **) p->stream_names);
-    parameter_array_parser(0, samp_freq_string, (void **) p->samp_freq);
-    parameter_array_parser(0, packet_type_string, (void **) p->packet_type); 
-    parameter_array_parser(0, chan_per_stream_string, (void **) p->chan_per_stream); 
-    parameter_array_parser(0, samp_per_stream_string, (void **) p->samp_per_stream); 
+    parameter_array_parser(1, stream_names_string, (void *) p->stream_names);
+    parameter_array_parser(0, samp_freq_string, (void *) p->samp_freq);
+    parameter_array_parser(0, packet_type_string, (void *) p->packet_type); 
+    parameter_array_parser(0, chan_per_stream_string, (void *) p->chan_per_stream); 
+    parameter_array_parser(0, samp_per_stream_string, (void *) p->samp_per_stream); 
 
 
 }
@@ -471,7 +471,7 @@ void initialize_parameters(graph_parameters_t *p, char *yaml_path) {
 // traverse an input string with CSVs and stores it into the array at *array_ind
 // this takes advantage of strtok_r to keep everything threadsafe, which isn't
 // defined in c99 but is in most posix implementations
-void parameter_array_parser(int is_char, char *in_string, void **array_ind) {
+void parameter_array_parser(int is_char, char *in_string, void *array_ind) {
     // initialize an int array and a char array
     int intArr[MAXSTREAMS] = {0};
     char *charArr[MAXSTREAMS]; 
@@ -494,10 +494,10 @@ void parameter_array_parser(int is_char, char *in_string, void **array_ind) {
 
     // pass back either the character or integer array
     if(is_char){
-        *array_ind = charArr;
+        memcpy(array_ind, (const void *) charArr, sizeof(charArr));
     }
     else {
-        *array_ind = intArr;
+        memcpy(array_ind, (const void *) &intArr, sizeof(intArr));
     }
 
 

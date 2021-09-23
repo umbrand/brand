@@ -23,8 +23,15 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
     //sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
-    
-    sprintf(bashCommand, "python %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
+    if(strcmp(value,"redis_ip")){
+        sprintf(bashCommand, "python %s %s --ip", redisToolsPythonFile, configurationFile);
+    }
+    else if(strcmp(value,"redis_port")) {
+        sprintf(bashCommand, "python %s %s --port", redisToolsPythonFile, configurationFile);
+    }
+    else {
+        sprintf(bashCommand, "python %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
+    }
 
 
     fp = popen(bashCommand, "r");
@@ -34,7 +41,6 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
     }
 
     if((readLength = fread(buffer, 1, 256, fp)) < 0) {
-        printf("BLAHBLAH\n");
         perror("fread could not read variable from python script.\n");
         return -1;
     }
