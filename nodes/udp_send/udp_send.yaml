@@ -1,30 +1,23 @@
-parameters:
+Metadata:
+    Parameters:
+        participant_id: 0
+        session_description: ""
 
-###########################################
-# redis general info
-###########################################
-- name: redis_ip
-  value: 127.0.0.1
-  description: What is the IP of our Redis instance
-  static: true
+RedisConnection:
+    Parameters:
+        redis_realtime_ip: 127.0.0.1
+        redis_realtime_port: 6379
+        redis_realtime_socket: /var/run/redis.sock
+        redis_realtime_config: redis.realtime.conf
 
-- name: redis_port
-  value: 6379
-  description: What is the port of our Redis instance
-  static: true
-
-- name: log
-  value: INFO
-  description: Logging level for the process
-  static: true
-
-# UDP
-- name: udp_ip
-  value: 127.0.0.1
-  description: IP address to which UDP packets are sent
-  static: true
-
-- name: udp_port
-  value: 5005
-  description: port to which UDP packets are sent
-  static: true
+# node-specific parameters
+Nodes:
+    - Name: udp_send
+      Version: 0.0
+      Parameters:
+            # logging level for the process
+            log: INFO
+            # IP address to which UDP packets are sent
+            udp_ip: 127.0.0.1
+            # port to which UDP packets are sent
+            udp_port: 5005

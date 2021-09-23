@@ -11,23 +11,12 @@ import sys
 import time
 
 import numpy as np
-import yaml
-from redis import Redis
-
-
-def get_parameter_value(fileName, field):
-    with open(fileName, 'r') as f:
-        yamlData = yaml.safe_load(f)
-
-    for record in yamlData['parameters']:
-        if record['name'] == field:
-            return record['value']
-
+from brand import get_node_parameter_value, initializeRedisFromYAML
 
 YAML_FILE = 'udp_send.yaml'
 
 # setup up logging
-loglevel = get_parameter_value(YAML_FILE, 'log')
+loglevel = get_node_parameter_value(YAML_FILE, 'udp_send', 'log')
 numeric_level = getattr(logging, loglevel.upper(), None)
 
 if not isinstance(numeric_level, int):
@@ -40,20 +29,16 @@ logging.basicConfig(format='%(levelname)s:udp_send:%(message)s',
 class UDPSender():
     def __init__(self):
         # redis
-        redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
-        redis_port = get_parameter_value(YAML_FILE, 'redis_port')
-        logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
-        self.r = Redis(host=redis_ip, port=redis_port)
-        logging.info('Connecting to Redis...')
-
+        self.r = initializeRedisFromYAML(YAML_FILE)
         self.entry_id = '$'
 
         # signal handler
         signal.signal(signal.SIGINT, self.terminate)
 
         # udp
-        self.udp_ip = get_parameter_value(YAML_FILE, 'udp_ip')
-        self.udp_port = get_parameter_value(YAML_FILE, 'udp_port')
+        self.udp_ip = get_node_parameter_value(YAML_FILE, 'udp_send', 'udp_ip')
+        self.udp_port = get_node_parameter_value(YAML_FILE, 'udp_send',
+                                                 'udp_port')
         self.sock = socket.socket(
             socket.AF_INET,  # Internet
             socket.SOCK_DGRAM)  # UDP
