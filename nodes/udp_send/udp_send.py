@@ -13,7 +13,7 @@ import time
 import numpy as np
 from brand import get_node_parameter_value, initializeRedisFromYAML
 
-YAML_FILE = 'udp_send.yaml'
+YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'udp_send.yaml'
 
 # setup up logging
 loglevel = get_node_parameter_value(YAML_FILE, 'udp_send', 'log')
