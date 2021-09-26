@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# thresholdExtractor.py
+# thresholdExtraction.py
 # Kevin Bodkin
 # July 2020
 
@@ -16,14 +16,15 @@ from time import sleep
 import argparse
 
 # need to take more advantage of cython
-import cython
-cimport numpy as np
+'''import cython
+cimport numpy as np'''
 
 
 # bring in redisTools
-sys.path.insert(1,'lib/redisTools/')
-from redisTools import initializeRedisFromYAML, get_node_parameter_value, get_node_parameter, get_node_io
-graphYAML = 'graphs/sharedDev/reorgDev/0.0/reorgDev_0.0.yaml'
+from brand import *
+'''sys.path.insert(1,'lib/redisTools/')
+from redisTools import initializeRedisFromYAML, get_node_parameter_value, get_node_parameter, get_node_io'''
+#graphYAML = 'graphs/sharedDev/reorgDev/0.0/reorgDev_0.0.yaml'
 
 
 ###############################################################
@@ -127,27 +128,29 @@ def pack_string_parser(ioDict):
 ###############################################################
 ## Set up argparser so we can cleanly pull from the command line
 ###############################################################
-argDesc = """
-        Python script to find threshold crossings in raw cortical data. It
-        filters and finds timepoints when the input signal goes below the 
-        calculated value."""
-
-parser = argparse.ArgumentParser(description=argDesc)
-# only argument we have right now is the yaml path location, which defaults to the sharedDev location
-# we should consider having default yamls or something for testing.
-parser.add_argument("-y","--yaml_path", help="path to yaml input", type=str, default="graphs/sharedDevelopment/reorgDevelopment/0.0/reorgDev_0.0.yaml")
-args = parser.parse_args()
-graphYaml = args.yaml_path
+if __name__ == '__main__':
+    argDesc = """
+            Python script to find threshold crossings in raw cortical data. It
+            filters and finds timepoints when the input signal goes below the 
+            calculated value."""
+    
+    parser = argparse.ArgumentParser(description=argDesc)
+    # only argument we have right now is the yaml path location, which defaults to the sharedDev location
+    # we should consider having default yamls or something for testing.
+    parser.add_argument("-y","--yaml_path", help="path to yaml input", type=str, 
+                        default="graphs/sharedDevelopment/reorgDevelopment/0.0/reorgDev_0.0.yaml")
+    args = parser.parse_args()
+    graphYAML = args.yaml_path
 
 
 ###############################################################
 ## Set up data buffers etc
 ###############################################################
 # get the list of which channel we're working with 
-signalIO = get_node_io(graphYaml, 'thresholdExtractor') 
+signalIO = get_node_io(graphYAML, 'thresholdExtraction') 
 if len(signalIO['redis_inputs']) > 1:
-    sys.exit("We don't support more than one stream input at the moment. 
-                If you want more, program it!")
+    sys.exit("We don't support more than one stream input at the moment. If you want more, program it!")
+                
 
 inStreamName = list(signalIO['redis_inputs'].keys())[0] # get the name of the input stream
 inNode = signalIO['redis_inputs'][inStreamName] # dictionary with the input stream info
@@ -166,21 +169,14 @@ filtDict = {b'timestamps':b'',b'samples':b''}
 ###############################################################
 
 # filter information
-nodeParameters = get_node_parameters_dump(graphYaml, 'thresholdExtractor')
+nodeParameters = get_node_parameter_dump(graphYAML, 'thresholdExtraction')
 butOrder = nodeParameters['butter_order'] # order of the butterworth filter
 butLow = nodeParameters['butter_lowercut'] # lower cutoff frequency
 butHigh = nodeParameters['butter_uppercut'] # upper cutoff frequency
 demean = nodeParameters['enable_CAR'] # enable common average rejection
 causal = nodeParameters['causal_enable'] # likely only going to be doing causal filtering at the moment
+fs = inNode['samp_freq'] # this will need to be in the nodes portion then
 
-# fs is a little tricker now, but we'll figure out how to clean it up in the future
-tempStreamName = get_node_parameter_value(graphYaml, 'cerebusAdapter', stream_names)
-tempStreamFreqs = get_node_parameter_value(graphYaml, 'cerebusAdapter', samp_freq)
-ii = 0
-for stream in tempStreamName: # bring in the sampling frequency from the cerebusAdapter. Hard coded for now, not great.
-    if stream == inStreamName:
-        fs = tempStreamFreqs[ii]
-    ii += 1
 
 # set up filter
 nyq = .5 * fs
@@ -194,19 +190,19 @@ for ii in range(0,numChannels): # deal out the filter initialization
 # set up which filtering function to use, so that we don't have to do this logic during our main loops 
 if causal and (not demean):
     filter_data = causal_noDemean_data
-    print('[thresholdExtractor] Loading %d order, [%f %f] hz bandpass causal filter' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter' % (butOrder, butLow, butHigh))
 
 elif causal and demean:
     filter_data = causal_demean_data
-    print('[thresholdExtractor] Loading %d order, [%f %f] hz bandpass causal filter with CAR' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter with CAR' % (butOrder, butLow, butHigh))
 
 elif (not causal) and (not demean):
     filter_data = causal_noDemean_data
-    print('[thresholdExtractor] Loading %d order, [%f %f] hz bandpass causal filter. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
 
 elif (not causal) and demean:
     filter_data = causal_demean_data
-    print('[thresholdExtractor] Loading %d order, [%f %f] hz bandpass causal filter with CAR. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter with CAR. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
 
 
 
@@ -215,7 +211,7 @@ elif (not causal) and demean:
 numPacks = nodeParameters['pack_per_call']
 dataBuffer = np.zeros((numChannels,packetLength * numPacks),dtype=np.float32) # we'll be storing the filter state, so don't need a circular buffer
 filtBuffer = np.zeros((dataBuffer.shape),dtype=np.float32)
-sampTimes = np.zeros((packetLength*cerPack,),dtype='uint32') # noneed to run a float, we're not going to be modifiying these at all.
+sampTimes = np.zeros((packetLength*numPacks,),dtype='uint32') # noneed to run a float, we're not going to be modifiying these at all.
 print(sampTimes.dtype)
 
 # initial data read -- this is to allow us to test using old redis dump files
@@ -229,14 +225,14 @@ prevKey = '$'
 
 # -----------------------------------------------------------
 # connect to Redis -- using redisTools
-r = initializeRedisFromYAML(graphYAML,'thresholdExtractor')
-print('[thresholdExtractor] entering main loop')
+r = initializeRedisFromYAML(graphYAML,'thresholdExtraction')
+print('[thresholdExtraction] entering main loop')
 
 
 # thresholding settings
 threshMult = nodeParameters['thresh_mult'] # threshold multiplier, usually around -5 
-readCalls = nodeParameters['thresh_cal_len'] # make sure we have enough data to work with
-thresholds = calc_thresh(r, inStream, threshMult, readCalls, packetLength, numChannels, sos, zi) # get the array
+readCalls = nodeParameters['thresh_calc_len'] # make sure we have enough data to work with
+thresholds = calc_thresh(r, inStreamName, threshMult, readCalls, packetLength, numChannels, sos, zi) # get the array
 r.xadd('thresholdValues',{b'thresholds':thresholds.astype('short').tostring()}) # push it into a new redis stream. 
 # interesting note for putting data back into redis: we don't have to use pack, since it's already stored as a byte object in numpy. 
 # wonder if we can take advantage of that for the unpacking process too
@@ -246,7 +242,7 @@ while True:
     # wait to get data from cerebus stream, then parse it
     #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
     cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-    xread_receive = r.xread({inStream:prevKey}, block=1, count=numPacks)[0][1]
+    xread_receive = r.xread({inStreamName:prevKey}, block=1, count=numPacks)[0][1]
     prevKey = xread_receive[-1][0] # entry number of last item in list
     for xread_tuple in xread_receive: # run each tuple individually
        indStart,indEnd = cerPackInc*packetLength,(cerPackInc+1)*packetLength
@@ -260,7 +256,7 @@ while True:
     filtDict[b'samples'] = filtBuffer.astype('short').tostring()
     # is there a threshold crossing in the last ms
     # find for each channel along the first dimension, keep dims, pack into a byte object and put into the thresh crossings dict
-    crossDict[b'timestamps'] = sampTimes[:,0].tostring()
+    crossDict[b'timestamps'] = sampTimes[0].tostring()
     crossings = np.append(np.zeros((numChannels,1)),((filtBuffer[:,1:] < thresholds) & (filtBuffer[:,:-1] >= thresholds)),axis=1)
     crossDict[b'crossings'] = np.any(crossings, axis=1).astype('short').tostring()
    
@@ -272,7 +268,7 @@ while True:
     '''tDelta = [dt.now(), tDelta[0]]
     tDeltaLog[loopInc] = (tDelta[0]-tDelta[1])
     if tElapse > 1000:
-        print('[thresholdExtractor] tDelta: ', tElapse, ' us')
+        print('[thresholdExtraction] tDelta: ', tElapse, ' us')
     
     loopInc += 1'''
  
