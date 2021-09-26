@@ -1,15 +1,13 @@
 Metadata:
-    Parameters:
-        participant_id:             42
-        session_description:        "Don't Panic"
+    participant_id:             42
+    session_description:        "Don't Panic"
         
 # ---------------------------------------------------
 
 RedisConnection:
-    Parameters:
-        redis_realtime_ip: 127.0.0.1
-        redis_realtime_port: 6379
-        redis_realtime_config: redis.realtime.conf
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_config: redis.realtime.conf
 
 # ---------------------------------------------------
 
@@ -61,7 +59,7 @@ Nodes:
 
     - Name:         exportNWB
       Version:      0.0
-      redis_inputs:
-      redis_outputs:                [template_stream_A] # for general info look in the RedisStreams section
+      redis_inputs:                     [template_stream_A] # for general info look in the RedisStreams section
+      redis_outputs:                
       Parameters:
             nwb_file_name:              nwbFile_test
