@@ -13,18 +13,18 @@ LINKS= -L$(HIREDIS_PATH)
 LDPATH = -Wl,-rpath=$(HIREDIS_PATH)
 LDFLAGS = -lhiredis
 
-CINCLUDE = -I$(ROOT)/lib/redisTools/ \
+CINCLUDE = -I$(ROOT)/lib/c_code/brands/ \
 		   -I$(HIREDIS_PATH)
 
 
-CFILES = $(ROOT)/lib/redisTools/redisTools.c
+CFILES = $(ROOT)/lib/c_code/brands/tools_CParser.c
 
 TARGET=$(BIN_PATH)/$(PROJECT)
 
 all: cerebusAdapter
 
 cerebusAdapter: cerebusAdapter.c
-	$(CC) $(CFLAGS) $(CINCLUDE) $(LINKS) cerebusAdapter.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(CFLAGS+) $(CINCLUDE) $(LINKS) cerebusAdapter.c $(CFILES) $(LDPATH) -o $(TARGET) $(LDFLAGS)
 
 clean:
 	$(RM) $(TARGET)

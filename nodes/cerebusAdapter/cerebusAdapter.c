@@ -37,7 +37,7 @@
 #include <pthread.h> 
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "redisTools.h"
+#include "tools_CParser.h"
 #include "hiredis.h"
 
 #define MAXSTREAMS 10 // maximum number of streams allowed -- to set up all of the arrays as necessary
@@ -160,48 +160,50 @@ int main (int argc_main, char **argv_main) {
     int len = 16;
     char **argvPtr[numStreams];
     for (int ii = 0; ii < numStreams; ii++) {
-        char *argv[argc];
+        //char *argv[argc];
+        argvPtr[ii] = malloc(argc * sizeof(size_t));
         int samp_per_stream = graph_parameters.samp_per_stream[ii];
         int chan_per_stream = graph_parameters.chan_per_stream[ii];
 
 
         // space for xadd streamName *
         for (int jj = 0; jj < ind_cerebus_timestamps; jj++) {
-            argv[jj] = malloc(len);
+            argvPtr[ii][jj] = malloc(len);
         }
         
         // allocating memory for timestamps [data]
-        argv[ind_cerebus_timestamps]             = malloc(len);
-        argv[ind_cerebus_timestamps + 1]         = malloc(sizeof(int32_t) * samp_per_stream);
+        argvPtr[ii][ind_cerebus_timestamps]             = malloc(len);
+        argvPtr[ii][ind_cerebus_timestamps + 1]         = malloc(sizeof(int32_t) * samp_per_stream);
         
         // allocating memory for current_time [data]
-        argv[ind_current_time]                   = malloc(len);
-        argv[ind_current_time + 1]               = malloc(sizeof(struct timeval) * samp_per_stream);
+        argvPtr[ii][ind_current_time]                   = malloc(len);
+        argvPtr[ii][ind_current_time + 1]               = malloc(sizeof(struct timeval) * samp_per_stream);
 
         // allocating memory for udp_received_time [data]
-        argv[ind_udp_received_time]              = malloc(len);
-        argv[ind_udp_received_time + 1]          = malloc(sizeof(struct timeval) * samp_per_stream);
+        argvPtr[ii][ind_udp_received_time]              = malloc(len);
+        argvPtr[ii][ind_udp_received_time + 1]          = malloc(sizeof(struct timeval) * samp_per_stream);
    
         // allocating memory for samples:  [data0 ... dataX]
-        argv[ind_samples]                        = malloc(len);
-        argv[ind_samples + 1]                    = malloc(sizeof(int16_t) * samp_per_stream * chan_per_stream);
+        argvPtr[ii][ind_samples]                        = malloc(len);
+        argvPtr[ii][ind_samples + 1]                    = malloc(sizeof(int16_t) * samp_per_stream * chan_per_stream);
  
         // At this point we start populating neural_argv strings
         // Start by adding xadd cerebusAdapter *
         // And then add the keys for num_samples, timestamps, channel list, and sample array
 
-        argvlen[ii][0] = sprintf(argv[0], "%s", "xadd");
-        argvlen[ii][1] = sprintf(argv[1], "%s", graph_parameters.stream_names[ii]);
-        argvlen[ii][2] = sprintf(argv[2], "%s", "*");
+        argvlen[ii][0] = sprintf(argvPtr[ii][0], "%s", "xadd");
+        argvlen[ii][1] = sprintf(argvPtr[ii][1], "%s", graph_parameters.stream_names[ii]);
+        argvlen[ii][2] = sprintf(argvPtr[ii][2], "%s", "*");
         
-        argvlen[ii][ind_cerebus_timestamps]      = sprintf(argv[ind_cerebus_timestamps]  , "%s", "timestamps");
-        argvlen[ii][ind_current_time]            = sprintf(argv[ind_current_time]  , "%s", "cerebusAdapter_time");
-        argvlen[ii][ind_udp_received_time]       = sprintf(argv[ind_udp_received_time]  , "%s", "udp_received_time");
-        argvlen[ii][ind_samples]                 = sprintf(argv[ind_samples], "%s", "samples");
+        argvlen[ii][ind_cerebus_timestamps]      = sprintf(argvPtr[ii][ind_cerebus_timestamps]  , "%s", "timestamps");
+        argvlen[ii][ind_current_time]            = sprintf(argvPtr[ii][ind_current_time]  , "%s", "BRANDS_time");
+        argvlen[ii][ind_udp_received_time]       = sprintf(argvPtr[ii][ind_udp_received_time]  , "%s", "udp_recv_time");
+        argvlen[ii][ind_samples]                 = sprintf(argvPtr[ii][ind_samples], "%s", "samples");
         
 
-
-        argvPtr[ii] = argv;
+        //argvPtr[ii] = malloc(sizeof(argv));
+        //memcpy(argvPtr[ii], argv, sizeof(argv));
+        //free(argv);
     }
 
 
@@ -210,7 +212,8 @@ int main (int argc_main, char **argv_main) {
     
     // How many samples have we copied 
     int n[numStreams];  
-    memset(n, 0, sizeof(numStreams));
+    for(int ii = 0; ii < numStreams; ii++)
+        n[ii] = 0;
 
     // We use rcvmsg because we want to know when the kernel received the UDP packet
     // and because we want the socket read to timeout, allowing us to gracefully
@@ -277,44 +280,46 @@ int main (int argc_main, char **argv_main) {
             cerebus_packet_header_t *cerebus_packet_header = (cerebus_packet_header_t*) &udp_packet_payload[cb_packet_ind];
 
             // for each stream, check if there's the relevant packet type being pulled in 
-            for (int ii = 0; ii < numStreams; ii++){
-                if (cerebus_packet_header->type == graph_parameters.packet_type[ii]) {
+            for (int iStream = 0; iStream < numStreams; iStream++){
+                if (cerebus_packet_header->type == graph_parameters.packet_type[iStream]) {
                     
                     // This gets the current system time
                     gettimeofday(&current_time,NULL);
     
                     // Copy the timestamp information into argvPtr
-                    memcpy( &argvPtr[ii][ind_cerebus_timestamps + 1][n[ii] * sizeof(uint32_t)],      &cerebus_packet_header->time,  sizeof(uint32_t));
-                    memcpy( &argvPtr[ii][ind_current_time + 1][n[ii] * sizeof(struct timeval)],      &current_time,                 sizeof(struct timeval));
-                    memcpy( &argvPtr[ii][ind_udp_received_time + 1][n[ii] * sizeof(struct timeval)], &udp_received_time,            sizeof(struct timeval));
+                    memcpy( &argvPtr[iStream][ind_cerebus_timestamps + 1][n[iStream] * sizeof(uint32_t)],      &cerebus_packet_header->time,  sizeof(uint32_t));
+                    memcpy( &argvPtr[iStream][ind_current_time + 1][n[iStream] * sizeof(struct timeval)],      &current_time,                 sizeof(struct timeval));
+                    memcpy( &argvPtr[iStream][ind_udp_received_time + 1][n[iStream] * sizeof(struct timeval)], &udp_received_time,            sizeof(struct timeval));
     
                     // The index where the data starts in the UDP payload
                     int cb_data_ind  = cb_packet_ind + sizeof(cerebus_packet_header_t);
     
                     // Copy each payload entry directly to the argvPtr. dlen contains the number of 4 bytes of payload
-                    for(int jj = 0; jj < cerebus_packet_header->dlen * 2; jj++) {
-                        memcpy(&argvPtr[ii][ind_samples + 1][(n[ii] + jj*graph_parameters.chan_per_stream[ii]) * sizeof(int16_t)], &udp_packet_payload[cb_data_ind + 2*jj], sizeof(int16_t));
+                    for(int iChan = 0; iChan < cerebus_packet_header->dlen * 2; iChan++) {
+                        memcpy(&(argvPtr[iStream][ind_samples + 1][(n[iStream] + iChan*graph_parameters.samp_per_stream[iStream]) * sizeof(int16_t)]), &udp_packet_payload[cb_data_ind + 2*iChan], sizeof(int16_t));
                     }
-                    n[ii]++;
+                    n[iStream]++;
                 }
-                if (n[ii] == graph_parameters.samp_per_stream[ii]) {
+                if (n[iStream] == graph_parameters.samp_per_stream[iStream]) {
 
-                    argvlen[ii][ind_samples + 1] = sizeof(int16_t) * n[ii] * graph_parameters.chan_per_stream[ii];
+                    argvlen[iStream][ind_samples + 1] = sizeof(int16_t) * n[iStream] * graph_parameters.chan_per_stream[iStream];
 
-                    argvlen[ii][ind_cerebus_timestamps + 1]      = sizeof(int32_t) * n[ii];
-                    argvlen[ii][ind_current_time + 1]            = sizeof(struct timeval) * n[ii];
-                    argvlen[ii][ind_udp_received_time + 1]       = sizeof(struct timeval) * n[ii];
+                    argvlen[iStream][ind_cerebus_timestamps + 1]      = sizeof(int32_t) * n[iStream];
+                    argvlen[iStream][ind_current_time + 1]            = sizeof(struct timeval) * n[iStream];
+                    argvlen[iStream][ind_udp_received_time + 1]       = sizeof(struct timeval) * n[iStream];
                 
-                    /* printf("n = %d\n", n); */
+                    //printf("n = %d\n", n[iStream]);
+                    //for(int jj = 0; jj< n[iStream]; jj++)
+                        //printf("argvPtr[%d][%d] == %s\n",iStream, jj, argvPtr[iStream][jj]);
                     /* print_neural_argv(argc, argv, argvlen); */
                     /* return 0; */
 
                     // Everything we've done is just to get to this one line. Whew!
-                    freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argvPtr[ii], argvlen[ii]));
+                    freeReplyObject(redisCommandArgv(redis_context,  argc, (const char**) argvPtr[iStream], argvlen[iStream]));
 
                 
                     // Since we've pushed our data to Redis, restart the data collection
-                    n[ii] = 0;
+                    n[iStream] = 0;
                 }
             }
 
@@ -473,23 +478,26 @@ void initialize_parameters(graph_parameters_t *p, char *yaml_path) {
 // defined in c99 but is in most posix implementations
 void parameter_array_parser(int is_char, char *in_string, void *array_ind) {
     // initialize an int array and a char array
-    int intArr[MAXSTREAMS] = {0};
-    char *charArr[MAXSTREAMS]; 
-
+    int intArr[MAXSTREAMS] = {0}; // set the array to zeros
+    char *charArr[MAXSTREAMS] = {0}; // can we set an array of pointers to NULL? I think so...
+    
     char *token, *saveptr, *tempstr;// output and pointer to next location
-    const char *delim = ", "; // not going to allow any spaces in, are we? 
+    const char *delim = "[', ]"; // not going to allow any spaces in, are we? 
     int ii;
 
     // repeatedly run through the string while we're not getting a NULL
     // or passing beyond the length of the arrays.
     for (ii=0, tempstr = in_string; ii<MAXSTREAMS; ii++, tempstr = NULL) {
         token = strtok_r(tempstr, delim, &saveptr);
-        if(token == NULL)
-            break;
-        if(is_char)
-            charArr[ii] = token; // store the token if it's a string
-        else
+        if(token == NULL){
+            break;}
+        if(is_char){
+            charArr[ii] = malloc(strlen(token));
+            strcpy(charArr[ii], token);
+            }
+        else{
             intArr[ii] = atoi(token); // store if it's an int
+            }
     } 
 
     // pass back either the character or integer array
