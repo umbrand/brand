@@ -31,7 +31,7 @@ box_advance = 1000
 samples = []
 timestamps = []
 
-rows = r.xrange('cerebusAdapter_neural', count=10000)
+rows = r.xrange('continuousNeural', count=10000)
 for row in rows:
     t = struct.unpack('h'*int(row[1][b'num_samples']), row[1][key])
     samples = np.append(samples, np.array(t, dtype='int'))
