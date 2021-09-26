@@ -9,23 +9,12 @@ import sys
 import time
 
 import numpy as np
-import yaml
-from redis import Redis
+from brand import get_node_parameter_value, initializeRedisFromYAML
 
-YAML_FILE = 'func_generator.yaml'
-
-
-def get_parameter_value(fileName, field):
-    with open(fileName, 'r') as f:
-        yamlData = yaml.safe_load(f)
-
-    for record in yamlData['parameters']:
-        if record['name'] == field:
-            return record['value']
-
+YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'func_generator.yaml'
 
 # setup up logging
-loglevel = get_parameter_value(YAML_FILE, 'log')
+loglevel = get_node_parameter_value(YAML_FILE, 'func_generator', 'log')
 numeric_level = getattr(logging, loglevel.upper(), None)
 
 if not isinstance(numeric_level, int):
@@ -37,8 +26,11 @@ logging.basicConfig(format='%(levelname)s:func_generator:%(message)s',
 
 class Generator():
     def __init__(self):
-        self.sample_rate = get_parameter_value(YAML_FILE, 'sample_rate')
-        self.use_timer = get_parameter_value(YAML_FILE, 'use_timer')
+        self.sample_rate = get_node_parameter_value(YAML_FILE,
+                                                    'func_generator',
+                                                    'sample_rate')
+        self.use_timer = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                                  'use_timer')
 
         # signal handlers
         signal.signal(signal.SIGINT, self.terminate)
@@ -48,20 +40,18 @@ class Generator():
         else:
             signal.signal(signal.SIGUSR1, signal.SIG_IGN)
 
-        self.t = 0
+        self.r = initializeRedisFromYAML(YAML_FILE)
 
-        redis_ip = get_parameter_value(YAML_FILE, 'redis_ip')
-        redis_port = get_parameter_value(YAML_FILE, 'redis_port')
-        logging.info(f'Redis IP {redis_ip};  Redis port: {redis_port}')
-        self.r = Redis(host=redis_ip, port=redis_port)
-        logging.info('Connecting to Redis...')
-
-        self.n_features = get_parameter_value(YAML_FILE, 'n_features')
-        self.n_targets = get_parameter_value(YAML_FILE, 'n_targets')
+        self.t = 0  # initialize time variable
+        # set the number of features and targets
+        self.n_features = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                                   'n_features')
+        self.n_targets = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                                  'n_targets')
 
         self.build()
 
-    def send_sample(self, *args, **kwargs):
+    def send_sample(self):
         x = np.sin(self.t_arr + (self.t * 0.05 * 2 * np.pi),
                    dtype=np.float64).dot(self.A.T)
         self.r.xadd('func_generator', {

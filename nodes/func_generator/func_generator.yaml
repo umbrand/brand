@@ -1,45 +1,28 @@
-parameters:
+Metadata:
+    Parameters:
+        participant_id: 0
+        session_description: ""
 
-###########################################
-# redis general info
-###########################################
-- name: redis_ip
-  value: 127.0.0.1
-  description: What is the IP of our Redis instance
-  static: true
+RedisConnection:
+    Parameters:
+        redis_realtime_ip: 127.0.0.1
+        redis_realtime_port: 6379
+        redis_realtime_socket: /var/run/redis.sock
+        redis_realtime_config: redis.realtime.conf
 
-- name: redis_port
-  value: 6379
-  description: What is the port of our Redis instance
-  static: true
-
-- name: redis_socket
-  value: /var/run/redis.sock
-  description: What is the unix socket path of our Redis instance
-  static: true
-
-- name: log
-  value: INFO
-  description: Logging level for the process
-  static: true
-
-- name: use_timer
-  value: false
-  description: Whether to wait for timer interrupts when sending samples
-  static: true
-
-- name: sample_rate
-  value: 100
-  description: Sample rate to use when use_timer=false
-  static: true
-
-- name: n_targets
-  value: 2
-  description: Number of targets the decoder should predict
-    (e.g. n_targets=2 for decoding x and y channels)
-  static: true
-
-- name: n_features
-  value: 10
-  description: Number of features to use for decoding
-  static: true
+# node-specific parameters
+Nodes:
+    - Name: func_generator
+      Version: 0.0
+      Parameters:
+            # logging level for the process
+            log: INFO
+            # Whether to wait for timer interrupts when sending samples
+            use_timer: false
+            # Sample rate to use when use_timer=false
+            sample_rate: 100
+            # Number of targets the decoder should predict
+            # e.g. n_targets=2 for decoding x and y channels
+            n_targets: 2
+            # Number of features to use for decoding
+            n_features: 10

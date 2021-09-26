@@ -10,10 +10,10 @@ RedisConnection:
         redis_realtime_socket: /var/run/redis.sock
         redis_realtime_config: redis.realtime.conf
 
+# node-specific parameters
 Nodes:
     - Name: func_generator
       Version: 0.0
-      redis_outputs:
       Parameters:
             # logging level for the process
             log: INFO
@@ -28,8 +28,6 @@ Nodes:
             n_features: 10
     - Name: decoder 
       Version: 0.0 
-      redis_inputs:
-      redis_outputs:
       Parameters:
             # logging level for the process
             log: INFO
@@ -42,8 +40,6 @@ Nodes:
             decoder_type: rnn
     - Name: udp_send
       Version: 0.0
-      redis_input:
-      redis_output:
       Parameters:
             # logging level for the process
             log: INFO

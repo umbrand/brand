@@ -4,6 +4,8 @@ start_modules=()
 main_modules=(decoder udp_send)
 end_modules=()
 
+config="decoderTest.yaml"
+
 ##############################################
 # Check to see if there is already an .rdb file
 ##############################################
@@ -77,7 +79,7 @@ echo "--------------------------------"
 
 for proc in ${main_modules[*]}
 do
-    ./$proc &
+    ./$proc $config &
     sleep 1s
 done
 
@@ -85,7 +87,7 @@ echo "--------------------------------"
 echo "Running function generator"
 echo "--------------------------------"
 
-./func_generator
+./func_generator $config
 
 echo "--------------------------------"
 echo "Waiting"

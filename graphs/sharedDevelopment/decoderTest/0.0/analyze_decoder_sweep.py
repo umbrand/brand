@@ -4,8 +4,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
-from redis import Redis
+from brand import get_node_parameter_value, initializeRedisFromYAML
 
 try:
     plt.close(plt.figure())
@@ -14,31 +13,20 @@ except Exception:
 
 # %%
 # Get run info
-YAML_FILE = 'func_generator.yaml'
+YAML_FILE = 'decoderTest.yaml'
 
-
-def get_parameter_value(fileName, field):
-    with open(fileName, 'r') as f:
-        yamlData = yaml.safe_load(f)
-
-    for record in yamlData['parameters']:
-        if record['name'] == field:
-            return record['value']
-
-
-sample_rate = get_parameter_value('func_generator.yaml', 'sample_rate')
-n_features = get_parameter_value('func_generator.yaml', 'n_features')
-n_targets = get_parameter_value('func_generator.yaml', 'n_targets')
-decoder_type = get_parameter_value('decoder.yaml', 'decoder_type')
+sample_rate = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                       'sample_rate')
+n_features = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                      'n_features')
+n_targets = get_node_parameter_value(YAML_FILE, 'func_generator', 'n_targets')
+decoder_type = get_node_parameter_value(YAML_FILE, 'decoder', 'decoder_type')
 
 # %%
 # Load entries from udp_send
-redis_ip = "127.0.0.1"
-redis_port = 6379
-
 entry_id = b'0-0'
 entries = []
-r = Redis(host=redis_ip, port=redis_port)
+r = initializeRedisFromYAML(YAML_FILE)
 replies = r.xrange(b'udp_send')
 r.close()
 
