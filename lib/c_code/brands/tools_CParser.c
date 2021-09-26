@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <redisTools.h>
+#include "tools_CParser.h"
 
-/* This function just allows someone to call the redisTools.py function from within C
- * It populates two strings : path to redisTools and the path to the yaml file
+/* This function just allows someone to call the brandsTools.py function from within C
+ * It populates two strings : path to brandsTools and the path to the yaml file
  * It then runs the command. It's designed to read a single YAML value and return
  * the string YAML value.
  */
@@ -13,26 +13,26 @@
 int load_YAML_variable_string(char *process, char *yaml_path, char *value, char *buffer, int n) {
 
     char bashCommand[1024]         = {0};
-    char redisToolsPythonFile[256] = {0};
+    char brandsToolsPythonFile[256] = {0};
     char configurationFile[256]    = {0};
     int readLength                 = 0; // How much was read from fread()
     FILE *fp;
 
-    sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
+    sprintf(brandsToolsPythonFile, "%s/lib/c_code/brands/tools_CParser.py", ROOT_PATH);
     strcpy(configurationFile, (const char *) yaml_path);
     //sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
     if(strcmp(value,"redis_ip") == 0){
-        sprintf(bashCommand, "python %s %s --ip", redisToolsPythonFile, configurationFile);
+        sprintf(bashCommand, "python %s %s --ip", brandsToolsPythonFile, configurationFile);
         printf("IP -- BashCommand: %s\n", bashCommand);
     }
     else if(strcmp(value,"redis_port") == 0) {
-        sprintf(bashCommand, "python %s %s --port", redisToolsPythonFile, configurationFile);
+        sprintf(bashCommand, "python %s %s --port", brandsToolsPythonFile, configurationFile);
         printf("port -- BashCommand: %s\n", bashCommand);
     }
     else {
-        sprintf(bashCommand, "python %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
+        sprintf(bashCommand, "python %s %s --name %s --node %s", brandsToolsPythonFile, configurationFile, value, process);
     }
 
 
@@ -51,24 +51,24 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
     return readLength;
 }
 
-/* This function just allows someone to call the redisTools.py function from within C
- * It populates two strings : path to redisTools and the path to the yaml file
+/* This function just allows someone to call the brandsTools.py function from within C
+ * It populates two strings : path to brandsTools and the path to the yaml file
  * It then runs the command
  */
 
 int initialize_redis_from_YAML(char *process) {
 
     char bashCommand[1024]         = {0};
-    char redisToolsPythonFile[256] = {0};
+    char brandsToolsPythonFile[256] = {0};
     char configurationFile[256]    = {0};
     FILE *fp;
 
-    sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
+    sprintf(brandsToolsPythonFile, "%s/lib/brandsTools/brandsTools.py", ROOT_PATH);
     sprintf(configurationFile, "%s.yaml", process);
 
     // Start by populating the command to run, and then run the command
     
-    sprintf(bashCommand, "python %s %s", redisToolsPythonFile, configurationFile);
+    sprintf(bashCommand, "python %s %s", brandsToolsPythonFile, configurationFile);
 
     fp = popen(bashCommand, "r");
     if (fp == NULL) {
