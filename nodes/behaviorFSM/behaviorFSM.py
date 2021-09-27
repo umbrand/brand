@@ -24,14 +24,9 @@ from datetime import datetime as dt
 from time import sleep
 from struct import pack, unpack
 
-# check to see if we're trying to run this from the base directory or from inside of 'run'
-# for debugging purposes when I'm jumping between files a lot
-if os.getcwd().split('/')[-1] == 'realtime_rig_dev':
-    sys.path.insert(1,'lib/redisTools/')
-else: # assumes we're only one directory below the base
-    sys.path.insert(1,'../lib/redisTools/')
-from redisTools import get_parameter_value
+from brand import *
 behavior_yaml = 'behaviorFSM.yaml'
+graphYaml = '';
 
 
 '''##########################################################
@@ -88,7 +83,7 @@ class target():
         targetDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'width': pack('i',self.width), b'height': pack('i',self.height), b'state':pack('I',self.state)}
         return targetDict
 
-
+# --------------------------------------------------------------------
 # define the cursor
 class cursor:
     # probably just going to be the one instance
@@ -133,7 +128,7 @@ class cursor:
     def printCurs(self):
         print("X: "+ str(curs.x) + ", Y: " + str(curs.y))
 
-
+# --------------------------------------------------------------------
 # define the touchpad
 class touchpad():
     def __init__(self, minTouch, maxTouch, threshold):
@@ -168,7 +163,7 @@ class touchpad():
             self.touchStart = 0
             return False
 
-
+# --------------------------------------------------------------------
 # storing timing info for between tasks, hold times etc
 class delayGenerator():
     def __init__(self,inDict):
@@ -179,9 +174,17 @@ class delayGenerator():
     def reroll(self):
         self.current = (np.random.random() * (self.max-self.min)) + self.min
 
-
+# --------------------------------------------------------------------
 def restart_task(targets):
     return targets[np.random.choice(list(targets.keys()))]
+
+
+
+# --------------------------------------------------------------------
+def main():
+
+
+
 
 """ ##########################################################################
 ### Import settings from the .yaml, setup constants/global variables
