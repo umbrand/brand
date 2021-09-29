@@ -10,15 +10,8 @@ RedisConnection:
 
 # node-specific parameters
 Nodes:
-    - Name: decoder 
+    - Name: decoder_trainer
       Version: 0.0 
       Parameters:
             # logging level for the process
             log: INFO
-            # Number of targets the decoder should predict
-            # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
-            # Number of features to use for decoding
-            n_features: 10
-            # Type of decoder to use
-            decoder_type: rnn
