@@ -107,12 +107,12 @@ def initializeRedisFromYAML(yaml_path, processName=None):
     if ('redis_realtime_socket' in redis_params
             and redis_params['redis_realtime_socket'] is not None):
         redis_socket = redis_params['redis_realtime_socket']
-        print(f'Redis Socket Path {redis_socket}')
+        print(f'{pname}Redis Socket Path {redis_socket}')
         r = redis.Redis(unix_socket_path=redis_socket)
     else:
         redis_ip = redis_params['redis_realtime_ip']
         redis_port = redis_params['redis_realtime_port']
-        print(f'Redis IP: {redis_ip}, Redis port: {redis_port}')
+        print(f'{pname}Redis IP: {redis_ip}, Redis port: {redis_port}')
         r = redis.Redis(host=redis_ip, port=redis_port)
 
     print(f"{pname}Initialized Redis")
