@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 from brand import get_node_parameter_value, initializeRedisFromYAML
 from sklearn.linear_model import Ridge
-import os
 
 
 class timeval(Structure):

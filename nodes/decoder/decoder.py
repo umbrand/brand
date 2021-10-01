@@ -70,7 +70,7 @@ class Decoder():
 
         # initialize IDs for the two Redis streams
         self.data_id = '$'
-        self.param_id = '0'
+        self.param_id = '$'
 
         # terminate on SIGINT
         signal.signal(signal.SIGINT, self.terminate)

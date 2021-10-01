@@ -67,12 +67,6 @@ class Generator():
         self.t_arr = np.arange(self.n_targets)
         # create array used to generate features
         self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
-        self.r.xadd(
-            'decoder_params', {
-                'ts': time.time(),
-                'n_features': int(self.n_features),
-                'n_targets': int(self.n_targets),
-            })
 
     def run(self):
         if self.use_timer:
