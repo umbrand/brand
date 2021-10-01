@@ -14,11 +14,13 @@ Nodes:
       Version: 0.0 
       Parameters:
             # logging level for the process
-            log: INFO
+            log: DEBUG
             # Number of targets the decoder should predict
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 10
+            n_features: 96
             # Type of decoder to use
             decoder_type: rnn
+            # path to the saved model
+            model_path: ./model.json

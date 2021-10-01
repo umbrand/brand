@@ -15,3 +15,5 @@ Nodes:
       Parameters:
             # logging level for the process
             log: INFO
+            # path to save the model
+            model_path: ./model.json
