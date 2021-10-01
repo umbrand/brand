@@ -39,7 +39,7 @@ Nodes:
             # Type of decoder to use
             decoder_type: linear
             # path to the saved model
-            model_path: './models.json'
+            model_path: './model.json'
     - Name: decoder_trainer
       Version: 0.0 
       Parameters:
