@@ -3,7 +3,10 @@ masterList=(
     # MODULES
     bin/func_generator
     bin/decoder
+    bin/decoder_trainer
     bin/udp_send
+
+    nodes/decoder_trainer/model.json
 
     # CONFIGURATION
     graphs/sharedDevelopment/decoderTest/0.0/run.sh

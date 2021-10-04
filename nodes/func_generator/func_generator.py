@@ -48,7 +48,8 @@ class Generator():
                                                    'n_features')
         self.n_targets = get_node_parameter_value(YAML_FILE, 'func_generator',
                                                   'n_targets')
-
+        self.duration = get_node_parameter_value(YAML_FILE, 'func_generator',
+                                                 'duration')
         self.build()
 
     def send_sample(self):
@@ -66,12 +67,6 @@ class Generator():
         self.t_arr = np.arange(self.n_targets)
         # create array used to generate features
         self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
-        self.r.xadd(
-            'decoder_params', {
-                'ts': time.time(),
-                'n_features': int(self.n_features),
-                'n_targets': int(self.n_targets),
-            })
 
     def run(self):
         if self.use_timer:
@@ -79,18 +74,13 @@ class Generator():
                 signal.pause()
         else:
             logging.info('Sending data')
-            for self.n_features in 64 * np.arange(1, 6):
-                logging.info('Updating function generator: '
-                             f'n_features={self.n_features}, '
-                             f'n_targets={self.n_targets}')
-                self.build()
-                last_time = 0
-                start_time = time.perf_counter()
-                while time.perf_counter() - start_time < 30:
-                    current_time = time.perf_counter()
-                    if current_time - last_time >= 1 / self.sample_rate:
-                        self.send_sample()
-                        last_time = current_time
+            last_time = 0
+            start_time = time.perf_counter()
+            while time.perf_counter() - start_time < 30:
+                current_time = time.perf_counter()
+                if current_time - last_time >= 1 / self.sample_rate:
+                    self.send_sample()
+                    last_time = current_time
             logging.info('Exiting')
 
     def terminate(self, sig, frame):

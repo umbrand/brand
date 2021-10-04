@@ -1,14 +1,12 @@
 Metadata:
-    Parameters:
-        participant_id: 0
-        session_description: "Evaluate decoder timing"
+    participant_id: 0
+    session_description: "Evaluate decoder timing"
 
 RedisConnection:
-    Parameters:
-        redis_realtime_ip: 127.0.0.1
-        redis_realtime_port: 6379
-        redis_realtime_socket: /var/run/redis.sock
-        redis_realtime_config: redis.realtime.conf
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_socket: /var/run/redis.sock
+    redis_realtime_config: redis.realtime.conf
 
 # node-specific parameters
 Nodes:
@@ -20,12 +18,14 @@ Nodes:
             # Whether to wait for timer interrupts when sending samples
             use_timer: false
             # Sample rate to use when use_timer=false
-            sample_rate: 100
+            sample_rate: 1000
             # Number of targets the decoder should predict
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 10
+            n_features: 96
+            # duration of the test
+            duration: 30  # seconds
     - Name: decoder 
       Version: 0.0 
       Parameters:
@@ -35,9 +35,18 @@ Nodes:
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 10
+            n_features: 96
             # Type of decoder to use
-            decoder_type: rnn
+            decoder_type: linear
+            # path to the saved model
+            model_path: './model.json'
+    - Name: decoder_trainer
+      Version: 0.0 
+      Parameters:
+            # logging level for the process
+            log: INFO
+            # path to save the model
+            model_path: './model.json'
     - Name: udp_send
       Version: 0.0
       Parameters:

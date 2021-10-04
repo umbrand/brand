@@ -12,11 +12,14 @@ import numpy as np
 from brand import get_node_parameter_value, initializeRedisFromYAML
 from tensorflow import keras
 from tensorflow.keras import layers
+from sklearn.linear_model import Ridge
+import json
 
 YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'decoder.yaml'
+NAME = 'decoder'  # name of this node
 
 # setup up logging
-loglevel = get_node_parameter_value(YAML_FILE, 'decoder', 'log')
+loglevel = get_node_parameter_value(YAML_FILE, NAME, 'log')
 numeric_level = getattr(logging, loglevel.upper(), None)
 
 if not isinstance(numeric_level, int):
@@ -26,31 +29,67 @@ logging.basicConfig(format='%(levelname)s:decoder:%(message)s',
                     level=numeric_level)
 
 
+def load_model(estimator, filepath):
+    """
+    Load a JSON representation of a scikit-learn model from the provided
+    filepath
+
+    Parameters
+    ----------
+    estimator : estimator object
+        Instance of an sklearn estimator. e.g. Ridge()
+    filepath : str
+        path to the saved model
+
+    Returns
+    -------
+    estimator : estimator object
+        sklearn estimator with weights and parameters loaded from the
+        filepath
+    """
+    with open(filepath, 'r') as f:
+        model_info = json.load(f)
+    estimator.set_params(**model_info['params'])
+    for attr, val in model_info['attr'].items():
+        if type(val) is list:
+            val = np.array(val)
+        setattr(estimator, attr, val)
+    return estimator
+
+
 class Decoder():
     def __init__(self):
         # connect to Redis
         self.r = initializeRedisFromYAML(YAML_FILE)
 
         # build the decoder
-        self.n_features = get_node_parameter_value(YAML_FILE, 'decoder',
+        self.n_features = get_node_parameter_value(YAML_FILE, NAME,
                                                    'n_features')
-        self.n_targets = get_node_parameter_value(YAML_FILE, 'decoder',
-                                                  'n_targets')
+        self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
         self.build()
 
         # initialize IDs for the two Redis streams
         self.data_id = '$'
-        self.param_id = '0'
+        self.param_id = '$'
 
         # terminate on SIGINT
         signal.signal(signal.SIGINT, self.terminate)
 
     def build(self):
-        self.A = np.ones([self.n_features, self.n_targets], dtype=np.float64)
+        self.model_path = get_node_parameter_value(YAML_FILE, NAME,
+                                                   'model_path')
+        self.mdl = Ridge()
+        try:
+            self.mdl = load_model(self.mdl, self.model_path)
+        except Exception:
+            logging.warning('Failed to load decoder. Initializing a new one.')
+            self.mdl.fit(np.ones((100, self.n_features)),
+                         np.ones((100, self.n_targets)))
 
-    def decode(self, x):
-        y = self.A.T.dot(x)
-        logging.debug(y)
+    def predict(self, x):
+        # implementing this step directly instead of using mdl.predict() for
+        # best performance
+        y = x.dot(self.mdl.coef_.T) + self.mdl.intercept_
         return y
 
     def run(self):
@@ -76,7 +115,7 @@ class Decoder():
                 x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
                 ts_gen = float(entry_dict[b'ts'])
                 try:
-                    y = self.decode(x)
+                    y = self.predict(x)
                     self.r.xadd(
                         'decoder', {
                             'ts': time.time(),
@@ -107,15 +146,14 @@ class RNNDecoder(Decoder):
         self.model.add(layers.Dense(self.n_targets))
         self.model(np.random.rand(1, self.seq_len, self.n_features))  # init
 
-    def decode(self, x):
+    def predict(self, x):
         y = self.model(x[None, None, :]).numpy()[0, :]
         logging.debug(y)
         return y
 
 
 if __name__ == "__main__":
-    decoder_type = get_node_parameter_value(YAML_FILE, 'decoder',
-                                            'decoder_type')
+    decoder_type = get_node_parameter_value(YAML_FILE, NAME, 'decoder_type')
 
     # setup
     logging.info(f'PID: {os.getpid()}')

@@ -10,12 +10,10 @@ RedisConnection:
 
 # node-specific parameters
 Nodes:
-    - Name: udp_send
-      Version: 0.0
+    - Name: decoder_trainer
+      Version: 0.0 
       Parameters:
             # logging level for the process
             log: INFO
-            # IP address to which UDP packets are sent
-            udp_ip: 127.0.0.1
-            # port to which UDP packets are sent
-            udp_port: 5005
+            # path to save the model
+            model_path: ./model.json
