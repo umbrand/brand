@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # decoder.py
 
+import gc
+import json
 import logging
 import os
 import signal
@@ -10,10 +12,9 @@ import time
 
 import numpy as np
 from brand import get_node_parameter_value, initializeRedisFromYAML
+from sklearn.linear_model import Ridge
 from tensorflow import keras
 from tensorflow.keras import layers
-from sklearn.linear_model import Ridge
-import json
 
 YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'decoder.yaml'
 NAME = 'decoder'  # name of this node
@@ -120,6 +121,7 @@ class Decoder():
                         'decoder', {
                             'ts': time.time(),
                             'ts_gen': ts_gen,
+                            't': int(entry_dict[b't']),
                             'y': y.tobytes(),
                             'n_features': self.n_features,
                             'n_targets': self.n_targets,
@@ -153,6 +155,8 @@ class RNNDecoder(Decoder):
 
 
 if __name__ == "__main__":
+    gc.disable()
+
     decoder_type = get_node_parameter_value(YAML_FILE, NAME, 'decoder_type')
 
     # setup
