@@ -23,7 +23,7 @@ Nodes:
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 96
+            n_features: 256
             # duration of the test
             duration: 30  # seconds
     - Name: decoder 
@@ -35,11 +35,11 @@ Nodes:
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 96
+            n_features: 256
             # Type of decoder to use
             decoder_type: linear
             # path to the saved model
-            model_path: './model.json'
+            model_path:
     - Name: decoder_trainer
       Version: 0.0 
       Parameters:

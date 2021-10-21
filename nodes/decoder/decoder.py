@@ -94,40 +94,33 @@ class Decoder():
         return y
 
     def run(self):
+        # initialize decoder dict
+        decoder_entry = {
+            'ts': float(),
+            'ts_gen': float(),
+            't': int(),
+            'y': np.zeros(self.n_targets).tobytes(),
+            'n_features': self.n_features,
+            'n_targets': self.n_targets,
+        }
+        stream_dict = {b'func_generator': self.data_id}
         while True:
-            stream_dict = {
-                b'func_generator': self.data_id,
-                b'decoder_params': self.param_id
-            }
+            # read from the function generator stream
             streams = self.r.xread(stream_dict, block=0, count=1)
-            logging.debug('Received data')
             stream_name, stream_entries = streams[0]
-            if stream_name == b'decoder_params':
-                self.param_id, entry_dict = stream_entries[0]
-                self.n_features = int(entry_dict[b'n_features'])
-                self.n_targets = int(entry_dict[b'n_targets'])
-                logging.info('Updating decoder params: '
-                             f'n_features={self.n_features}, '
-                             f'n_targets={self.n_targets}')
-                self.build()
-                self.data_id = '$'  # skip to the latest entry in the stream
-            elif stream_name == b'func_generator':
-                self.data_id, entry_dict = stream_entries[0]
-                x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
-                ts_gen = float(entry_dict[b'ts'])
-                try:
-                    y = self.predict(x)
-                    self.r.xadd(
-                        'decoder', {
-                            'ts': time.time(),
-                            'ts_gen': ts_gen,
-                            't': int(entry_dict[b't']),
-                            'y': y.tobytes(),
-                            'n_features': self.n_features,
-                            'n_targets': self.n_targets,
-                        })
-                except ValueError as exc:
-                    logging.warn(repr(exc))
+            self.data_id, entry_dict = stream_entries[0]
+            stream_dict[b'func_generator'] = self.data_id
+
+            # load the input and generate a prediction
+            x = np.frombuffer(entry_dict[b'x'], dtype=np.float64)
+            y = self.predict(x)
+
+            # write results to Redis
+            decoder_entry['ts'] = time.time()
+            decoder_entry['ts_gen'] = float(entry_dict[b'ts'])
+            decoder_entry['t'] = int(entry_dict[b't'])
+            decoder_entry['y'] = y.tobytes()
+            self.r.xadd('decoder', decoder_entry)
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
@@ -156,6 +149,7 @@ class RNNDecoder(Decoder):
 
 if __name__ == "__main__":
     gc.disable()
+    gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
 
     decoder_type = get_node_parameter_value(YAML_FILE, NAME, 'decoder_type')
 

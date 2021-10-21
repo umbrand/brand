@@ -1,8 +1,8 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(decoder udp_send)
-end_modules=()
+main_modules=(udp_send decoder)
+end_modules=(analyze.py)
 
 config="decoderTest.yaml"
 
@@ -83,12 +83,15 @@ do
     sleep 1s
 done
 
+sleep 5s
+
 echo "--------------------------------"
 echo "Running function generator"
 echo "--------------------------------"
 
 ./func_generator $config
 
+# for debugging
 echo "--------------------------------"
 echo "Waiting"
 echo "--------------------------------"
@@ -98,6 +101,16 @@ while [[ "$userInput" != "q" ]]
 do
     echo "Type q to quit"
     read userInput
+done
+
+echo "--------------------------------"
+echo "Loading finalize modules"
+echo "--------------------------------"
+
+for proc in ${end_modules[*]}
+do
+    ./$proc
+    sleep 1s
 done
 
 
@@ -117,27 +130,6 @@ do
     sleep 1s
 done
 
-# for debugging
-# echo "--------------------------------"
-# echo "Waiting"
-# echo "--------------------------------"
-
-# userInput=""
-# while [[ "$userInput" != "q" ]]
-# do
-#     echo "Type q to quit"
-#     read userInput
-# done
-
-echo "--------------------------------"
-echo "Loading finalize modules"
-echo "--------------------------------"
-
-for proc in ${end_modules[*]}
-do
-    ./$proc &
-    sleep 1s
-done
 
 echo "--------------------------------"
 echo "Shutting down redis"
