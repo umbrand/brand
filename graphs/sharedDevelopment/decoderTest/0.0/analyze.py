@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from brand import get_node_parameter_value, initializeRedisFromYAML
 
-
 try:
     plt.close(plt.figure())
 except Exception:
@@ -31,6 +30,8 @@ udf.rename(columns={col: col.decode() for col in udf.columns}, inplace=True)
 udf['ts_gen'] = udf['ts_gen'].astype(float)
 udf['ts_dec'] = udf['ts_dec'].astype(float)
 udf['ts'] = udf['ts'].astype(float)
+udf['n_features'] = udf['n_features'].astype(float).astype(int)
+udf['n_targets'] = udf['n_targets'].astype(float).astype(int)
 
 # %%
 # Get run info
@@ -40,6 +41,10 @@ n_features = get_node_parameter_value(YAML_FILE, 'func_generator',
                                       'n_features')
 n_targets = get_node_parameter_value(YAML_FILE, 'func_generator', 'n_targets')
 decoder_type = get_node_parameter_value(YAML_FILE, 'decoder', 'decoder_type')
+
+# %%
+# Save results
+udf.to_csv(f'timestamps_{n_features :03d}ch.csv')
 
 # %%
 fig, ax = plt.subplots(figsize=(6, 4))
@@ -57,5 +62,6 @@ ax.set_title(f'{decoder_type} decoder, {sample_rate} Hz data\n'
 
 plt.savefig(f'latency_{decoder_type.lower()}_{sample_rate}Hz'
             f'_{n_features}n_{n_targets}k.pdf')
+
 
 # %%

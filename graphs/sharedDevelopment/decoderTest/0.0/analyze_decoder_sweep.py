@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from brand import get_node_parameter_value, initializeRedisFromYAML
+from brand import get_node_parameter_value
 
 try:
     plt.close(plt.figure())
@@ -23,25 +23,16 @@ n_targets = get_node_parameter_value(YAML_FILE, 'func_generator', 'n_targets')
 decoder_type = get_node_parameter_value(YAML_FILE, 'decoder', 'decoder_type')
 
 # %%
-# Load entries from udp_send
-entry_id = b'0-0'
-entries = []
-r = initializeRedisFromYAML(YAML_FILE)
-replies = r.xrange(b'udp_send')
-r.close()
+from glob import glob
 
 # %%
-for reply in replies:
-    entry_id, entry_dict = reply
-    entries.append(entry_dict)
-
-udf = pd.DataFrame(entries)
-udf.rename(columns={col: col.decode() for col in udf.columns}, inplace=True)
-udf['ts_gen'] = udf['ts_gen'].astype(float)
-udf['ts_dec'] = udf['ts_dec'].astype(float)
-udf['ts'] = udf['ts'].astype(float)
-udf['n_features'] = udf['n_features'].astype(float).astype(int)
-udf['n_targets'] = udf['n_targets'].astype(float).astype(int)
+csv_files = sorted(glob('timestamps_*ch.csv'))
+# %%
+# Load entries from csv
+udf = pd.read_csv(csv_files[0])
+for csv_file in csv_files[1:]:
+    udf2 = pd.read_csv(csv_file)
+    udf = pd.concat((udf, udf2), axis=0)
 
 # %%
 data = {'decoder': [], 'udp_send': [], 'total': []}
@@ -53,7 +44,7 @@ for n_features in udf['n_features'].unique():
     data['udp_send'].append((m_udf['ts'] - m_udf['ts_dec']).values * 1e3)
     data['total'].append((m_udf['ts'] - m_udf['ts_gen']).values * 1e3)
     labels.append(n_features)
-fig, axes = plt.subplots(ncols=3, figsize=(4 * 3, 8), sharey=True)
+fig, axes = plt.subplots(ncols=3, figsize=(4 * 3, 6), sharey=True)
 for ikey, key in enumerate(['decoder', 'udp_send', 'total']):
     ax = axes[ikey]
     ax.violinplot(data[key], showmeans=True)
