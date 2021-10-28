@@ -18,7 +18,7 @@ Nodes:
             # Whether to wait for timer interrupts when sending samples
             use_timer: false
             # Sample rate to use when use_timer=false
-            sample_rate: 1000
+            sample_rate: 200
             # Number of targets the decoder should predict
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
