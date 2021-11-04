@@ -1,7 +1,9 @@
 # %%
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import yaml
 from brand import initializeRedisFromYAML
 
@@ -20,7 +22,7 @@ all_entries = r.xread(stream_dict, count=1)
 
 # %%
 # List out the streams and their contents
-SAVE = False
+SAVE = True
 f = sys.stdout if not SAVE else open('streams.txt', 'w')
 for stream, stream_entries in all_entries:
     print(f'{stream.decode()}:', file=f)
@@ -67,4 +69,14 @@ for stream, stream_keys in stream_spec.items():
             if len(ds[stream][key]) == 1:
                 ds[stream][key] = ds[stream][key].item()
 decoded_streams
+
+# %%
+from datetime import datetime
+
+datetime.fromtimestamp(decoded_streams['taskInput']['BRANDS_time'])
+
+# %%
+decoded_streams['cursorData']['sync']
+# %%
+decoded_streams['thresholdCrossings']['timestamps']
 # %%

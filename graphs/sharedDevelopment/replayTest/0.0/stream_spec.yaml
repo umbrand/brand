@@ -2,6 +2,7 @@ cursorData:
   X: int32
   Y: int32
   state: int32
+  sync: uint32
 continuousNeural:
   timestamps: uint32
   BRANDS_time: timeval
@@ -18,6 +19,7 @@ rawEMG:
 state:
   state: str
   time: float
+  sync: uint32
 filteredCerebusAdapter:
   timestamps: uint32
   samples: int16
@@ -37,3 +39,4 @@ targetData:
   width: int32
   height: int32
   state: int32
+  sync: uint32
