@@ -2,6 +2,7 @@ from ctypes import Structure, c_long
 from datetime import datetime
 
 import numpy as np
+import pandas as pd
 from scipy import signal
 
 
@@ -54,6 +55,40 @@ def decode_field(entry, stream, field, stream_spec):
         if len(decoded_entry) == 1:
             decoded_entry = decoded_entry.item()
     return decoded_entry
+
+
+def load_stream(r, stream_name, stream_spec):
+    """
+    Read a full Redis stream into a Pandas DataFrame
+
+    Parameters
+    ----------
+    r : redis.Redis
+        Instance of the Redis interface class
+    stream_name : str
+        Name of the stream
+    stream_spec : dict
+        dictionary containing stream names and the data types of the fields
+        in each stream
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        DataFrame containing data from the stream
+    """
+    all_entries = r.xread({stream_name.encode(): 0})
+    stream_entries = all_entries[0][1]
+    stream_data = [entry[1] for entry in stream_entries]
+    df = pd.DataFrame(stream_data)
+
+    fields = [field.decode() for field in df.columns]
+    for field in fields:
+        df[field] = df[field.encode()].apply(decode_field,
+                                             stream=stream_name,
+                                             field=field,
+                                             stream_spec=stream_spec)
+
+    return df
 
 
 def get_lagged_features(data, n_history: int = 4):
