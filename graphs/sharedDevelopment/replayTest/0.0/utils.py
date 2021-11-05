@@ -56,23 +56,26 @@ def decode_field(entry, stream, field, stream_spec):
     return decoded_entry
 
 
-def get_lagged_features(data, n_history: int = 3):
+def get_lagged_features(data, n_history: int = 4):
     """
     Lag the data along the time axis. Stack the lagged versions of the data
     along the feature axis.
+
     Parameters
     ----------
     data : array of shape (n_samples, n_features)
         Data to be lagged
     n_history : int, optional
-        Number of bins of history to lag the data by, by default 3
+        Number of bins of history to include in the lagged data, by default 4
+
     Returns
     -------
-    lagged_features : array of shape (n_samples, (n_history + 1) * n_features)
+    lagged_features : array of shape (n_samples, n_history * n_features)
         Lagged version of the original data
     """
-    lags = [None] * (n_history + 1)
-    for i in range(n_history + 1):
+    assert n_history >= 1, 'n_history must be greater than or equal to 1'
+    lags = [None] * n_history
+    for i in range(n_history):
         lags[i] = np.zeros_like(data)
         lags[i][i:, :] = data[:-i, :] if i > 0 else data
     lagged_features = np.hstack(lags)
