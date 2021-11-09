@@ -1,6 +1,6 @@
 PROJECT=cursorTargetDisplay
 
-ROOT ?= ../..
+ROOT = ../..
 include $(ROOT)/setenv.mk
 
 CC = gcc

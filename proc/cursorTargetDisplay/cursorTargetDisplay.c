@@ -255,8 +255,8 @@ void initialize_redis() {
     char redis_ip[16]       = {0};
     char redis_port[16]     = {0};
 
-    load_YAML_variable_string(PROCESS, "redis_ip",   redis_ip,   sizeof(redis_ip));
-    load_YAML_variable_string(PROCESS, "redis_port", redis_port, sizeof(redis_port));
+    load_YAML_variable_string(PROCESS, "./cursorTargetControl.yaml", "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string(PROCESS, "./cursorTargetControl.yaml", "redis_port", redis_port, sizeof(redis_port));
 
     printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
 
