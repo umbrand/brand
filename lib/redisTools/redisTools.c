@@ -17,6 +17,9 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
     char configurationFile[256]    = {0};
     int readLength                 = 0; // How much was read from fread()
     FILE *fp;
+    FILE *fp1;
+    char *pwdBuffer[256] = {0};
+    int pwdReadLength;
 
     sprintf(redisToolsPythonFile, "%s/lib/redisTools/redisTools.py", ROOT_PATH);
     strcpy(configurationFile, (const char *) yaml_path);
@@ -24,19 +27,21 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
 
     // Start by populating the command to run, and then run the command
     if(strcmp(value,"redis_ip") == 0){
-        sprintf(bashCommand, "python %s %s --ip", redisToolsPythonFile, configurationFile);
+        sprintf(bashCommand, "python3 %s %s --ip", redisToolsPythonFile, configurationFile);
         printf("IP -- BashCommand: %s\n", bashCommand);
     }
     else if(strcmp(value,"redis_port") == 0) {
-        sprintf(bashCommand, "python %s %s --port", redisToolsPythonFile, configurationFile);
+        sprintf(bashCommand, "python3 %s %s --port", redisToolsPythonFile, configurationFile);
         printf("port -- BashCommand: %s\n", bashCommand);
     }
     else {
-        sprintf(bashCommand, "python %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
+        sprintf(bashCommand, "python3 %s %s --name %s --node %s", redisToolsPythonFile, configurationFile, value, process);
     }
 
-
+    fp1 = popen("pwd", "r");
     fp = popen(bashCommand, "r");
+    pwdReadLength = fread(pwdBuffer, 1, 256, fp1);
+    printf("%s\n", pwdBuffer);
     if (fp == NULL) {
         perror("popen() failed on python script to load YAML data.\n");
         return -1;
@@ -47,6 +52,7 @@ int load_YAML_variable_string(char *process, char *yaml_path, char *value, char 
         return -1;
     }
     fclose(fp);
+    fclose(fp1);
 
     return readLength;
 }

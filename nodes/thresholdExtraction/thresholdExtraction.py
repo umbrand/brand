@@ -22,9 +22,6 @@ cimport numpy as np'''
 
 # bring in redisTools
 from brand import *
-'''sys.path.insert(1,'lib/redisTools/')
-from redisTools import initializeRedisFromYAML, get_node_parameter_value, get_node_parameter, get_node_io'''
-#graphYAML = 'graphs/sharedDev/reorgDev/0.0/reorgDev_0.0.yaml'
 
 
 ###############################################################
@@ -137,10 +134,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=argDesc)
     # only argument we have right now is the yaml path location, which defaults to the sharedDev location
     # we should consider having default yamls or something for testing.
-    parser.add_argument("-y","--yaml_path", help="path to yaml input", type=str, 
-                        default="graphs/sharedDevelopment/reorgDevelopment/0.0/reorgDev_0.0.yaml")
+    parser.add_argument("yaml", help="path to graph YAML settings file")
     args = parser.parse_args()
-    graphYAML = args.yaml_path
+    graphYAML = args.yaml
 
 
 ###############################################################
