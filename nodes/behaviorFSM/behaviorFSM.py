@@ -21,17 +21,13 @@ import signal, os, sys
 import numpy as np
 from redis import Redis
 from datetime import datetime as dt
-from time import sleep
+from time import sleep, perf_counter
 from struct import pack, unpack
-
-# check to see if we're trying to run this from the base directory or from inside of 'run'
-# for debugging purposes when I'm jumping between files a lot
-if os.getcwd().split('/')[-1] == 'realtime_rig_dev':
-    sys.path.insert(1,'lib/redisTools/')
-else: # assumes we're only one directory below the base
-    sys.path.insert(1,'../lib/redisTools/')
-from redisTools import get_parameter_value
+import argparse
+from brand import *
 behavior_yaml = 'behaviorFSM.yaml'
+graphYAML = ''
+nodeName = 'behaviorFSM'
 
 
 '''##########################################################
@@ -60,35 +56,47 @@ class target():
         self.state = 0 # always start with everything off
         self.x = tgtDict['x']
         self.y = tgtDict['y']
+        self.targetTime = None
+        self.targetHoldTime = None
         self.width = tgtDict['width']
         self.height = tgtDict['height']
         
     def off(self): # to turn the state 'off'
+        self.targetTime = None
         self.state = 0
         
-    def on(self): # to turn the state to 'on'
+    def on(self, targetHoldTime = None): # to turn the state to 'on'
+        if targetHoldTime is not None:
+            self.targetHoldTime = targetHoldTime
+        self.targetTime = None
         self.state = 1
     
     def over(self):
         self.state = 2 # to turn the state to 'over'
        
-    def isOver(self, curs):
+    def isOver(self, curs, tCurr):
         self.on
         x = self.x - curs.x # center everything on the target
         y = self.y - curs.y
         # if the cursor is within the target's range
         if (abs(x) <= self.width/2) and (abs(y) <= self.height/2):
             self.over()
-            return True
+            if self.targetTime is None:
+                self.targetTime == tCurr
+            elif (tCurr - self.targetTime) > self.targetHoldTime:
+                self.off()
+                return True
         else:
             self.on()
             return False
     
-    def packTarget(self):
-        targetDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'width': pack('i',self.width), b'height': pack('i',self.height), b'state':pack('I',self.state)}
+    def packTarget(self, sync):
+        # sync is the value of the cerebus timestamps associated with the 
+        # sample data stream that originally results in these values
+        targetDict = {b'X': pack('i',self.x), b'Y': pack('i',self.y), b'width': pack('i',self.width), b'height': pack('i',self.height), b'state':pack('I',self.state), b'sync': sync}
         return targetDict
 
-
+# --------------------------------------------------------------------
 # define the cursor
 class cursor:
     # probably just going to be the one instance
@@ -126,14 +134,16 @@ class cursor:
         self.bY = -self.y
         self.update_cursor(sensor0, sensor1)
     
-    def packCurs(self):
-        cursorDict = {b'X': pack('i', int(self.x)), b'Y': pack('i',int(self.y)), b'state': pack('I',int(self.state))}
+    def packCurs(self, sync):
+        # sync is the value of the cerebus timestamps associated with the 
+        # sample data stream that originally results in these values
+        cursorDict = {b'X': pack('i', int(self.x)), b'Y': pack('i',int(self.y)), b'state': pack('I',self.state), b'sync': sync}
         return cursorDict
 
     def printCurs(self):
-        print("X: "+ str(curs.x) + ", Y: " + str(curs.y))
+        print(f"X:{self.x:3.2f}  Y:{self.y:3.2f}  state:{self.state}")
 
-
+# --------------------------------------------------------------------
 # define the touchpad
 class touchpad():
     def __init__(self, minTouch, maxTouch, threshold):
@@ -157,7 +167,7 @@ class touchpad():
         redisPipe.xadd(b'behaviorControl', bControl)
     
     def tap_check(self, sensor):
-        print(sensor-self.thresh);
+        # print(sensor-self.thresh);
         if sensor > self.thresh:
             if self.touchStart == 0:
                 self.touchStart = dt.now().timestamp()
@@ -168,7 +178,33 @@ class touchpad():
             self.touchStart = 0
             return False
 
+'''
+# defining the state machine
+# -------------------------------------------------------------
+class state_machine():
+    def __init__():
+        # initialize rewards and counters
+        self.loopTimer = 0
+        self.stateTimer = 0
+        self.loopCounter = 0
+        self.rewardCounter = 0
+        self.failCounter = 0
+        self.abortCounter = 0
+        
+        self.State = NULL
+        
+    def addState:
+'''
 
+
+
+
+
+
+
+
+
+# --------------------------------------------------------------------
 # storing timing info for between tasks, hold times etc
 class delayGenerator():
     def __init__(self,inDict):
@@ -179,43 +215,67 @@ class delayGenerator():
     def reroll(self):
         self.current = (np.random.random() * (self.max-self.min)) + self.min
 
-
+# --------------------------------------------------------------------
 def restart_task(targets):
     return targets[np.random.choice(list(targets.keys()))]
+
+
+
+# --------------------------------------------------------------------
+# argparser for bringing in command line arguments
+if __name__ == '__main__':
+    description = '''
+        Keeps track of the behavioral state machine. This will take the 
+        inputs from whatever input we want, take care of the necessary gains
+        and offsets, keep track of the current cursor and target(s) and 
+        send all of that appropriate information to the Redis stream for the 
+        graphics controller.
+        '''
+
+    parser = argparse.ArgumentParser(description = description)
+    parser.add_argument('yaml', help="path to graph YAML settings file")
+    args = parser.parse_args()
+    graphYAML = args.yaml # yaml file
+
 
 """ ##########################################################################
 ### Import settings from the .yaml, setup constants/global variables
 ###########################################################################"""
+nodeParameters = get_node_parameter_dump(graphYAML, nodeName) # pull back a dictionary
+
 print('[behaviorFSM] initializing targets and cursors')
-# targets
-targets = {} # a list to hold all of the targets
-for keys,values in get_parameter_value(behavior_yaml,'targetList').items(): # load in all of the targets
-    targets[keys] = target(values)
-tgt = restart_task(targets) # pick a target to start
 
 # cursor location
-curs = cursor(get_parameter_value(behavior_yaml,'cursor'))
+curs = cursor(nodeParameters['cursor']) # create a cursor object
 
 
 # initialize wait times
-targetHoldTime = delayGenerator(get_parameter_value(behavior_yaml,'targetHoldTime')) # how long do they have to hold the target?
-dispenseTime = delayGenerator(get_parameter_value(behavior_yaml,'dispenseTime')) # time to receive the reward
-interTrialTime = delayGenerator(get_parameter_value(behavior_yaml,'interTrialTime')) # time between trials
-touchpadTime = get_parameter_value(behavior_yaml,'touchpadTime') # touchpad min, max
+targetHoldTime = delayGenerator(nodeParameters['target_hold_time'])# how long do they have to hold the target?
+dispenseTime = delayGenerator(nodeParameters['dispense_time']) # time to receive the reward
+interTrialTime = delayGenerator(nodeParameters['inter_trial_time']) # time between trials
+touchpadTime = nodeParameters['touchpad_time'] # touchpad min, max
+movement_max_time = nodeParameters['movement_max_time'] # maximum amount of time the movement process can take
+
+# targets
+targets = {} # a list to hold all of the targets
+for keys,values in nodeParameters['target_list'].items(): # load in all of the targets
+    targets[keys] = target(values)
+tgt = restart_task(targets) # pick a target to start
 
 # initialize sensor settings
-unpackString = get_parameter_value(behavior_yaml,'unpackString')
-cursorSensors = get_parameter_value(behavior_yaml,'cursorSensors')
-touchpadSensor = get_parameter_value(behavior_yaml, 'touchpadSensor')
-touchpadThresh = get_parameter_value(behavior_yaml, 'touchpadThresh')
+cursorSensors = nodeParameters['cursor_sensors'] # cursor sensor channel #s
+touchpadSensor = nodeParameters['touchpad_sensor'] # touchpad sensor channel #
+touchpadThresh = nodeParameters['touchpad_thresh'] # value of touchpad voltage when touched
+
+# get info about the redis input/outputs
+redis_io = get_node_io(graphYAML, nodeName)
+inStreamName = list(redis_io['redis_inputs'].keys())[0] # getting out the name of the stream. If there's more than one io then we're in trouble!
+unpackString = unpack_string(graphYAML, inStreamName)
+
 
 # connect to redis, figure out the streams of interest
 try:
-    redis_ip = get_parameter_value(behavior_yaml,'redis_ip')
-    redis_port = get_parameter_value(behavior_yaml,'redis_port')
-    print('[behaviorFSM] Redis IP', redis_ip, ';  Redis port:', redis_port)
-    r = Redis(host = redis_ip, port = redis_port)
-    print('[behaviorFSM] Connecting to Redis...')
+    r = initializeRedisFromYAML(graphYAML, nodeName)
 except:
     print('[behaviorFSM] Failed to connect to Redis. Exiting.')
     sys.exit()
@@ -226,6 +286,7 @@ STATE_START_TRIAL = 0
 STATE_MOVEMENT = 1
 STATE_REWARD = 2
 STATE_BETWEEN_TRIALS = 3
+STATE_FAILURE = 4
 
 state = STATE_BETWEEN_TRIALS
 stateTime = 0
@@ -235,63 +296,71 @@ tPad = touchpad(touchpadTime['min'],touchpadTime['max'],touchpadThresh)
 ### main loop
 ##########################################################'''
 
+
+tCurrent, tElapsed = perf_counter(), 0
+
 while True:
-    
+    # make sure each loop is 5 ms
+    while (perf_counter() - tCurrent) < .002:
+        sleep(.00001)
+
     # update the current location of the cursor
-    cursorFrame = r.xread({b'cerebusAdapter_task':'$'}, block=10, count=1)[0][1][0][1]
+    tCurrent = perf_counter() # for timing the loop
+    cursorFrame = r.xrevrange(inStreamName, count=1)[0][1]
     sensors = unpack(unpackString, cursorFrame[b'samples']) # pulling a sensor in
     sensor0,sensor1 = sensors[1:3]
     sensTouch = sensors[0]
     curs.update_cursor(sensor0, sensor1) # sensor names
-    currTime = dt.now().timestamp() # the posix time at the beginning of the loop
+    currTimestamp = dt.now().timestamp() # for sample timestamps
     p = r.pipeline()
-    p.xadd(b'cursorData',curs.packCurs())
-    p.xadd(b'targetData',tgt.packTarget())
+    p.xadd(b'cursorData',curs.packCurs(cursorFrame[b'timestamps']))
+    p.xadd(b'targetData',tgt.packTarget(cursorFrame[b'timestamps']))
     
     if state == STATE_START_TRIAL:
         if tPad.tap_check(sensTouch):
-            p.xadd(b'state',{b'state': b'movement', b'time': currTime})
+            p.xadd(b'state',{b'state': b'movement', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
             tgt.on()
+            curs.on()
             state = STATE_MOVEMENT
-            stateTime = 0
+            stateTime = tCurrent # keeping track of how long we're in a specific state -- for movement timeout
             tPad.deactivate(behaviorControl, p)
     
+
     if state == STATE_MOVEMENT:
-        if tgt.isOver(curs):
-            if stateTime == 0:
-                stateTime = currTime
-            elif (dt.now().timestamp() - stateTime) > targetHoldTime.current:
+        if (tCurrent - stateTime) <= movement_max_time:
+            if tgt.isOver(curs, tCurrent): # if the cursor has been over the target for more than X amount of time
                 state = STATE_REWARD # next state
-                p.xadd(b'state',{b'state':b'movement', b'time': currTime})
-                tgt.off()
+                p.xadd(b'state',{b'state':b'reward', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
                 curs.off()
-                stateTime = currTime
-        
-        else: 
-            stateTime = 0 # reset the time over the target
-            
+                stateTime = tCurrent
+        else:
+            state = STATE_FAILURE
+            stateTime = tCurrent
+            tgt.off()
+            curs.off()
+            p.xadd(b'state',{b'state':b'failure', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
             
     
     if state == STATE_REWARD:
         behaviorControl[b'reward'] = pack('?',True)
-        if stateTime == 0:
-            stateTime = currTime;
-        if (currTime-stateTime) > dispenseTime.current:
+        if (tCurrent-stateTime) > dispenseTime.current:
             state = STATE_BETWEEN_TRIALS
-            p.xadd(b'state',{b'state':b'movement',b'time':currTime})
+            p.xadd(b'state',{b'state':b'between_trials',b'time':currTimestamp, b'sync': cursorFrame[b'timestamps']})
             behaviorControl[b'reward'] = pack('?',False)
-            stateTime = currTime
+            stateTime = tCurrent
         
         p.xadd(b'behaviorControl',behaviorControl)
     
-    if state == STATE_BETWEEN_TRIALS:
-        if (currTime-stateTime) > interTrialTime.current:
+
+
+    if state == STATE_BETWEEN_TRIALS or state == STATE_FAILURE:
+        if (tCurrent-stateTime) > interTrialTime.current:
             tgt = restart_task(targets)
             tPad.activate(behaviorControl,p)
             targetHoldTime.reroll()
             dispenseTime.reroll()
             interTrialTime.reroll()
-            p.xadd(b'state',{b'state':'start_trial',b'time':currTime})
+            p.xadd(b'state',{b'state':'start_trial',b'time':currTimestamp, b'sync': cursorFrame[b'timestamps']})
             state = STATE_START_TRIAL
     
     

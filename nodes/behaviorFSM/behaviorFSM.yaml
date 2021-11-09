@@ -1,6 +1,5 @@
 # Variables for running the threshold extraction function
 
-parameters:
 
 ###########################################
 # redis general info

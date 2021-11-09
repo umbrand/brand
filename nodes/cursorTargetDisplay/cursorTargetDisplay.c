@@ -76,6 +76,9 @@ int main() {
                                        SDL_WINDOWPOS_CENTERED, 
                                        screenSize[0], screenSize[1], 
                                        SDL_WINDOW_OPENGL); 
+    
+    // initialize pointer for keyboard array
+    const Uint8 *keyboard_state_array;
 
     // SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN);
 
@@ -137,11 +140,24 @@ int main() {
             shutdown_process();
         
         // SDL polling for events
+        keyboard_state_array = SDL_GetKeyboardState(NULL);
+        int ctrl = 0;
         while( SDL_PollEvent( &event) ){
             switch(event.type){
-                case SDL_KEYDOWN:
-                case SDL_KEYUP:
-                    if (event.key.keysym.scancode == 20){
+                case SDL_KEYDOWN: // if it's a keypress
+                case SDL_KEYUP:   // or a key release
+                    // was the q key pressed
+                    if ((event.key.keysym.scancode == SDL_SCANCODE_Q)){
+                        close = 1;
+                    }
+                    // are either ctrl keys and the c being pressed?
+                    //if ((keyboard_state_array[SDL_SCANCODE_RCTRL] || keyboard_state_array[SDL_SCANCODE_LCTRL]) && (keyboard_state_array[SDL_SCANCODE_C])){
+                        //close = 1;
+                    //}
+                    if (event.key.keysym.scancode == SDL_SCANCODE_LCTRL){
+                        close = 1;
+                    }
+                    if ((event.key.keysym.scancode == SDL_SCANCODE_C)&&(ctrl==1)){
                         close = 1;
                     }
                 default:
@@ -255,8 +271,8 @@ void initialize_redis() {
     char redis_ip[16]       = {0};
     char redis_port[16]     = {0};
 
-    load_YAML_variable_string(PROCESS, "./cursorTargetControl.yaml", "redis_ip",   redis_ip,   sizeof(redis_ip));
-    load_YAML_variable_string(PROCESS, "./cursorTargetControl.yaml", "redis_port", redis_port, sizeof(redis_port));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "redis_ip",   redis_ip,   sizeof(redis_ip));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "redis_port", redis_port, sizeof(redis_port));
 
     printf("[%s] From YAML, I have redis ip: %s, port: %s\n", PROCESS, redis_ip, redis_port);
 
@@ -293,11 +309,11 @@ void initialize_parameters(yaml_parameters_t *p) {
     char screen_size_y_string[16] = {0};
     char cursor_file_string[255] = {0}; // filenames are sometimes long. Following PATH_MAX
 
-    load_YAML_variable_string(PROCESS, "num_channels", num_channels_string,   sizeof(num_channels_string));
-    load_YAML_variable_string(PROCESS, "samples_per_redis_stream", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
-    load_YAML_variable_string(PROCESS, "screen_size_x", screen_size_x_string,   sizeof(screen_size_x_string));
-    load_YAML_variable_string(PROCESS, "screen_size_y", screen_size_y_string,   sizeof(screen_size_y_string));
-    load_YAML_variable_string(PROCESS, "cursor_file", cursor_file_string, sizeof(cursor_file_string));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "num_channels", num_channels_string,   sizeof(num_channels_string));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "samples_per_redis_stream", samples_per_redis_stream_string,   sizeof(samples_per_redis_stream_string));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "screen_size_x", screen_size_x_string,   sizeof(screen_size_x_string));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "screen_size_y", screen_size_y_string,   sizeof(screen_size_y_string));
+    load_YAML_variable_string(PROCESS, "./cursorTargetDisplay.yaml", "cursor_file", cursor_file_string, sizeof(cursor_file_string));
 
     p->num_channels             = atoi(num_channels_string);
     p->samples_per_redis_stream = atoi(samples_per_redis_stream_string);

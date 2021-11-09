@@ -1,9 +1,10 @@
 #!/bin/bash
 if [ -z $DISPLAY] # if there's no display
     then # then run xinit
-        xinit ../../bin/cursorTargetDisplay $* -- vt$XDG_VTNR
+        #xinit ../nodes/cursorTargetDisplay/cursorTargetDisplay.bin $* -- vt$XDG_VTNR &
+        xinit ./cursorTargetDisplay.bin $* -- vt$XDG_VTNR &
     else # else skip it
-        ../../bin/cursorTargetDisplay
+        ./cursorTargetDisplay.bin
 fi
 
 # code to get xinit running with our current virtual terminal number

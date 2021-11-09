@@ -1,6 +1,6 @@
 PROJECT=cursorTargetDisplay
 
-ROOT = ../..
+ROOT ?= ../..
 include $(ROOT)/setenv.mk
 
 CC = gcc
@@ -20,7 +20,8 @@ CINCLUDE = -I$(ROOT)/lib/redisTools/ \
 
 CFILES = $(ROOT)/lib/redisTools/redisTools.c
 
-TARGET=$(BIN_PATH)/$(PROJECT)
+//TARGET=$(BIN_PATH)/$(PROJECT)
+TARGET=$(PROJECT).bin
 
 all: cursorTargetDisplay
 

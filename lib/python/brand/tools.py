@@ -195,8 +195,39 @@ def get_node_io(yaml_path,node):
     return io
 
 
+# -----------------------------------------------------------
+# parsing variable type information from the streams section
+def unpack_string(yaml_path, stream):
+    """
+    Helper function to create a string for the pack/unpack struct
+    functions for python to read from data written in C. Uses
+    the sample_type field in the graph settings yaml
+    """
+    print(stream)
 
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
 
+    sample_type = yamlData['RedisStreams'][stream]['sample_type']
+    num_chans = yamlData['RedisStreams'][stream]['chan_per_stream']
+    num_samp = yamlData['RedisStreams'][stream]['samp_per_stream']
+    
+    if sample_type in ['int16', 'short']:
+        packString = 'h'
+    elif sample_type in ['int32', 'int', 'Int']:
+        packString = 'i'
+    elif sample_type in ['uInt32', 'uInt']:
+        packString = 'I'
+    elif sample_type == 'char':
+        packString = 'b'
+    else:
+        return -1
+
+    # output string = <#values><var type> -- 10I, 960h etc
+    packString = str(num_chans * num_samp) + packString
+    return packString
+ 
+    
 # -----------------------------------------------------------
 # running the function as a script -- for C and Bash usage
 def main():

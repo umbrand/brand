@@ -19,7 +19,8 @@ CINCLUDE = -I$(ROOT)/lib/c_code/brands/ \
 
 CFILES = $(ROOT)/lib/c_code/brands/tools_CParser.c
 
-TARGET=$(BIN_PATH)/$(PROJECT)
+//TARGET=$(BIN_PATH)/$(PROJECT)
+TARGET=$(PROJECT).bin
 
 all: cerebusAdapter
 
