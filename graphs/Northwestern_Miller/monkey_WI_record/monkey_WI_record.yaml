@@ -1,6 +1,6 @@
 Metadata:
-    participant_id:             42
-    session_description:        "Don't Panic"
+    participant_id:             pop
+    session_description:        "Isometric Wrist Task"
 
 # -----------------------------------------------------        
 
@@ -43,7 +43,7 @@ RedisStreams:
         timestamp_type:     uInt32
         samp_freq:          2000
     taskInput:
-        chan_per_stream:    2
+        chan_per_stream:    3
         samp_per_stream:    1
         sample_name:        samples
         timestamp_name:     timestamps
@@ -64,6 +64,39 @@ RedisStreams:
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uint32
+    state:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        None
+        timestamp_name:     time
+        sample_type:        char
+        timestamp_type:     float
+    cursorData:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        uint32
+        timestamp_type:     uint32
+        X_Name:             X
+        X_sample_type:      int16
+        Y_Name:             Y
+        Y_sample_type:      int16
+    targetData:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        uint32
+        timestamp_type:     uint32
+        Y_Name:             Y
+        Y_sample_type:      int16
+        X_Name:             X
+        X_sample_type:      int16
+        width_Name:         width
+        width_sample_type:  int16
+        height_Name:        height
+        height_sample_type: int16
     
 
 # -----------------------------------------------------        
@@ -80,7 +113,7 @@ Nodes:
             stream_names:           [continuousNeural, rawEMG, taskInput] # since I can't figure out how to 
             samp_freq:              [30000, 2000, 1000]                   # do the RedisStreams centralized
             packet_type:            [6, 3, 2]                             # method cleanly when we have
-            chan_per_stream:        [96, 12, 2]                           # more than just the standard info
+            chan_per_stream:        [96, 12, 3]                           # more than just the standard info
             samp_per_stream:        [30, 10, 1]                           # per stream
 
     - Name:         thresholdExtraction 
@@ -103,27 +136,29 @@ Nodes:
 
     - Name:         behaviorFSM
       Version:      0.0
-      redis_inputs:                  [taskInput]
-      redis_outputs:
+      redis_inputs:                 [taskInput]
+      redis_outputs:                [cursorData,targetData,state]
       Parameters:
+            loop_time:              .002 # time for the full processing loop, in seconds
             cursor_sensors:         [0, 1] 
             touchpad_sensor:        2
-            touchpad_thresh:        2000
+            touchpad_thresh:        -5000
+            movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                .5
-                max:                .75
+                min:                0  # time in seconds
+                max:                0 # time in seconds
             target_hold_time:
-                min:                .25
-                max:                .75
+                min:                .25 # time in seconds
+                max:                .5 # time in seconds
             dispense_time:
-                min:                .25
-                max:                .5
+                min:                .25 # time in seconds
+                max:                .5 # time in seconds
             inter_trial_time:
-                min:                1.5
-                max:                5
+                min:                1 # time in seconds
+                max:                2 # time in seconds
             cursor:
                 x_offset:           0
-                y_offset:           -300
+                y_offset:           0
                 gain_x_0:           .03
                 gain_x_1:           .03
                 gain_y_0:           .03
@@ -131,25 +166,24 @@ Nodes:
                 width:              5
                 height:             5
             target_list:
-                0:
+                left:
+                    x:              -200
+                    y:              0
+                    width:          100
+                    height:         100
+                right:
+                    x:              200
+                    y:              0
+                    width:          100
+                    height:         100
+                up:
                     x:              0
                     y:              200
-                    width:          400
+                    width:          100
                     height:         100
-                1:
+                down:
                     x:              0
-                    y:              100
-                    width:          400
-                    height:         100
-                2:
-                    x:              0
-                    y:              200
-                    width:          400
+                    y:              -200
+                    width:          100
                     height:         100
 
-    - Name:         exportNWB
-      Version:      0.0
-      redis_inputs:                     [continuousNeural, rawEMG, taskInput]
-      redis_outputs:                
-      Parameters:
-            nwb_file_name:              nwbFile_test
