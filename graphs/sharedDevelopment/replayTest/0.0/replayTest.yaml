@@ -26,7 +26,7 @@ Nodes:
             n_features: 256
             # duration of the test
             duration: 30  # seconds
-    - Name: decoder 
+    - Name: wiener_filter 
       Version: 0.0 
       Parameters:
             # logging level for the process
