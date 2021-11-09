@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 # %%
+from datetime import datetime
+
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from brand import get_node_parameter_value, initializeRedisFromYAML
-
 
 try:
     plt.close(plt.figure())
@@ -31,6 +31,8 @@ udf.rename(columns={col: col.decode() for col in udf.columns}, inplace=True)
 udf['ts_gen'] = udf['ts_gen'].astype(float)
 udf['ts_dec'] = udf['ts_dec'].astype(float)
 udf['ts'] = udf['ts'].astype(float)
+udf['n_features'] = udf['n_features'].astype(float).astype(int)
+udf['n_targets'] = udf['n_targets'].astype(float).astype(int)
 
 # %%
 # Get run info
@@ -42,20 +44,8 @@ n_targets = get_node_parameter_value(YAML_FILE, 'func_generator', 'n_targets')
 decoder_type = get_node_parameter_value(YAML_FILE, 'decoder', 'decoder_type')
 
 # %%
-fig, ax = plt.subplots(figsize=(6, 4))
-data = np.array([
-    udf['ts_dec'] - udf['ts_gen'],  # decoder latency
-    udf['ts'] - udf['ts_dec'],  # udp sender latency
-    udf['ts'] - udf['ts_gen']  # total latency
-])
-ax.violinplot(data.T * 1e3, showmeans=True)
-ax.set_xticks(np.arange(data.shape[0]) + 1)
-ax.set_xticklabels(['Decoder', 'UDP Sender', 'Total'])
-ax.set_ylabel('Latency (ms)')
-ax.set_title(f'{decoder_type} decoder, {sample_rate} Hz data\n'
-             f'{n_features} neural ch, {n_targets} kinematic ch')
-
-plt.savefig(f'latency_{decoder_type.lower()}_{sample_rate}Hz'
-            f'_{n_features}n_{n_targets}k.pdf')
+# Save results
+date_str = datetime.now().strftime(r'%y%m%dT%H%M')
+udf.to_csv(f'{date_str}_timestamps_{sample_rate}Hz.csv')
 
 # %%

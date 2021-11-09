@@ -1,0 +1,42 @@
+cursorData:
+  X: int32
+  Y: int32
+  state: int32
+  sync: uint32
+continuousNeural:
+  timestamps: uint32
+  BRANDS_time: timeval
+  udp_recv_time: timeval
+  samples: int16
+thresholdCrossings:
+  crossings: int16
+  timestamps: uint32
+rawEMG:
+  timestamps: uint32
+  BRANDS_time: timeval
+  udp_recv_time: timeval
+  samples: int16
+state:
+  state: str
+  time: float
+  sync: uint32
+filteredCerebusAdapter:
+  timestamps: uint32
+  samples: int16
+taskInput:
+  timestamps: uint32
+  BRANDS_time: timeval
+  udp_recv_time: timeval
+  samples: int16
+behaviorControl:
+  touch_active: bool
+  reward: bool
+thresholdValues:
+  thresholds: int16
+targetData:
+  X: int32
+  Y: int32
+  width: int32
+  height: int32
+  state: int32
+  sync: uint32

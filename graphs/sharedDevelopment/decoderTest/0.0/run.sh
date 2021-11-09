@@ -1,8 +1,8 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(decoder udp_send)
-end_modules=()
+main_modules=(udp_send)
+end_modules=(analyze.py)
 
 config="decoderTest.yaml"
 
@@ -60,7 +60,8 @@ fi
 # Load the modules
 ##############################################
 
-./redis-server ${redis_cfg} --dbfilename ${rdb} &
+
+chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${rdb} &
 sleep 2s
 
 echo "--------------------------------"
@@ -69,7 +70,7 @@ echo "--------------------------------"
 
 for proc in ${start_modules[*]}
 do
-    ./$proc &
+    chrt -f 99 ./$proc &
     sleep 1s
 done
 
@@ -79,16 +80,44 @@ echo "--------------------------------"
 
 for proc in ${main_modules[*]}
 do
-    ./$proc $config &
+    chrt -f 99 ./$proc $config &
     sleep 1s
 done
 
+for n_features in 64 128 192 256 320
+do
+    echo "--------------------------------"
+    echo "n_features = $n_features"
+    echo "Running decoder"
+    chrt -f 99 ./decoder $config $n_features &
+
+    sleep 5s  # give the decoder time to start
+
+    echo "Running function generator"
+    chrt -f 99 ./func_generator $config $n_features
+
+    echo "Shutting down decoder and function generator"
+    pkill -SIGINT decoder
+    pkill -SIGINT func_generator
+
+    echo "Saving Redis database"
+    ./redis-cli save
+    echo "--------------------------------"
+done
+
+
 echo "--------------------------------"
-echo "Running function generator"
+echo "Loading finalize modules"
 echo "--------------------------------"
 
-./func_generator $config
+for proc in ${end_modules[*]}
+do
+    ./$proc
+    sleep 1s
+done
 
+
+# for debugging
 echo "--------------------------------"
 echo "Waiting"
 echo "--------------------------------"
@@ -117,27 +146,6 @@ do
     sleep 1s
 done
 
-# for debugging
-# echo "--------------------------------"
-# echo "Waiting"
-# echo "--------------------------------"
-
-# userInput=""
-# while [[ "$userInput" != "q" ]]
-# do
-#     echo "Type q to quit"
-#     read userInput
-# done
-
-echo "--------------------------------"
-echo "Loading finalize modules"
-echo "--------------------------------"
-
-for proc in ${end_modules[*]}
-do
-    ./$proc &
-    sleep 1s
-done
 
 echo "--------------------------------"
 echo "Shutting down redis"
@@ -146,5 +154,4 @@ echo "--------------------------------"
 ./redis-cli save
 
 pkill -SIGINT redis-server
-
 

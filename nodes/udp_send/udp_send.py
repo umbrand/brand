@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # udp_send.py
 
+import gc
 import json
 import logging
 import os
@@ -44,27 +45,32 @@ class UDPSender():
             socket.SOCK_DGRAM)  # UDP
 
     def run(self):
+        xread_streams = {b'decoder': self.entry_id}
+        sample = {
+            'ts': float(),  # time sent
+            'ts_dec': float(),  # time decoded
+            'ts_gen': float(),  # time generated
+            'n_features': float(),
+            'n_targets': float()
+        }
         while True:
             #  read from stream
-            reply = self.r.xread({b'decoder': self.entry_id}, block=0, count=1)
+            reply = self.r.xread(xread_streams, block=0, count=1)
             entry_list = reply[0][1]
             self.entry_id, entry_dict = entry_list[0]
-            logging.debug('Received data')
+            xread_streams[b'decoder'] = self.entry_id
 
-            # send message
+            # send message via UDP
             message = json.dumps(np.frombuffer(entry_dict[b'y']).tolist())
             self.sock.sendto(message.encode(), (self.udp_ip, self.udp_port))
 
-            # log to Redis
-            self.r.xadd(
-                'udp_send',
-                {
-                    'ts': time.time(),  # time sent
-                    'ts_dec': float(entry_dict[b'ts']),  # time decoded
-                    'ts_gen': float(entry_dict[b'ts_gen']),  # time generated
-                    'n_features': float(entry_dict[b'n_features']),
-                    'n_targets': float(entry_dict[b'n_targets']),
-                })
+            # log timestamps to Redis
+            sample['ts'] = time.time()  # time sent
+            sample['ts_dec'] = float(entry_dict[b'ts'])  # time decoded
+            sample['ts_gen'] = float(entry_dict[b'ts_gen'])  # time generated
+            sample['n_features'] = float(entry_dict[b'n_features'])
+            sample['n_targets'] = float(entry_dict[b'n_targets'])
+            self.r.xadd('udp_send', sample)
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
@@ -72,6 +78,7 @@ class UDPSender():
 
 
 if __name__ == "__main__":
+    gc.disable()
     # setup
     logging.info(f'PID: {os.getpid()}')
     dec = UDPSender()
