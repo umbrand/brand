@@ -1,0 +1,36 @@
+Metadata:
+    participant_id: 0
+    session_description: ""
+
+RedisConnection:
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_socket: /var/run/redis.sock
+    redis_realtime_config: redis.realtime.conf
+
+# node-specific parameters
+Nodes:
+    - Name: wiener_filter 
+      Version: 0.0 
+      Parameters:
+            # logging level for the process
+            log: DEBUG
+            # Number of targets the wiener_filter should predict
+            # e.g. n_targets=2 for decoding x and y channels
+            n_targets: 2
+            # Number of features to use for decoding
+            n_features: 96
+            # Type of wiener_filter to use
+            decoder_type: linear
+            # path to the saved model
+            model_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/0.0/model.pkl
+            # history for the Wiener filter
+            n_history: 50
+            # bin size (in samples)
+            bin_size: 5
+            # input stream
+            input_stream:
+            # input data type
+            input_dtype:
+            # input field
+            input_field:
