@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # decoder.py
-
 import gc
 import json
 import logging
@@ -16,8 +15,12 @@ from sklearn.linear_model import Ridge
 from tensorflow import keras
 from tensorflow.keras import layers
 
-YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'decoder.yaml'
 NAME = 'decoder'  # name of this node
+YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'decoder.yaml'
+if len(sys.argv) > 2:
+    N_FEATURES = int(sys.argv[2])
+else:
+    N_FEATURES = get_node_parameter_value(YAML_FILE, NAME, 'n_features')
 
 # setup up logging
 loglevel = get_node_parameter_value(YAML_FILE, NAME, 'log')
@@ -64,8 +67,7 @@ class Decoder():
         self.r = initializeRedisFromYAML(YAML_FILE)
 
         # build the decoder
-        self.n_features = get_node_parameter_value(YAML_FILE, NAME,
-                                                   'n_features')
+        self.n_features = N_FEATURES
         self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
         self.build()
 
@@ -164,3 +166,5 @@ if __name__ == "__main__":
 
     # main
     dec.run()
+
+    gc.collect()

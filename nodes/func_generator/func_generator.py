@@ -12,10 +12,15 @@ import time
 import numpy as np
 from brand import get_node_parameter_value, initializeRedisFromYAML
 
+NAME = 'func_generator'
 YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'func_generator.yaml'
+if len(sys.argv) > 2:
+    N_FEATURES = int(sys.argv[2])
+else:
+    N_FEATURES = get_node_parameter_value(YAML_FILE, NAME, 'n_features')
 
 # setup up logging
-loglevel = get_node_parameter_value(YAML_FILE, 'func_generator', 'log')
+loglevel = get_node_parameter_value(YAML_FILE, NAME, 'log')
 numeric_level = getattr(logging, loglevel.upper(), None)
 
 if not isinstance(numeric_level, int):
@@ -27,11 +32,9 @@ logging.basicConfig(format='%(levelname)s:func_generator:%(message)s',
 
 class Generator():
     def __init__(self):
-        self.sample_rate = get_node_parameter_value(YAML_FILE,
-                                                    'func_generator',
+        self.sample_rate = get_node_parameter_value(YAML_FILE, NAME,
                                                     'sample_rate')
-        self.use_timer = get_node_parameter_value(YAML_FILE, 'func_generator',
-                                                  'use_timer')
+        self.use_timer = get_node_parameter_value(YAML_FILE, NAME, 'use_timer')
 
         # signal handlers
         signal.signal(signal.SIGINT, self.terminate)
@@ -45,12 +48,9 @@ class Generator():
 
         self.t: int = 0  # initialize time variable
         # set the number of features and targets
-        self.n_features = get_node_parameter_value(YAML_FILE, 'func_generator',
-                                                   'n_features')
-        self.n_targets = get_node_parameter_value(YAML_FILE, 'func_generator',
-                                                  'n_targets')
-        self.duration = get_node_parameter_value(YAML_FILE, 'func_generator',
-                                                 'duration')
+        self.n_features = N_FEATURES
+        self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
+        self.duration = get_node_parameter_value(YAML_FILE, NAME, 'duration')
 
         self.sample = {'ts': float(), 't': int()}
 
@@ -112,3 +112,5 @@ if __name__ == "__main__":
 
     # main
     gen.run()
+
+    gc.collect()

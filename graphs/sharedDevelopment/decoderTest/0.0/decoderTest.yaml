@@ -25,7 +25,7 @@ Nodes:
             # Number of features to use for decoding
             n_features: 256
             # duration of the test
-            duration: 30  # seconds
+            duration: 600  # seconds
     - Name: decoder 
       Version: 0.0 
       Parameters:
