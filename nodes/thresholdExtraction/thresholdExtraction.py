@@ -88,19 +88,23 @@ def causal_demean_data(data, filtData, sos, zi):
 
 # calculate threshold values
 def calc_thresh(r, streamName, threshMult, readCalls, packetLength, numChannels, sos, zi):
-    xrev_receive = r.xrevrange(streamName, count = readCalls) # receive
-    # thresholds = np.empty((numChannels,1),dtype=np.float32) # threshold array
-    readArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
-    filtArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
-    readTimes = np.empty((readCalls*packetLength))
-
-    for ii in range(0,readCalls): # switch it all into an array
-        indStart,indEnd = ii*packetLength,(ii+1)*packetLength
-        numpy_import(xrev_receive[ii][1], readArray[:,indStart:indEnd], readTimes[indStart:indEnd], packetLength, numChannels) 
+    sleep(2)
+    xrev_receive = r.xrevrange(streamName, count = readCalls) # get threshold data, wait for 10 seconds to see if we have enough
     
-    filter_data(readArray,filtArray,sos,zi)
-    thresholds = (threshMult * np.sqrt(np.mean(np.square(filtArray),axis=1))).reshape(-1,1)
-    return thresholds
+    try:
+        readArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
+        filtArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
+        readTimes = np.empty((readCalls*packetLength))
+
+        for ii in range(0,readCalls): # switch it all into an array
+            indStart,indEnd = ii*packetLength,(ii+1)*packetLength
+            numpy_import(xrev_receive[ii][1], readArray[:,indStart:indEnd], readTimes[indStart:indEnd], packetLength, numChannels) 
+        
+        filter_data(readArray,filtArray,sos,zi)
+        thresholds = (threshMult * np.sqrt(np.mean(np.square(filtArray),axis=1))).reshape(-1,1)
+        return thresholds
+    except:
+        return -1
     
 
 # -----------------------------------------------------------
@@ -186,19 +190,19 @@ for ii in range(0,numChannels): # deal out the filter initialization
 # set up which filtering function to use, so that we don't have to do this logic during our main loops 
 if causal and (not demean):
     filter_data = causal_noDemean_data
-    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%d %d] hz bandpass causal filter' % (butOrder, butLow, butHigh))
 
 elif causal and demean:
     filter_data = causal_demean_data
-    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter with CAR' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%d %d] hz bandpass causal filter with CAR' % (butOrder, butLow, butHigh))
 
 elif (not causal) and (not demean):
     filter_data = causal_noDemean_data
-    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%d %d] hz bandpass causal filter. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
 
 elif (not causal) and demean:
     filter_data = causal_demean_data
-    print('[thresholdExtraction] Loading %d order, [%f %f] hz bandpass causal filter with CAR. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
+    print('[thresholdExtraction] Loading %d order, [%d %d] hz bandpass causal filter with CAR. Acausal not implemented yet!' % (butOrder, butLow, butHigh))
 
 
 
@@ -208,7 +212,6 @@ numPacks = nodeParameters['pack_per_call']
 dataBuffer = np.zeros((numChannels,packetLength * numPacks),dtype=np.float32) # we'll be storing the filter state, so don't need a circular buffer
 filtBuffer = np.zeros((dataBuffer.shape),dtype=np.float32)
 sampTimes = np.zeros((packetLength*numPacks,),dtype='uint32') # noneed to run a float, we're not going to be modifiying these at all.
-print(sampTimes.dtype)
 
 # initial data read -- this is to allow us to test using old redis dump files
 prevKey = '$'
@@ -228,7 +231,12 @@ print('[thresholdExtraction] entering main loop')
 # thresholding settings
 threshMult = nodeParameters['thresh_mult'] # threshold multiplier, usually around -5 
 readCalls = nodeParameters['thresh_calc_len'] # make sure we have enough data to work with
+
 thresholds = calc_thresh(r, inStreamName, threshMult, readCalls, packetLength, numChannels, sos, zi) # get the array
+if type(thresholds) == int:
+    print(f"[{nodeName}] Did not receive neural data to calculate thresholds. Exiting")
+    exit()
+
 r.xadd('thresholdValues',{b'thresholds':thresholds.astype('short').tostring()}) # push it into a new redis stream. 
 # interesting note for putting data back into redis: we don't have to use pack, since it's already stored as a byte object in numpy. 
 # wonder if we can take advantage of that for the unpacking process too
@@ -238,27 +246,31 @@ while True:
     # wait to get data from cerebus stream, then parse it
     #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
     cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-    xread_receive = r.xread({inStreamName:prevKey}, block=1, count=numPacks)[0][1]
-    prevKey = xread_receive[-1][0] # entry number of last item in list
-    for xread_tuple in xread_receive: # run each tuple individually
-       indStart,indEnd = cerPackInc*packetLength,(cerPackInc+1)*packetLength
-       numpy_import(xread_tuple[1], dataBuffer[:,indStart:indEnd], sampTimes[indStart:indEnd], packetLength, numChannels)
-       cerPackInc += 1
-
-
-    # filter the data and find threshold times
-    filter_data(dataBuffer, filtBuffer, sos, zi)
-    filtDict[b'timestamps'] = sampTimes.tostring()
-    filtDict[b'samples'] = filtBuffer.astype('short').tostring()
-    # is there a threshold crossing in the last ms
-    # find for each channel along the first dimension, keep dims, pack into a byte object and put into the thresh crossings dict
-    crossDict[b'timestamps'] = sampTimes[0].tostring()
-    crossings = np.append(np.zeros((numChannels,1)),((filtBuffer[:,1:] < thresholds) & (filtBuffer[:,:-1] >= thresholds)),axis=1)
-    crossDict[b'crossings'] = np.any(crossings, axis=1).astype('short').tostring()
-   
-    # send data back to the streams
-    numpy_export(crossDict, filtDict, r)
+    xread_receive = r.xread({inStreamName:prevKey}, block=50, count=numPacks)[0][1] # wait up to four ms
     
+    if len(xread_receive) > 0: # only run this if we have data
+    
+        prevKey = xread_receive[-1][0] # entry number of last item in list
+        for xread_tuple in xread_receive: # run each tuple individually
+           indStart,indEnd = cerPackInc*packetLength,(cerPackInc+1)*packetLength
+           numpy_import(xread_tuple[1], dataBuffer[:,indStart:indEnd], sampTimes[indStart:indEnd], packetLength, numChannels)
+           cerPackInc += 1
+
+
+        # filter the data and find threshold times
+        filter_data(dataBuffer, filtBuffer, sos, zi)
+        filtDict[b'timestamps'] = sampTimes.tostring()
+        filtDict[b'samples'] = filtBuffer.astype('short').tostring()
+        # is there a threshold crossing in the last ms
+        # find for each channel along the first dimension, keep dims, pack into a byte object and put into the thresh crossings dict
+        crossDict[b'timestamps'] = sampTimes[0].tostring()
+        crossings = np.append(np.zeros((numChannels,1)),((filtBuffer[:,1:] < thresholds) & (filtBuffer[:,:-1] >= thresholds)),axis=1)
+        crossDict[b'crossings'] = np.any(crossings, axis=1).astype('short').tostring()
+   
+        # send data back to the streams
+        numpy_export(crossDict, filtDict, r)
+    else: 
+        print(f"[{nodeName}] No neural data has been received in the last 50 ms")
 
     # check our loop timing
     '''tDelta = [dt.now(), tDelta[0]]
