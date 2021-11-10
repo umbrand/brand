@@ -145,8 +145,8 @@ Nodes:
             touchpad_thresh:        -5000
             movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                0  # time in seconds
-                max:                0 # time in seconds
+                min:                .1  # time in seconds
+                max:                .1 # time in seconds
             target_hold_time:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
@@ -157,12 +157,12 @@ Nodes:
                 min:                1 # time in seconds
                 max:                2 # time in seconds
             cursor:
-                x_offset:           0
+                x_offset:           -200
                 y_offset:           0
                 gain_x_0:           .03
-                gain_x_1:           .03
-                gain_y_0:           .03
-                gain_y_1:           .03
+                gain_x_1:           0
+                gain_y_0:           0
+                gain_y_1:           0
                 width:              5
                 height:             5
             target_list:
@@ -176,14 +176,21 @@ Nodes:
                     y:              0
                     width:          100
                     height:         100
-                up:
-                    x:              0
-                    y:              200
-                    width:          100
-                    height:         100
-                down:
-                    x:              0
-                    y:              -200
-                    width:          100
-                    height:         100
-
+#                up:
+#                    x:              0
+#                    y:              200
+#                    width:          100
+#                    height:         100
+#                down:
+#                    x:              0
+#                    y:              -200
+#                    width:          100
+#                    height:         100
+    - Name:         beep
+      Version:      0.0
+      redis_inputs:                 [state]
+      redis_outputs:                []
+      Parameters:
+                goSound:            go3.wav
+                rewardSound:        reward3.wav
+                failureSound:       fail3.wav
