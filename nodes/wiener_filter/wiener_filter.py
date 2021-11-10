@@ -97,7 +97,7 @@ class Decoder():
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history), dtype=input_dtype)
         # decoder output
-        y = np.zeros((1, self.n_targets), dtype=np.float64)
+        y = np.zeros((1, self.n_targets + 1), dtype=np.float64)
 
         while True:
             while n_entries < self.bin_size:
@@ -117,13 +117,13 @@ class Decoder():
             X[0, :] = window.mean(axis=1).reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
-            y[:] = self.predict(X)
+            y[1:] = self.predict(X)
             logging.debug(y)
 
             # write results to Redis
             decoder_entry['ts'] = time.time()
             decoder_entry['timestamps'] = entry_dict[b'timestamps']
-            decoder_entry['y'] = y.tobytes()
+            decoder_entry['samples'] = y.tobytes()
             self.r.xadd('decoder', decoder_entry)
 
             # shift window along the history axis
