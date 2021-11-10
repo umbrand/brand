@@ -189,7 +189,6 @@ def get_node_io(yaml_path,node):
                 io['redis_inputs'][in_stream] = yamlData['RedisStreams'][in_stream]
         if redis_outputs is not None:
             for out_stream in redis_outputs:
-                print(yamlData['RedisStreams'])
                 io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
                 
     return io
@@ -203,7 +202,6 @@ def unpack_string(yaml_path, stream):
     functions for python to read from data written in C. Uses
     the sample_type field in the graph settings yaml
     """
-    print(stream)
 
     with open(yaml_path, 'r') as f:
         yamlData = yaml.safe_load(f)

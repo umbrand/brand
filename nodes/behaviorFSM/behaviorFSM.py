@@ -30,9 +30,9 @@ graphYAML = ''
 nodeName = 'behaviorFSM'
 
 
-'''##########################################################
+#############################################################
 ## setting up clean exit code
-##########################################################'''
+#############################################################
 def signal_handler(sig,frame): # setup the clean exit code with a warning
     print('[behaviorFSM] SIGINT received, Exiting')
     sys.exit(0)
@@ -43,9 +43,9 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 
-'''##########################################################
+#############################################################
 ### defining the cursors, targets etc
-##########################################################'''
+#############################################################
 
 ### define target 
 class target():
@@ -82,7 +82,8 @@ class target():
         if (abs(x) <= self.width/2) and (abs(y) <= self.height/2):
             self.over()
             if self.targetTime is None:
-                self.targetTime == tCurr
+                self.targetTime = tCurr
+                return False
             elif (tCurr - self.targetTime) > self.targetHoldTime:
                 self.off()
                 return True
@@ -178,25 +179,21 @@ class touchpad():
             self.touchStart = 0
             return False
 
-'''
-# defining the state machine
+# defining the state machine in an object-oriented way
 # -------------------------------------------------------------
-class state_machine():
-    def __init__():
-        # initialize rewards and counters
-        self.loopTimer = 0
-        self.stateTimer = 0
-        self.loopCounter = 0
-        self.rewardCounter = 0
-        self.failCounter = 0
-        self.abortCounter = 0
-        
-        self.State = NULL
-        
-    def addState:
-'''
-
-
+#class state_machine():
+#    def __init__():
+#        # initialize rewards and counters
+#        self.loopTimer = 0
+#        self.stateTimer = 0
+#        self.loopCounter = 0
+#        self.rewardCounter = 0
+#        self.failCounter = 0
+#        self.abortCounter = 0
+#        
+#        self.State = NULL
+#        
+#    def addState:
 
 
 
@@ -277,7 +274,7 @@ unpackString = unpack_string(graphYAML, inStreamName)
 try:
     r = initializeRedisFromYAML(graphYAML, nodeName)
 except:
-    print('[behaviorFSM] Failed to connect to Redis. Exiting.')
+    print(f"[{nodeName}] Failed to connect to Redis. Exiting.")
     sys.exit()
 
 
@@ -319,7 +316,7 @@ while True:
     if state == STATE_START_TRIAL:
         if tPad.tap_check(sensTouch):
             p.xadd(b'state',{b'state': b'movement', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
-            tgt.on()
+            tgt.on(targetHoldTime.current)
             curs.on()
             state = STATE_MOVEMENT
             stateTime = tCurrent # keeping track of how long we're in a specific state -- for movement timeout
