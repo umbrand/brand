@@ -97,7 +97,7 @@ class Decoder():
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history), dtype=input_dtype)
         # decoder output
-        y = np.zeros((1, self.n_targets + 1), dtype=np.float64)
+        y = np.zeros((1, self.n_targets + 1), dtype=np.int16)
 
         while True:
             while n_entries < self.bin_size:
@@ -117,7 +117,7 @@ class Decoder():
             X[0, :] = window.mean(axis=1).reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
-            y[1:] = self.predict(X)
+            y[1:] = self.predict(X).astype(np.int16)
             logging.debug(y)
 
             # write results to Redis
