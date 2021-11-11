@@ -16,13 +16,15 @@ from time import sleep
 import argparse
 
 # need to take more advantage of cython
-'''import cython
-cimport numpy as np'''
+"""import cython
+cimport numpy as np"""
 
 
 # bring in redisTools
 from brand import *
 
+# node name
+nodeName = "thresholdExtraction"
 
 ###############################################################
 ## Define supporting functions
@@ -246,12 +248,12 @@ while True:
     # wait to get data from cerebus stream, then parse it
     #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
     cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-    xread_receive = r.xread({inStreamName:prevKey}, block=50, count=numPacks)[0][1] # wait up to four ms
+    xread_receive = r.xread({inStreamName:prevKey}, block=50, count=numPacks) # wait up to four ms
     
     if len(xread_receive) > 0: # only run this if we have data
     
-        prevKey = xread_receive[-1][0] # entry number of last item in list
-        for xread_tuple in xread_receive: # run each tuple individually
+        prevKey = xread_receive[0][1][-1][0] # entry number of last item in list
+        for xread_tuple in xread_receive[0][1]: # run each tuple individually
            indStart,indEnd = cerPackInc*packetLength,(cerPackInc+1)*packetLength
            numpy_import(xread_tuple[1], dataBuffer[:,indStart:indEnd], sampTimes[indStart:indEnd], packetLength, numChannels)
            cerPackInc += 1

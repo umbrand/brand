@@ -295,6 +295,7 @@ tPad = touchpad(touchpadTime['min'],touchpadTime['max'],touchpadThresh)
 
 
 tCurrent, tElapsed = perf_counter(), 0
+emptyLoopCounter = 0
 
 while True:
     # make sure each loop is 5 ms
@@ -303,63 +304,74 @@ while True:
 
     # update the current location of the cursor
     tCurrent = perf_counter() # for timing the loop
-    cursorFrame = r.xrevrange(inStreamName, count=1)[0][1]
-    sensors = unpack(unpackString, cursorFrame[b'samples']) # pulling a sensor in
-    sensor0,sensor1 = sensors[1:3]
-    sensTouch = sensors[0]
-    curs.update_cursor(sensor0, sensor1) # sensor names
-    currTimestamp = dt.now().timestamp() # for sample timestamps
-    p = r.pipeline()
-    p.xadd(b'cursorData',curs.packCurs(cursorFrame[b'timestamps']))
-    p.xadd(b'targetData',tgt.packTarget(cursorFrame[b'timestamps']))
-    
-    if state == STATE_START_TRIAL:
-        if tPad.tap_check(sensTouch):
-            p.xadd(b'state',{b'state': b'movement', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
-            tgt.on(targetHoldTime.current)
-            curs.on()
-            state = STATE_MOVEMENT
-            stateTime = tCurrent # keeping track of how long we're in a specific state -- for movement timeout
-            tPad.deactivate(behaviorControl, p)
-    
+    cursorFrame = r.xrevrange(inStreamName, count=1)
+    if len(cursorFrame) > 0:
+        emptyLoopCounter = 0
 
-    if state == STATE_MOVEMENT:
-        if (tCurrent - stateTime) <= movement_max_time:
-            if tgt.isOver(curs, tCurrent): # if the cursor has been over the target for more than X amount of time
-                state = STATE_REWARD # next state
-                p.xadd(b'state',{b'state':b'reward', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
-                curs.off()
-                stateTime = tCurrent
-        else:
-            state = STATE_FAILURE
-            stateTime = tCurrent
-            tgt.off()
-            curs.off()
-            p.xadd(b'state',{b'state':b'failure', b'time': currTimestamp, b'sync': cursorFrame[b'timestamps']})
-            
-    
-    if state == STATE_REWARD:
-        behaviorControl[b'reward'] = pack('?',True)
-        if (tCurrent-stateTime) > dispenseTime.current:
-            state = STATE_BETWEEN_TRIALS
-            p.xadd(b'state',{b'state':b'between_trials',b'time':currTimestamp, b'sync': cursorFrame[b'timestamps']})
-            behaviorControl[b'reward'] = pack('?',False)
-            stateTime = tCurrent
+        sensors = unpack(unpackString, cursorFrame[0][1][b'samples']) # pulling a sensor in
+        sensor0,sensor1 = sensors[1:3]
+        sensTouch = sensors[0]
+        curs.update_cursor(sensor0, sensor1) # sensor names
+        currTimestamp = dt.now().timestamp() # for sample timestamps
+        p = r.pipeline()
+        p.xadd(b'cursorData',curs.packCurs(cursorFrame[0][1][b'timestamps']))
+        p.xadd(b'targetData',tgt.packTarget(cursorFrame[0][1][b'timestamps']))
         
-        p.xadd(b'behaviorControl',behaviorControl)
+        if state == STATE_START_TRIAL:
+            if tPad.tap_check(sensTouch):
+                p.xadd(b'state',{b'state': b'movement', b'time': currTimestamp, b'sync': cursorFrame[0][1][b'timestamps']})
+                tgt.on(targetHoldTime.current)
+                curs.on()
+                state = STATE_MOVEMENT
+                stateTime = tCurrent # keeping track of how long we're in a specific state -- for movement timeout
+                tPad.deactivate(behaviorControl, p)
+        
     
+        if state == STATE_MOVEMENT:
+            if (tCurrent - stateTime) <= movement_max_time:
+                if tgt.isOver(curs, tCurrent): # if the cursor has been over the target for more than X amount of time
+                    state = STATE_REWARD # next state
+                    p.xadd(b'state',{b'state':b'reward', b'time': currTimestamp, b'sync': cursorFrame[0][1][b'timestamps']})
+                    curs.off()
+                    stateTime = tCurrent
+            else:
+                state = STATE_FAILURE
+                stateTime = tCurrent
+                tgt.off()
+                curs.off()
+                p.xadd(b'state',{b'state':b'failure', b'time': currTimestamp, b'sync': cursorFrame[0][1][b'timestamps']})
+                
+        
+        if state == STATE_REWARD:
+            behaviorControl[b'reward'] = pack('?',True)
+            if (tCurrent-stateTime) > dispenseTime.current:
+                state = STATE_BETWEEN_TRIALS
+                p.xadd(b'state',{b'state':b'between_trials',b'time':currTimestamp, b'sync': cursorFrame[0][1][b'timestamps']})
+                behaviorControl[b'reward'] = pack('?',False)
+                stateTime = tCurrent
+            
+            p.xadd(b'behaviorControl',behaviorControl)
+        
+    
+    
+        if state == STATE_BETWEEN_TRIALS or state == STATE_FAILURE:
+            if (tCurrent-stateTime) > interTrialTime.current:
+                tgt = restart_task(targets)
+                tPad.activate(behaviorControl,p)
+                targetHoldTime.reroll()
+                dispenseTime.reroll()
+                interTrialTime.reroll()
+                p.xadd(b'state',{b'state':'start_trial',b'time':currTimestamp, b'sync': cursorFrame[0][1][b'timestamps']})
+                state = STATE_START_TRIAL
+        
+        
+        p.execute()
+    
+    else:  
+        emptyLoopCounter += 1
+        if emptyLoopCounter > 500:
+            emptyLoopCounter = 0
+            print("No input data available in stream")
 
 
-    if state == STATE_BETWEEN_TRIALS or state == STATE_FAILURE:
-        if (tCurrent-stateTime) > interTrialTime.current:
-            tgt = restart_task(targets)
-            tPad.activate(behaviorControl,p)
-            targetHoldTime.reroll()
-            dispenseTime.reroll()
-            interTrialTime.reroll()
-            p.xadd(b'state',{b'state':'start_trial',b'time':currTimestamp, b'sync': cursorFrame[b'timestamps']})
-            state = STATE_START_TRIAL
-    
-    
-    p.execute()
 
