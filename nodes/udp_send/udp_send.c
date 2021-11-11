@@ -1338,6 +1338,7 @@ static const char __pyx_k_ts_dec[] = "ts_dec";
 static const char __pyx_k_ts_gen[] = "ts_gen";
 static const char __pyx_k_udp_ip[] = "udp_ip";
 static const char __pyx_k_AF_INET[] = "AF_INET";
+static const char __pyx_k_collect[] = "collect";
 static const char __pyx_k_decoder[] = "decoder";
 static const char __pyx_k_disable[] = "disable";
 static const char __pyx_k_logging[] = "logging";
@@ -1393,6 +1394,7 @@ static PyObject *__pyx_n_s_basicConfig;
 static PyObject *__pyx_n_s_block;
 static PyObject *__pyx_n_s_brand;
 static PyObject *__pyx_n_s_cline_in_traceback;
+static PyObject *__pyx_n_s_collect;
 static PyObject *__pyx_n_s_count;
 static PyObject *__pyx_n_s_dec;
 static PyObject *__pyx_n_b_decoder;
@@ -2669,6 +2671,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_n_s_block, __pyx_k_block, sizeof(__pyx_k_block), 0, 0, 1, 1},
   {&__pyx_n_s_brand, __pyx_k_brand, sizeof(__pyx_k_brand), 0, 0, 1, 1},
   {&__pyx_n_s_cline_in_traceback, __pyx_k_cline_in_traceback, sizeof(__pyx_k_cline_in_traceback), 0, 0, 1, 1},
+  {&__pyx_n_s_collect, __pyx_k_collect, sizeof(__pyx_k_collect), 0, 0, 1, 1},
   {&__pyx_n_s_count, __pyx_k_count, sizeof(__pyx_k_count), 0, 0, 1, 1},
   {&__pyx_n_s_dec, __pyx_k_dec, sizeof(__pyx_k_dec), 0, 0, 1, 1},
   {&__pyx_n_b_decoder, __pyx_k_decoder, sizeof(__pyx_k_decoder), 0, 0, 0, 1},
@@ -3549,6 +3552,8 @@ if (!__Pyx_RefNanny) {
  * 
  *     # main
  *     dec.run()             # <<<<<<<<<<<<<<
+ * 
+ *     gc.collect()
  */
     __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_dec); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 88, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
@@ -3556,6 +3561,21 @@ if (!__Pyx_RefNanny) {
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __pyx_t_3 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 88, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+
+    /* "udp_send.pyx":90
+ *     dec.run()
+ * 
+ *     gc.collect()             # <<<<<<<<<<<<<<
+ */
+    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_gc); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 90, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_collect); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 90, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_3 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 90, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
