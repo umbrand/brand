@@ -19,6 +19,7 @@ N_SAMPLES = 100
 class Plotter():
     def __init__(self, yaml_path, redis_stream = 'continuousNeural'):
         self.r = initializeRedisFromYAML(yaml_path, 'PLOTTER') # use the new connection function
+        self.r.xadd(b'plotter',{b'connect':b'To Redis'})
         self.stream = redis_stream # pick which stream to plot
         self.fig, self.ax = plt.subplots()
         self.xdata = deque([0] * N_SAMPLES, maxlen=N_SAMPLES)
@@ -27,23 +28,26 @@ class Plotter():
         self.entry_id = '$'
         self.start_time = time.time()
         signal.signal(signal.SIGINT, self.terminate)
+        np.random.seed(5000)
 
     def init(self):
-        self.ax.set_ylim(-10000, 10000)
+        #self.ax.set_ylim(-10000, 10000)
         self.ax.set_xlabel('Timestamp (s)')
         self.ax.set_ylabel(self.stream + ' Output')
         return self.ln,
 
     def update(self, frame):
         entry_list = self.r.xrevrange(self.stream, count=N_SAMPLES)[::-1]
-        for entry in entry_list:
-            self.entry_id, entry_dict = entry
-            y = np.frombuffer(entry_dict[b'samples'], dtype=np.float64)
-            self.ydata.append(float(y))
-            self.xdata.append(float(entry_dict[b'timestamps']))
-        self.ln.set_data(self.xdata, self.ydata)
-        self.ax.set_xlim(self.xdata[0], self.xdata[-1])
-        self.ax.figure.canvas.draw_idle()
+        self.r.xadd(b'plotter',{b'updating': b'updating'})
+        self.ln.set_data(np.linspace(0,100),np.random.randn([100]))
+        #for entry in entry_list:
+        #    self.entry_id, entry_dict = entry
+        #    y = np.frombuffer(entry_dict[b'samples'], dtype=np.float64)
+        #    self.ydata.append(float(y))
+        #    self.xdata.append(float(entry_dict[b'timestamps']))
+        #self.ln.set_data(self.xdata, self.ydata)
+        #self.ax.set_xlim(self.xdata[0], self.xdata[-1])
+        self.ax.figure.canvas.draw()
         return self.ln,
 
     def run(self):
