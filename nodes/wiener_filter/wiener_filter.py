@@ -80,16 +80,6 @@ class Decoder():
         input_stream = self.in_stream
         input_dtype = 'int16'
         input_field = b'crossings'
-        # initialize variables
-        # entry to the decoder output stream
-        decoder_entry = {
-            'ts': float(),
-            'ts_gen': float(),
-            't': int(),
-            'y': np.zeros(self.n_targets).tobytes(),
-            'n_features': self.n_features,
-            'n_targets': self.n_targets,
-        }
         # input stream
         stream_dict = {input_stream: self.data_id}
 
@@ -101,8 +91,14 @@ class Decoder():
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history), dtype=input_dtype)
         # decoder output
-        y = np.zeros((1, self.n_targets + 1), dtype=np.int16)
-
+        y = np.zeros(self.n_targets + 1, dtype=np.int16)
+        # initialize variables
+        # entry to the decoder output stream
+        decoder_entry = {
+            'ts': float(),  # timestamp of decoder output
+            'timestamps': np.uint32(0),  # cerebus timestamp
+            'samples': y.tobytes(),  # decoder predictions
+        }
         while True:
             while n_entries < self.bin_size:
                 # read from the function generator stream
@@ -121,8 +117,8 @@ class Decoder():
             X[0, :] = window.mean(axis=1).reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
-            y[1:] = np.append([0], self.predict(X).astype(np.int16))
-            #logging.debug(y)
+            y[1:] = self.predict(X).astype(np.int16)
+            logging.debug(y)
 
             # write results to Redis
             decoder_entry['ts'] = time.time()
@@ -145,7 +141,7 @@ if __name__ == "__main__":
     # setup
     logging.info(f'[{NAME}] PID: {os.getpid()}')
     dec = Decoder()
-    logging.info('[{NAME}] Waiting for data...')
+    logging.info(f'[{NAME}] Waiting for data...')
 
     # main
     dec.run()
