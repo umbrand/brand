@@ -86,7 +86,8 @@ class Decoder():
         # count the number of entries we have read into the bin so far
         n_entries = 0
         # current window of data to use for decoding
-        window = np.zeros((self.n_features, self.bin_size, self.n_history))
+        window = np.zeros((self.n_features, self.bin_size, self.n_history),
+                          dtype=input_dtype)
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history))
         # decoder output
