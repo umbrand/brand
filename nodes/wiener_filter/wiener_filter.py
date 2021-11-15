@@ -11,7 +11,8 @@ import sys
 import time
 
 import numpy as np
-from brand import get_node_parameter_value, initializeRedisFromYAML, get_node_io
+from brand import (get_node_io, get_node_parameter_value,
+                   initializeRedisFromYAML)
 from sklearn.linear_model import Ridge
 
 NAME = 'wiener_filter'  # name of this node
@@ -28,14 +29,13 @@ numeric_level = getattr(logging, loglevel.upper(), None)
 if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 
-logging.basicConfig(format='[wiener_filter] %(levelname)s:%(message)s',
+logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
                     level=numeric_level)
 
 
 class Decoder():
     def __init__(self):
         # connect to Redis
-        print(f"[{NAME}] intializing YAML")
         self.r = initializeRedisFromYAML(YAML_FILE, NAME)
 
         # build the wiener_filter
@@ -43,7 +43,8 @@ class Decoder():
         self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
         self.n_history = get_node_parameter_value(YAML_FILE, NAME, 'n_history')
         self.bin_size = get_node_parameter_value(YAML_FILE, NAME, 'bin_size')
-        self.in_stream = list(get_node_io(YAML_FILE, NAME)['redis_inputs'].keys())[0]
+        self.in_stream = list(
+            get_node_io(YAML_FILE, NAME)['redis_inputs'].keys())[0]
         self.build()
 
         # initialize IDs for the two Redis streams
@@ -56,14 +57,14 @@ class Decoder():
     def build(self):
         self.model_path = get_node_parameter_value(YAML_FILE, NAME,
                                                    'model_path')
-        print(f"[{NAME}] Attempting to load model from file {self.model_path}")
+        logging.info(f"Attempting to load model from file {self.model_path}")
         try:
             with open(self.model_path, 'rb') as f:
                 self.mdl = pickle.load(f)
-                logging.info(f'[{NAME}] Loaded model from {self.model_path}')
+                logging.info(f'Loaded model from {self.model_path}')
         except Exception:
-            logging.warning(
-                f'[{NAME}] Failed to load wiener_filter. Initializing a new one.')
+            logging.warning('Failed to load wiener_filter.'
+                            ' Initializing a new one.')
             self.mdl = Ridge()
             X = np.ones((100, self.n_features * self.n_history))
             y = np.ones((100, self.n_targets))
@@ -76,7 +77,6 @@ class Decoder():
         return y
 
     def run(self):
-        #input_stream = b'tc_replay'
         input_stream = self.in_stream
         input_dtype = 'int16'
         input_field = b'crossings'
@@ -86,10 +86,9 @@ class Decoder():
         # count the number of entries we have read into the bin so far
         n_entries = 0
         # current window of data to use for decoding
-        window = np.zeros((self.n_features, self.bin_size, self.n_history),
-                          dtype=input_dtype)
+        window = np.zeros((self.n_features, self.bin_size, self.n_history))
         # binned decoder input
-        X = np.zeros((1, self.n_features * self.n_history), dtype=input_dtype)
+        X = np.zeros((1, self.n_features * self.n_history))
         # decoder output
         y = np.zeros(self.n_targets + 1, dtype=np.int16)
         # initialize variables
@@ -99,6 +98,7 @@ class Decoder():
             'timestamps': np.uint32(0),  # cerebus timestamp
             'samples': y.tobytes(),  # decoder predictions
         }
+        logging.info(f'Listening for data from {self.in_stream}...')
         while True:
             while n_entries < self.bin_size:
                 # read from the function generator stream
@@ -139,9 +139,8 @@ if __name__ == "__main__":
     gc.disable()
 
     # setup
-    logging.info(f'[{NAME}] PID: {os.getpid()}')
+    logging.info(f'PID: {os.getpid()}')
     dec = Decoder()
-    logging.info(f'[{NAME}] Waiting for data...')
 
     # main
     dec.run()
