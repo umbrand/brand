@@ -85,9 +85,10 @@ class Decoder():
 
         # count the number of entries we have read into the bin so far
         n_entries = 0
+        # initialize the input stream timestamp
+        input_timestamp = None
         # current window of data to use for decoding
-        window = np.zeros((self.n_features, self.bin_size, self.n_history),
-                          dtype=input_dtype)
+        window = np.zeros((self.n_features, self.bin_size, self.n_history))
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history))
         # decoder output
@@ -96,12 +97,12 @@ class Decoder():
         # entry to the decoder output stream
         decoder_entry = {
             'ts': float(),  # timestamp of decoder output
-            'timestamps': np.uint32(0),  # cerebus timestamp
+            'timestamps': np.uint32(0),  # timestamp of the input stream
             'samples': y.tobytes(),  # decoder predictions
         }
         logging.info(f'Listening for data from {self.in_stream}...')
-        while True:
-            while n_entries < self.bin_size:
+        while True:  # for each bin
+            while n_entries < self.bin_size:  # for each sample in the bin
                 # read from the function generator stream
                 streams = self.r.xread(stream_dict,
                                        block=0,
@@ -112,6 +113,10 @@ class Decoder():
                     window[:, n_entries,
                            0] = np.frombuffer(entry_dict[input_field],
                                               dtype=input_dtype)
+                    # get the timestamp of the first sample
+                    if input_timestamp is None:
+                        input_timestamp = entry_dict[b'timestamps']
+                    # count the number of samples we have loaded in this bin
                     n_entries += 1
                 stream_dict[input_stream] = self.data_id
 
@@ -123,12 +128,17 @@ class Decoder():
 
             # write results to Redis
             decoder_entry['ts'] = time.time()
-            decoder_entry['timestamps'] = entry_dict[b'timestamps']
+            decoder_entry['timestamps'] = input_timestamp
             decoder_entry['samples'] = y.tobytes()
             self.r.xadd('decoder', decoder_entry)
 
             # shift window along the history axis
             window[:, :, 1:] = window[:, :, :-1]
+
+            # reset the number of entries
+            n_entries = 0
+            # reset the input timestamp
+            input_timestamp = None
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
