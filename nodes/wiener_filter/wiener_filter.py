@@ -120,7 +120,7 @@ class Decoder():
                     n_entries += 1
                 stream_dict[input_stream] = self.data_id
 
-            X[0, :] = window.mean(axis=1).reshape(
+            X[0, :] = window.mean(axis=1).T.reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
             y[1:] = self.predict(X).astype(np.int16)
