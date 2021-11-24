@@ -13,7 +13,7 @@ complete -W "`echo ${site_list[@]}`" setSite
 # rdb save location -- saving to an environment variable to be useful 
 # for different shells run at the same time
 if [ -z ${RDB_SAVE_DIR} ]; then # if it doesn't exist, set to a default
-RDB_SAVE_DIR="../../BRANDS_rdb"
+RDB_SAVE_DIR="../BRANDS_rdb"
 fi
 if [ ! -d ${RDB_SAVE_DIR} ]; then # if the directory doesn't exist, create it
     mkdir ${RDB_SAVE_DIR}
@@ -69,9 +69,10 @@ createGraph () {
 conda activate rt
 
 
-#load () {
+load () {
 #    ./graphs/sharedDevelopment/$1/0.0/load.sh
-#}
+    ./graphs/sharedDevelopment/$1/load.sh
+}
 
 run () {
     pushd run
