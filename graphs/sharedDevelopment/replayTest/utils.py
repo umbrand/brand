@@ -36,6 +36,8 @@ def decode_field(entry, stream, field, stream_spec):
     dtype = stream_spec[stream][field]
     if dtype == 'str':
         decoded_entry = entry.decode()
+    elif dtype == 'int':
+        decoded_entry = int(entry)
     elif dtype == 'float':
         decoded_entry = float(entry)
     elif dtype == 'bool':
@@ -145,3 +147,27 @@ def smooth_data(data, bin_size, gauss_width):
                                                 mode='same')
 
     return smoothed_data
+
+
+def find_offset(t1, t2, offsets=range(-15, 16)):
+    """
+    Find the offset between two sets of timestamps
+
+    Parameters
+    ----------
+    t1 : list
+        Base list of timestamps
+    t2 : list
+        List of timestamps that will be offset to line up with t1
+    offsets : list or range, optional
+        List of ossets to test, by default range(-15, 16)
+
+    Returns
+    -------
+    offset: int
+        Offset to apply to t2 to make it line up with t1
+    """
+    overlap_len = [np.intersect1d(t1, t2 + i).shape[0] for i in offsets]
+    idx = np.argmax(overlap_len)
+    offset = offsets[idx]
+    return offset
