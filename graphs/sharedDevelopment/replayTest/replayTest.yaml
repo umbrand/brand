@@ -5,54 +5,61 @@ Metadata:
 RedisConnection:
     redis_realtime_ip: 127.0.0.1
     redis_realtime_port: 6379
-    #redis_realtime_socket: /var/run/redis.sock
+    redis_realtime_socket: /var/run/redis.sock
     redis_realtime_config: redis.realtime.conf
-
+# streams
+RedisStreams:
+    thresholdCrossings:
+        chan_per_stream:    96
+        samp_per_stream:    1
+        sample_name:        crossings
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uint32
+    tc_replay:
+        chan_per_stream:    96
+        samp_per_stream:    1
+        sample_name:        crossings
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uint32
+    decoder:
+        chan_per_stream:    3
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        int16
+        timestamp_type:     uint32
 # node-specific parameters
 Nodes:
-    - Name: func_generator
-      Version: 0.0
+    - Name: redis_replay 
+      Version: 0.0 
+      redis_inputs:                 [thresholdCrossings]
+      redis_outputs:                [tc_replay]
       Parameters:
             # logging level for the process
             log: INFO
-            # Whether to wait for timer interrupts when sending samples
-            use_timer: false
-            # Sample rate to use when use_timer=false
-            sample_rate: 200
-            # Number of targets the decoder should predict
-            # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
-            # Number of features to use for decoding
-            n_features: 256
+            # Sample rate to use
+            sample_rate: 1000
             # duration of the test
-            duration: 30  # seconds
-    - Name: wiener_filter 
+            duration: 6000  # seconds
+    - Name: ffn_decoder 
       Version: 0.0 
+      redis_inputs:                 [tc_replay]
+      redis_outputs:                [decoder]
       Parameters:
             # logging level for the process
             log: INFO
-            # Number of targets the decoder should predict
+            # Number of targets the ffn_decoder should predict
             # e.g. n_targets=2 for decoding x and y channels
             n_targets: 2
             # Number of features to use for decoding
-            n_features: 256
-            # Type of decoder to use
-            decoder_type: linear
+            n_features: 96
             # path to the saved model
-            model_path:
-    - Name: decoder_trainer
-      Version: 0.0 
-      Parameters:
-            # logging level for the process
-            log: INFO
-            # path to save the model
-            model_path: './model.json'
-    - Name: udp_send
-      Version: 0.0
-      Parameters:
-            # logging level for the process
-            log: INFO
-            # IP address to which UDP packets are sent
-            udp_ip: 127.0.0.1
-            # port to which UDP packets are sent
-            udp_port: 5005
+            model_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/
+            # path to the scaler
+            scaler_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/scaler.pkl
+            # history for the Wiener filter
+            n_history: 15
+            # bin size (in samples)
+            bin_size: 5

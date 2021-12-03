@@ -1,15 +1,16 @@
 # %%
+import os
+
 import joblib
 import numpy as np
 import pandas as pd
 import yaml
 from brand import initializeRedisFromYAML
-from numpy.lib.npyio import save
 from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import train_test_split
+from tensorflow import keras
 
 from utils import get_lagged_features, load_stream
-import pickle
 
 # %%
 # Connect to Redis
@@ -71,7 +72,7 @@ binned_data = joined_df.resample(f'{bin_size_ms :d}ms').mean().dropna(axis=0)
 # Decoding
 neural_data = binned_data[channel_labels].values
 
-X = get_lagged_features(neural_data, n_history=50)
+X = get_lagged_features(neural_data, n_history=15)
 y = binned_data[['x', 'y']].values
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
@@ -90,8 +91,7 @@ binned_data['y_pred'] = y_pred[:, 1]
 
 # %%
 # Save the model
-with open('model.pkl', 'wb') as f:
-    pickle.dump(mdl, f)
+keras.models.load_model(os.getcwd())
 
 # %%
 # Split the data into trials

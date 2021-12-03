@@ -14,7 +14,7 @@ from brand import (config_logging, get_node_parameter_value,
 
 NAME = 'redis_replay'
 YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else f'{NAME}.yaml'
-YAML_FILE = f'{NAME}.yaml'
+
 r = initializeRedisFromYAML(YAML_FILE, NAME)
 
 DURATION = get_node_parameter_value(YAML_FILE, NAME, 'duration')
@@ -57,5 +57,5 @@ while time.time() - start_time < DURATION:
         last_time = current_time
     if i == len(stream_entries):
         break
-
+logging.info('Replay complete')
 # %%

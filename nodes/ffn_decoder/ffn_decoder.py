@@ -4,6 +4,7 @@
 import gc
 import logging
 import os
+import pickle
 import signal
 import sys
 import time
@@ -55,10 +56,15 @@ class Decoder():
     def build(self):
         self.model_path = get_node_parameter_value(YAML_FILE, NAME,
                                                    'model_path')
+        self.scaler_path = get_node_parameter_value(YAML_FILE, NAME,
+                                                   'scaler_path')
         logging.info(f"Attempting to load model from file {self.model_path}")
         try:
             self.model = keras.models.load_model(self.model_path)
             logging.info(f'Loaded model from {self.model_path}')
+            with open(self.scaler_path, 'rb') as f:
+                self.scaler = pickle.load(f)
+            logging.info(f'Loaded scaler from {self.scaler_path}')
         except Exception:
             import traceback
             traceback.print_exc()
@@ -69,6 +75,7 @@ class Decoder():
         # implementing this step directly instead of using mdl.predict() for
         # best performance
         y = self.model(x).numpy()
+        y = self.scaler.inverse_transform(y)
         return y
 
     def run(self):

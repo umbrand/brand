@@ -8,7 +8,15 @@ continuousNeural:
   BRANDS_time: timeval
   udp_recv_time: timeval
   samples: int16
+decoder:
+  ts: float
+  timestamps: uint32
+  samples: int16
 thresholdCrossings:
+  crossings: int16
+  timestamps: uint32
+tc_replay:
+  ts: float
   crossings: int16
   timestamps: uint32
 rawEMG:

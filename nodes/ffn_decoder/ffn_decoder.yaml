@@ -47,6 +47,8 @@ Nodes:
             n_features: 96
             # path to the saved model
             model_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/
+            # path to the scaler
+            scaler_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/scaler.pkl
             # history for the Wiener filter
             n_history: 15
             # bin size (in samples)
