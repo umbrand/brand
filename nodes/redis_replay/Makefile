@@ -1,4 +1,4 @@
-PROJECT=plotter
+PROJECT=redis_replay
 
 ifneq ($(CONDA_DEFAULT_ENV),rt)
 $(error real-time conda env (rt) not active)

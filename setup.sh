@@ -70,8 +70,7 @@ conda activate rt
 
 
 load () {
-#    ./graphs/sharedDevelopment/$1/0.0/load.sh
-    ./graphs/sharedDevelopment/$1/load.sh
+   ./graphs/sharedDevelopment/$1/load.sh
 }
 
 run () {

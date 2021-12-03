@@ -7,11 +7,36 @@ RedisConnection:
     redis_realtime_port: 6379
 #    redis_realtime_socket: /var/run/redis.sock
     redis_realtime_config: redis.realtime.conf
+# streams
+RedisStreams:
+    thresholdCrossings:
+        chan_per_stream:    96
+        samp_per_stream:    1
+        sample_name:        crossings
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uint32
+    tc_replay:
+        chan_per_stream:    96
+        samp_per_stream:    1
+        sample_name:        crossings
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uint32
+    decoder:
+        chan_per_stream:    3
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        int16
+        timestamp_type:     uint32
 
 # node-specific parameters
 Nodes:
     - Name: wiener_filter 
       Version: 0.0 
+      redis_inputs:                 [tc_replay]
+      redis_outputs:                [decoder]
       Parameters:
             # logging level for the process
             log: DEBUG
@@ -28,9 +53,3 @@ Nodes:
             n_history: 50
             # bin size (in samples)
             bin_size: 5
-            # input stream
-            input_stream:
-            # input data type
-            input_dtype:
-            # input field
-            input_field:

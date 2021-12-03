@@ -1,26 +1,26 @@
 #!/bin/bash
 masterList=(
     # MODULES
-    bin/func_generator
-    bin/decoder
-    bin/decoder_trainer
-    bin/udp_send
-
-    nodes/decoder_trainer/model.json
+    nodes/redis_replay/redis_replay.bin
+    nodes/ffn_decoder/ffn_decoder.bin
 
     # CONFIGURATION
-    graphs/sharedDevelopment/replayTest/0.0/run.sh
-    graphs/sharedDevelopment/replayTest/0.0/load.sh
-    graphs/sharedDevelopment/replayTest/0.0/replayTest.yaml
+    graphs/sharedDevelopment/replayTest/run.sh
+    graphs/sharedDevelopment/replayTest/load.sh
+    graphs/sharedDevelopment/replayTest/replayTest.yaml
+    graphs/sharedDevelopment/replayTest/stream_spec.yaml
 
     # REDIS
-    graphs/sharedDevelopment/replayTest/0.0/redis.realtime.conf
+    graphs/sharedDevelopment/replayTest/redis.realtime.conf
     bin/redis-server
     bin/redis-cli
 
     # ANALYSIS
-    graphs/sharedDevelopment/replayTest/0.0/export.py
-    graphs/sharedDevelopment/replayTest/0.0/analyze_decoder_sweep.py
+    graphs/sharedDevelopment/replayTest/train_ffn_decoder.py
+    graphs/sharedDevelopment/replayTest/analyze_ffn_decoder.py
+
+    # DATA
+    graphs/sharedDevelopment/replayTest/20211112T1546_pop.rdb
 )
 
 ####################################

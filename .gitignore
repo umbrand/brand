@@ -11,10 +11,10 @@ __pycache__
 
 # binaries, compiled objects, and generated code
 bin/
-*.bin
 
-# should be in bin, but no compiled c objects
+# should be in bin, but no compiled c or cython objects
 *.o
+*.bin
 
 # All backup code should be saved in subfolders with "old":
 **/old
