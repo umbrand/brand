@@ -1,4 +1,4 @@
-PROJECT=plotter
+PROJECT=ffn_decoder
 
 ifneq ($(CONDA_DEFAULT_ENV),rt)
 $(error real-time conda env (rt) not active)

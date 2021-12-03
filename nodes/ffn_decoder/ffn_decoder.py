@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# wiener_filter.py
+# ffn_decoder.py
 import gc
-import json
 import logging
 import os
 import pickle
@@ -13,10 +12,10 @@ import time
 import numpy as np
 from brand import (get_node_io, get_node_parameter_value,
                    initializeRedisFromYAML)
-from sklearn.linear_model import Ridge
+from tensorflow import keras
 
-NAME = 'wiener_filter'  # name of this node
-YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'wiener_filter.yaml'
+NAME = 'ffn_decoder'  # name of this node
+YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'ffn_decoder.yaml'
 if len(sys.argv) > 2:
     N_FEATURES = int(sys.argv[2])
 else:
@@ -38,7 +37,7 @@ class Decoder():
         # connect to Redis
         self.r = initializeRedisFromYAML(YAML_FILE, NAME)
 
-        # build the wiener_filter
+        # build the ffn_decoder
         self.n_features = N_FEATURES
         self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
         self.n_history = get_node_parameter_value(YAML_FILE, NAME, 'n_history')
@@ -57,23 +56,26 @@ class Decoder():
     def build(self):
         self.model_path = get_node_parameter_value(YAML_FILE, NAME,
                                                    'model_path')
+        self.scaler_path = get_node_parameter_value(YAML_FILE, NAME,
+                                                   'scaler_path')
         logging.info(f"Attempting to load model from file {self.model_path}")
         try:
-            with open(self.model_path, 'rb') as f:
-                self.mdl = pickle.load(f)
-                logging.info(f'Loaded model from {self.model_path}')
+            self.model = keras.models.load_model(self.model_path)
+            logging.info(f'Loaded model from {self.model_path}')
+            with open(self.scaler_path, 'rb') as f:
+                self.scaler = pickle.load(f)
+            logging.info(f'Loaded scaler from {self.scaler_path}')
         except Exception:
-            logging.warning('Failed to load wiener_filter.'
-                            ' Initializing a new one.')
-            self.mdl = Ridge()
-            X = np.ones((100, self.n_features * self.n_history))
-            y = np.ones((100, self.n_targets))
-            self.mdl.fit(X, y)
+            import traceback
+            traceback.print_exc()
+            logging.error('Failed to load ffn_decoder.')
+            sys.exit(0)
 
     def predict(self, x):
         # implementing this step directly instead of using mdl.predict() for
         # best performance
-        y = x.dot(self.mdl.coef_.T) + self.mdl.intercept_
+        y = self.model(x).numpy()
+        y = self.scaler.inverse_transform(y)
         return y
 
     def run(self):

@@ -1,10 +1,12 @@
 #!/bin/bash
 
 start_modules=()
-main_modules=(udp_send)
-end_modules=(export.py)
+main_modules=(ffn_decoder.bin)
+end_modules=()
 
 config="replayTest.yaml"
+
+replay_rdb=20211112T1546_pop.rdb
 
 ##############################################
 # Check to see if there is already an .rdb file
@@ -25,44 +27,43 @@ warn () {
 
 # make sure the database save name is defined in the redis cfg file and not commented out
 redis_cfg=redis.realtime.conf
-rdb=`grep "dbfilename.*rdb" ${redis_cfg} | grep -v "#" | awk '{print $2}'`
-[ -z "${rdb}" ] && error "No database filename given in ${redis_cfg}"
-[ `echo ${rdb} | wc -l` -gt 1 ] && error "dbfilename is defined multiple times in $redis_cfg}"
+# rdb=`grep "dbfilename.*rdb" ${redis_cfg} | grep -v "#" | awk '{print $2}'`
+# [ -z "${rdb}" ] && error "No database filename given in ${redis_cfg}"
+# [ `echo ${rdb} | wc -l` -gt 1 ] && error "dbfilename is defined multiple times in $redis_cfg}"
 
-if [ -f "${rdb}" ]; then
-    # If the database already exists, increment the filename according to ${rdb}_x,
-    # where x is the number of replacements that have been issued for ${rdb}.
+# if [ -f "${rdb}" ]; then
+#     # If the database already exists, increment the filename according to ${rdb}_x,
+#     # where x is the number of replacements that have been issued for ${rdb}.
 
-    # extract x from rdb name. x=0 means we haven't done this before.
-    prefix=${rdb%%.rdb} #everything before '.rdb'
-    let x=`echo ${prefix} | rev | cut -d '_' -f 1 | rev`
-    [ $x -gt 0 ] && prefix=`echo ${rdb} | sed 's/\(.*\)_.*/\1/'` # everything before the last '_'
-    x=$(( $x + 1 )) # increment the count
-    while [ -f "${prefix}_$x.rdb" ]; do
-        x=$(( $x + 1 ))
-    done
-    new_rdb=${prefix}_$x.rdb
+#     # extract x from rdb name. x=0 means we haven't done this before.
+#     prefix=${rdb%%.rdb} #everything before '.rdb'
+#     let x=`echo ${prefix} | rev | cut -d '_' -f 1 | rev`
+#     [ $x -gt 0 ] && prefix=`echo ${rdb} | sed 's/\(.*\)_.*/\1/'` # everything before the last '_'
+#     x=$(( $x + 1 )) # increment the count
+#     while [ -f "${prefix}_$x.rdb" ]; do
+#         x=$(( $x + 1 ))
+#     done
+#     new_rdb=${prefix}_$x.rdb
 
-    msg="There is already a database saved as ${rdb}.\n"
-    msg="${msg}The database from this run will be saved as ${new_rdb}."
-    warn "${msg}"
-    read -p "Do you want to continue? [Y/n]: " should_continue
+#     msg="There is already a database saved as ${rdb}.\n"
+#     msg="${msg}The database from this run will be saved as ${new_rdb}."
+#     warn "${msg}"
+#     read -p "Do you want to continue? [Y/n]: " should_continue
 
-    if [[ ${should_continue,,} != "y"* ]]; then
-        echo "Exiting."
-        exit
-    fi
-    rdb=${new_rdb}
-fi
+#     if [[ ${should_continue,,} != "y"* ]]; then
+#         echo "Exiting."
+#         exit
+#     fi
+#     rdb=${new_rdb}
+# fi
 
 
 ##############################################
 # Load the modules
 ##############################################
 
-
-chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${rdb} &
-sleep 2s
+chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${replay_rdb} &
+sleep 30s
 
 echo "--------------------------------"
 echo "Loading start modules"
@@ -84,27 +85,7 @@ do
     sleep 1s
 done
 
-for n_features in 64 128 192 256 320
-do
-    echo "--------------------------------"
-    echo "n_features = $n_features"
-    echo "Running decoder"
-    chrt -f 99 ./decoder $config $n_features &
-
-    sleep 5s  # give the decoder time to start
-
-    echo "Running function generator"
-    chrt -f 99 ./func_generator $config $n_features
-
-    echo "Shutting down decoder and function generator"
-    pkill -SIGINT decoder
-    pkill -SIGINT func_generator
-
-    echo "Saving Redis database"
-    ./redis-cli save
-    echo "--------------------------------"
-done
-
+chrt -f 99 ./redis_replay.bin $config
 
 echo "--------------------------------"
 echo "Loading finalize modules"

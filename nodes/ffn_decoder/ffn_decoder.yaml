@@ -1,6 +1,6 @@
 Metadata:
     participant_id: 0
-    session_description: "Evaluate decoder timing"
+    session_description: ""
 
 RedisConnection:
     redis_realtime_ip: 127.0.0.1
@@ -30,19 +30,9 @@ RedisStreams:
         timestamp_name:     timestamp
         sample_type:        int16
         timestamp_type:     uint32
+
 # node-specific parameters
 Nodes:
-    - Name: redis_replay 
-      Version: 0.0 
-      redis_inputs:                 [thresholdCrossings]
-      redis_outputs:                [tc_replay]
-      Parameters:
-            # logging level for the process
-            log: INFO
-            # Sample rate to use
-            sample_rate: 1000
-            # duration of the test
-            duration: 6000  # seconds
     - Name: ffn_decoder 
       Version: 0.0 
       redis_inputs:                 [tc_replay]

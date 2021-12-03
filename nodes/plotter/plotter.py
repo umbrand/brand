@@ -13,7 +13,7 @@ import argparse
 
 warnings.filterwarnings("ignore")
 
-N_SAMPLES = 100
+N_SAMPLES = 30000
 
 
 class Plotter():
@@ -23,13 +23,15 @@ class Plotter():
         self.fig, self.ax = plt.subplots()
         self.xdata = deque([0] * N_SAMPLES, maxlen=N_SAMPLES)
         self.ydata = deque([0] * N_SAMPLES, maxlen=N_SAMPLES)
-        self.ln, = plt.plot([], [], 'o-')
+        self.ln, = plt.plot([], [], '-')
         self.entry_id = '$'
+        self.chan = 1
         self.start_time = time.time()
+        np.random.seed(int(time.time()))
         signal.signal(signal.SIGINT, self.terminate)
 
     def init(self):
-        self.ax.set_ylim(-10000, 10000)
+        #self.ax.set_ylim(-10000, 10000)
         self.ax.set_xlabel('Timestamp (s)')
         self.ax.set_ylabel(self.stream + ' Output')
         return self.ln,
@@ -38,11 +40,14 @@ class Plotter():
         entry_list = self.r.xrevrange(self.stream, count=N_SAMPLES)[::-1]
         for entry in entry_list:
             self.entry_id, entry_dict = entry
-            y = np.frombuffer(entry_dict[b'samples'], dtype=np.float64)
-            self.ydata.append(float(y))
-            self.xdata.append(float(entry_dict[b'timestamps']))
+            y = np.frombuffer(entry_dict[b'samples'], dtype=np.int16).reshape([96,30])
+            self.ydata += deque(y[self.chan,:])
+            x = np.frombuffer(entry_dict[b'timestamps'], dtype=np.uint32)
+            self.xdata += deque(x)
         self.ln.set_data(self.xdata, self.ydata)
+        minY,maxY = np.min(self.ydata),np.max(self.ydata)
         self.ax.set_xlim(self.xdata[0], self.xdata[-1])
+        self.ax.set_ylim(np.min([self.ax.get_ylim()[0],minY]), np.max([self.ax.get_ylim()[1],maxY]))
         self.ax.figure.canvas.draw_idle()
         return self.ln,
 
