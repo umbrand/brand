@@ -1,0 +1,24 @@
+Metadata:
+    participant_id: 0
+    session_description: ""
+
+RedisConnection:
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_socket: /var/run/redis.sock
+    redis_realtime_config: redis.realtime.conf
+
+# node-specific parameters
+Nodes:
+    - Name: redis_replay 
+      Version: 0.0 
+      redis_inputs:                 [thresholdCrossings]
+      redis_outputs:                [tc_replay]
+      Parameters:
+            # logging level for the process
+            log: INFO
+            # Sample rate to use
+            sample_rate: 1000
+            # duration of the test
+            duration: 6000  # seconds
+
