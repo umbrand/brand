@@ -23,18 +23,26 @@ from struct import unpack
 from os import getcwd
 from os import path as osPath
 import sys 
+from brand import get_node_parameter_dump, initializeRedisFromYAML
 
 
-# check to see if we're trying to run this from the base directory or from inside of 'run'
-# for debugging purposes when I'm jumping between files a lot
-if getcwd().split('/')[-1] == 'realtime_rig_dev':
-    sys.path.insert(1,'lib/redisTools/')
-else: # assumes we're only one directly above the base
-    sys.path.insert(1,'../lib/redisTools/')
-from redisTools import get_parameter_value
-NWB_yaml = 'exportNWB.yaml'
+nodeName = 'exportNWB'
 
 
+
+#######################################################################
+### set up helper functions etc
+#######################################################################
+
+# clean exit code
+def signal_handler(sig,frame):
+    print('[nodeName] SIGINT received, Exiting')
+    sys.exit(0)
+
+# place the sigint signal handler
+signal.signal(signal.SIGINT, signal_handler)
+
+#---------------------------------------------------------------------
 
 # connect to redis
 try:
@@ -46,6 +54,40 @@ try:
 except:
     print('[exportXDS] Failed to connect to Redis. Exiting.')
     exit()
+
+
+#---------------------------------------------------------------------
+
+# argparser for bringing in command line arguments
+if __name__ == '__main__':
+    description = '''
+        Outputs data from the open redis database as a Neurodata Without
+        Borders (NWB) file. Formatting of each of the export fields is handled
+        through settings in the graph. If you are wanting to export timeseries
+        data the stream needs to have # of channels and # of samples per Redis packet
+        specified, and which key aligns to "sample" and which aligns to "timestamp". 
+        '''
+
+    parser = argparse.ArgumentParser(description = description)
+    parser.add_argument('yaml', help="path to graph YAML settings file")
+    args = parser.parse_args()
+    graphYAML = args.yaml
+
+
+
+#######################################################################
+### initialize settings, Redis etc
+#######################################################################
+
+# initialize Redis
+try:
+    r = intializeRedisFromYAML(graphYAML, nodeName)
+except:
+    print(f"[{nodeName}] Failed to connect to Redis. Exiting")
+    sys.exit()
+
+
+
 
 
 # assumes that source is a dictionary with fields:
