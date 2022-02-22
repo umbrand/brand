@@ -110,8 +110,9 @@ RedisStreams:
 
 
 Nodes:
-    - Name:         cerebusAdapter
+    - Name:         cerebusAdapter.bin
       Version:      0.0
+      Stage:        start
       redis_inputs:
       redis_outputs:                [continuousNeural, rawEMG, taskInput]
       Parameters:                   
@@ -123,8 +124,9 @@ Nodes:
             chan_per_stream:        [96, 12, 3]                           # more than just the standard info
             samp_per_stream:        [30, 10, 1]                           # per stream
 
-    - Name:         thresholdExtraction 
+    - Name:         thresholdExtraction.bin
       Version:      0.0 
+      Stage:        main
       redis_inputs:                 [continuousNeural]
       redis_outputs:                [filteredCerebusAdapter, thresholdCrossings]
       Parameters:
@@ -141,8 +143,9 @@ Nodes:
             enable_Notch_120:       False
             enable_CAR:             True
 
-    - Name:         behaviorFSM
+    - Name:         behaviorFSM.bin
       Version:      0.0
+      Stage:        main
       redis_inputs:                 [decoder]
       redis_outputs:                [cursorData,targetData,state]
       Parameters:
@@ -164,50 +167,64 @@ Nodes:
                 min:                1 # time in seconds
                 max:                2 # time in seconds
             cursor:
-                x_offset:           -200
+                x_offset:           0
                 y_offset:           0
-                gain_x_0:           .03
+                gain_x_0:           .05
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           0
+                gain_y_1:           .05
                 width:              5
                 height:             5
             target_list:
                 left:
-                    x:              -200
+                    x:              -100
                     y:              0
                     width:          100
                     height:         100
                 right:
-                    x:              200
+                    x:              100
                     y:              0
                     width:          100
                     height:         100
-    - Name:         beep
+                up:
+                    x:              0
+                    y:              200
+                    width:          100
+                    height:         100
+                left:
+                    x:              0
+                    y:              -200
+                    width:          100
+                    height:         100
+
+    - Name:         beep.py
       Version:      0.0
+      Stage:        main
       redis_inputs:                 [state]
       redis_outputs:                []
       Parameters:
                 goSound:            go3.wav
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
-    - Name: wiener_filter
-      Version: 0.0
+
+    - Name: wiener_filter.bin
+      Version:      0.0
+      Stage:        main
       redis_inputs:                 [thresholdCrossings]
       redis_outputs:                [decoder]
       Parameters:
-            # logging level for the process
-            log: DEBUG
-            # Number of targets the wiener_filter should predict
-            # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
-            # Number of features to use for decoding
-            n_features: 96
-            # Type of wiener_filter to use
-            decoder_type: linear
-            # path to the saved model
-            model_path: ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
-            # history for the Wiener filter
-            n_history: 50
-            # bin size (in samples)
-            bin_size: 5
+                # logging level for the process
+                log:                DEBUG
+                # Number of targets the wiener_filter should predict
+                # e.g. n_targets=2 for decoding x and y channels
+                n_targets:          2
+                # Number of features to use for decoding
+                n_features:         96
+                # Type of wiener_filter to use
+                decoder_type:       linear
+                # path to the saved model
+                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
+                # history for the Wiener filter
+                n_history:          50
+                # bin size (in samples)
+                bin_size:           5
