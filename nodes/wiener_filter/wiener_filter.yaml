@@ -23,7 +23,7 @@ RedisStreams:
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uint32
-    decoder:
+    cursorData:
         chan_per_stream:    3
         samp_per_stream:    1
         sample_name:        state
@@ -35,14 +35,14 @@ RedisStreams:
 Nodes:
     - Name: wiener_filter 
       Version: 0.0 
-      redis_inputs:                 [tc_replay]
-      redis_outputs:                [decoder]
+      redis_inputs:                 [thresholdCrossings]
+      redis_outputs:                [cursorData]
       Parameters:
             # logging level for the process
             log: DEBUG
             # Number of targets the wiener_filter should predict
             # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
+            n_targets: 3
             # Number of features to use for decoding
             n_features: 96
             # Type of wiener_filter to use

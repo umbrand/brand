@@ -207,6 +207,16 @@ Nodes:
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
 
+#     - Name:         decoder.py
+#       Version:      0.0
+#       stage:        main
+#       Parameters:
+#             log:            DEBUG
+#             n_targets:      3
+#             n_features:     3
+#             decoder_type:   ridge
+#             model_path:     ../graph/Northwestern
+
     - Name: wiener_filter.bin
       Version:      0.0
       Stage:        main
@@ -217,13 +227,13 @@ Nodes:
                 log:                DEBUG
                 # Number of targets the wiener_filter should predict
                 # e.g. n_targets=2 for decoding x and y channels
-                n_targets:          2
+                n_targets:          3
                 # Number of features to use for decoding
                 n_features:         96
                 # Type of wiener_filter to use
                 decoder_type:       linear
                 # path to the saved model
-                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
+                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.json
                 # history for the Wiener filter
                 n_history:          50
                 # bin size (in samples)

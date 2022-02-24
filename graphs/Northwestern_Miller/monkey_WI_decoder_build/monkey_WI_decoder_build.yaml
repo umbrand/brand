@@ -34,7 +34,6 @@ RedisStreams:
         sample_type:        int16
         timestamp_type:     uInt32
         samp_freq:          30000
-    
     rawEMG:
         chan_per_stream:    12
         samp_per_stream:    10
@@ -43,7 +42,6 @@ RedisStreams:
         sample_type:        int16
         timestamp_type:     uInt32
         samp_freq:          2000
-    
     taskInput:
         chan_per_stream:    3
         samp_per_stream:    1
@@ -52,7 +50,6 @@ RedisStreams:
         sample_type:        int16
         timestamp_type:     uInt32
         samp_freq:          1000
-    
     filteredCerebusAdapter:
         chan_per_stream:    96
         samp_per_stream:    30 # since packet from continuousNeural for the moment
@@ -60,7 +57,6 @@ RedisStreams:
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uInt32
-    
     thresholdCrossings:
         chan_per_stream:    96
         samp_per_stream:    1
@@ -68,14 +64,6 @@ RedisStreams:
         timestamp_name:     timestamps
         sample_type:        int16
         timestamp_type:     uint32
-    
-    thresholds:             # 
-        chan_per_stream:    96
-        samp_per_stream:    1
-        sample_name:        thresholds
-        timestamp_name:     None
-        sample_type:        int16
-    
     state:
         chan_per_stream:    1
         samp_per_stream:    1
@@ -83,7 +71,6 @@ RedisStreams:
         timestamp_name:     time
         sample_type:        char
         timestamp_type:     float
-    
     cursorData:
         chan_per_stream:    1
         samp_per_stream:    1
@@ -95,7 +82,6 @@ RedisStreams:
         X_sample_type:      int16
         Y_Name:             Y
         Y_sample_type:      int16
-    
     targetData:
         chan_per_stream:    1
         samp_per_stream:    1
@@ -135,21 +121,20 @@ Nodes:
       Version:      0.0 
       Stage:        main
       redis_inputs:                 [continuousNeural]
-      redis_outputs:                [thresholdCrossings, thresholds] # can also contain filtered data if we want
+      redis_outputs:                [filteredCerebusAdapter, thresholdCrossings]
       Parameters:
             pack_per_call:          1       # number of redis packets to pull per loop
             thresh_mult:            -4.25   # threshold Values
-            thresh_calc_len:        2000    # how much data (in buffers of data -- usually 1 ms worth) do we want to use to calculate threshold values?
+            thresh_calc_len:        2000
             butterworth_enable:     True
-            butter_lowercut:        250     # lower cutoff freq of bandpass filter
-            butter_uppercut:        7500    # upper cutoff freq of bandpass filter
-            butter_order:           2       # butterworth filter order
-            causal_enable:          True    # causal or acausal? ? 
+            butter_lowercut:        250
+            butter_uppercut:        7500
+            butter_order:           2
+            causal_enable:          True
             buffer_len:             60
             enable_Notch_60:        False
             enable_Notch_120:       False
             enable_CAR:             True
-            output_filtered:        False    # Do we want to export the filtered data? Good for debugging, but makes the rdb big!
 
     - Name:         behaviorFSM.bin
       Version:      0.0
@@ -214,3 +199,12 @@ Nodes:
                 goSound:            go3.wav
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
+
+    - Name:         decoder_trainer.py
+      Version:      0.0
+      Stage:        end
+      redis_inputs:                 [thresholdCrossings]
+      redis_outputs:                []
+      Parameters:
+                log:                INFO
+                model_path:         ./model.json
