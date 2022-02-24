@@ -51,17 +51,20 @@ def numpy_import(inDict, dataArray, sampTimes, packetLength, numChannels):
 # -----------------------------------------------------------
 
 # prep the filtered and thresholded data for export
-def numpy_export(crossDict, filtDict, rConnection):
+def numpy_export(crossDict, rConnection, filtDict = None):
     ''' 
     this needs to take the threshold crossing times and filtered data and put it into the Redis stream
     Threshold crossings needs just the time and channel. Since we're thresholding a ms at a time,
     we can just use the ts at the start and end to align it for offline analysis
     
-    Since we have two different streams we're pushing into, we'll do it with
+    Since we sometimes have two different streams we're pushing into, we'll do it with
     a pipeline '''
+
     p = rConnection.pipeline() # create a new pipeline
     p.xadd('thresholdCrossings', crossDict) # thresholdCrossings stream -- assuming I've already set it up properly below
-    p.xadd('filteredCerebusAdapter', filtDict) # add the filtered stuff to the pipeline
+
+    if filtDict is not None: # if we're storing the filtered data
+        p.xadd('filteredCerebusAdapter', filtDict) # add the filtered stuff to the pipeline
      
     p.execute() # send it brah
 
@@ -90,8 +93,10 @@ def causal_demean_data(data, filtData, sos, zi):
 
 # calculate threshold values
 def calc_thresh(r, streamName, threshMult, readCalls, packetLength, numChannels, sos, zi):
-    sleep(2)
-    xrev_receive = r.xrevrange(streamName, count = readCalls) # get threshold data, wait for 10 seconds to see if we have enough
+#     sleep(4)
+#     xrev_receive = r.xrevrange(streamName, count = readCalls) # get threshold data, wait for 10 seconds to see if we have enough
+    # starting 100 ms in, just because it feels right
+    x_receive = r.xread({streamName:100}, count = readCalls, block = readCalls * 10) # wait 10 times as long as the length of the read, then fail
     
     try:
         readArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
@@ -239,16 +244,19 @@ if type(thresholds) == int:
     print(f"[{nodeName}] Did not receive neural data to calculate thresholds. Exiting")
     exit()
 
-r.xadd('thresholdValues',{b'thresholds':thresholds.astype('short').tostring()}) # push it into a new redis stream. 
+r.xadd('thresholds',{b'thresholds':thresholds.astype('short').tostring()}) # push it into a new redis stream. 
 # interesting note for putting data back into redis: we don't have to use pack, since it's already stored as a byte object in numpy. 
 # wonder if we can take advantage of that for the unpacking process too
+
+# do we want to store the filtered data in Redis?
+outputFiltered = nodeParameters['outputFiltered']
 
 
 while True:
     # wait to get data from cerebus stream, then parse it
     #  xread is a bit of a pain: it outputs data as a list of tuples holding a dict
     cerPackInc = 0 # when we're needing to stick multiple packets in the same array
-    xread_receive = r.xread({inStreamName:prevKey}, block=50, count=numPacks) # wait up to four ms
+    xread_receive = r.xread({inStreamName:prevKey}, block=50, count=numPacks) # wait up to fifty ms
     
     if len(xread_receive) > 0: # only run this if we have data
     
@@ -261,16 +269,23 @@ while True:
 
         # filter the data and find threshold times
         filter_data(dataBuffer, filtBuffer, sos, zi)
-        filtDict[b'timestamps'] = sampTimes.tostring()
-        filtDict[b'samples'] = filtBuffer.astype('short').tostring()
+        
+        if outputFiltered: # skip packing if we don't have to -- makes things faster and smaller
+            filtDict[b'timestamps'] = sampTimes.tostring()
+            filtDict[b'samples'] = filtBuffer.astype('short').tostring()
+
         # is there a threshold crossing in the last ms
         # find for each channel along the first dimension, keep dims, pack into a byte object and put into the thresh crossings dict
         crossDict[b'timestamps'] = sampTimes[0].tostring()
         crossings = np.append(np.zeros((numChannels,1)),((filtBuffer[:,1:] < thresholds) & (filtBuffer[:,:-1] >= thresholds)),axis=1)
         crossDict[b'crossings'] = np.any(crossings, axis=1).astype('short').tostring()
    
-        # send data back to the streams
-        numpy_export(crossDict, filtDict, r)
+        # send data back to the streams. filtered if necessary
+        if outputFiltered:
+            numpy_export(crossDict, r, filtdict = outputFiltered)
+        else:
+            numpy_export(crossDict, r)
+    
     else: 
         print(f"[{nodeName}] No neural data has been received in the last 50 ms")
 
