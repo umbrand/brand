@@ -103,7 +103,7 @@ RedisStreams:
 
 
 Nodes:
-    - Name:         cerebusAdapter.bin
+    - Name:         cerebusAdapter.bin # not on-BRAND yet
       Version:      0.0
       Stage:        start
       redis_inputs:
@@ -200,11 +200,21 @@ Nodes:
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
 
-    - Name:         decoder_trainer.py
+    - Name:         decoder_trainer # not on-BRAND yet
       Version:      0.0
       Stage:        end
-      redis_inputs:                 [thresholdCrossings]
+      redis_inputs:                 [thresholdCrossings, taskInput] 
       redis_outputs:                []
       Parameters:
-                log:                INFO
-                model_path:         ./model.json
+            log:            INFO # logging level for the process
+            model_path:     ./model.json # path to save the model
+            trainStream:    thresholdCrossings
+            trainSamp:      crossings
+            trainTS:        timestamps
+            targetStream:   taskInput
+            targetSamp:     samples
+            targetTS:       timestamps
+            sample_rate:    1e3
+            bin_size:       50
+            num_lags:       10
+
