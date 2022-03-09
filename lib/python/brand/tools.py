@@ -292,7 +292,7 @@ def main():
         the script will look specifically for the redis_ip or redis_port variable from
         the script and print it. 
         
-        the --stage flag is used with "start", "main" or "end" to return a list of modules
+        the --stage flag is used with "start", "main" or "end" to return a list of nodes
         that will run during that process period. Refer to the run script for more info
 
         This should be used only for c or bash."""

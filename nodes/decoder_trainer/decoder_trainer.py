@@ -95,7 +95,8 @@ def save_model(estimator, filepath, redis_conn):
                 val = val.tolist()
             model_info['attr'][key] = val
     
-    with open('./model.pkl', 'wb') as f:
+    with open(filepath, 'wb') as f:
+        print(f"[decoder_builder.py] writing model to {filepath}")
         pickle.dump(model_info, f)
 
     # write a pickled version into redis, too. This will be supported for later usage

@@ -233,7 +233,7 @@ Nodes:
                 # Type of wiener_filter to use
                 decoder_type:       linear
                 # path to the saved model
-                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.json
+                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
                 # history for the Wiener filter
                 n_history:          50
                 # bin size (in samples)

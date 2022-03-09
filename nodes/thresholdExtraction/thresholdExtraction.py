@@ -93,19 +93,23 @@ def causal_demean_data(data, filtData, sos, zi):
 
 # calculate threshold values
 def calc_thresh(r, streamName, threshMult, readCalls, packetLength, numChannels, sos, zi):
-#     sleep(4)
-#     xrev_receive = r.xrevrange(streamName, count = readCalls) # get threshold data, wait for 10 seconds to see if we have enough
     # starting 100 ms in, just because it feels right
-    x_receive = r.xread({streamName:100}, count = readCalls, block = readCalls * 10) # wait 10 times as long as the length of the read, then fail
+    reply = r.xread({streamName:100}, count = readCalls, block = readCalls * 10) # wait 10 times as long as the length of the read, then fail
     
+    if len(reply) == 0: # if we didn't get anything back from the read attempt
+        return -1
+    
+
     try:
+        _, reply = reply[0] # extract stuff from the list
+        
         readArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
         filtArray = np.empty((numChannels,readCalls * packetLength),dtype=np.float32)
         readTimes = np.empty((readCalls*packetLength))
-
-        for ii in range(0,readCalls): # switch it all into an array
+        
+        for entry in reply: # switch it all into an array
             indStart,indEnd = ii*packetLength,(ii+1)*packetLength
-            numpy_import(xrev_receive[ii][1], readArray[:,indStart:indEnd], readTimes[indStart:indEnd], packetLength, numChannels) 
+            numpy_import(entry[1], readArray[:,indStart:indEnd], readTimes[indStart:indEnd], packetLength, numChannels) 
         
         filter_data(readArray,filtArray,sos,zi)
         thresholds = (threshMult * np.sqrt(np.mean(np.square(filtArray),axis=1))).reshape(-1,1)
@@ -249,7 +253,7 @@ r.xadd('thresholds',{b'thresholds':thresholds.astype('short').tostring()}) # pus
 # wonder if we can take advantage of that for the unpacking process too
 
 # do we want to store the filtered data in Redis?
-outputFiltered = nodeParameters['outputFiltered']
+outputFiltered = nodeParameters['output_filtered']
 
 
 while True:

@@ -135,6 +135,7 @@ Nodes:
             enable_Notch_60:        False
             enable_Notch_120:       False
             enable_CAR:             True
+            output_filtered:        False
 
     - Name:         behaviorFSM.bin
       Version:      0.0
@@ -200,14 +201,14 @@ Nodes:
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
 
-    - Name:         decoder_trainer # not on-BRAND yet
+    - Name:         decoder_trainer.py # internal code is not fully on-BRAND yet
       Version:      0.0
       Stage:        end
       redis_inputs:                 [thresholdCrossings, taskInput] 
       redis_outputs:                []
       Parameters:
             log:            INFO # logging level for the process
-            model_path:     ./model.json # path to save the model
+            model_path:     ./model.pkl # path to save the model
             trainStream:    thresholdCrossings
             trainSamp:      crossings
             trainTS:        timestamps
