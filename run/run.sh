@@ -67,6 +67,8 @@ IFS=' ' read -ra end_nodes <<< "$end_nodes"
 
 start_nodes_pid=()
 main_nodes_pid=()
+start_nodes_pnames=()
+main_nodes_pnames=()
 
 ##############################################
 # Load the nodes
@@ -86,6 +88,7 @@ do
     ./$proc ../$graphCfg &
     ppid=`pgrep $module_name`
     start_nodes_pid+="$ppid "
+    
     sleep 1s
     renice -20 $ppid
     popd 1>/dev/null

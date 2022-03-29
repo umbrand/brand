@@ -158,13 +158,13 @@ Nodes:
       redis_outputs:                [cursorData,targetData,state]
       Parameters:
             loop_time:              .002 # time for the full processing loop, in seconds
-            cursor_sensors:         [0, 1] 
-            touchpad_sensor:        2
+            cursor_sensors:         [1, 2] 
+            touchpad_sensor:        0
             touchpad_thresh:        -5000
             movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                .1  # time in seconds
-                max:                .1 # time in seconds
+                min:                .4  # time in seconds
+                max:                .4 # time in seconds
             target_hold_time:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
@@ -175,12 +175,12 @@ Nodes:
                 min:                1 # time in seconds
                 max:                2 # time in seconds
             cursor:
-                x_offset:           0
-                y_offset:           0
-                gain_x_0:           .05
+                x_offset:           -44
+                y_offset:           18
+                gain_x_0:           .02
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           .05
+                gain_y_1:           .02
                 width:              5
                 height:             5
             target_list:

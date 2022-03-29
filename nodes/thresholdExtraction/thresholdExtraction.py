@@ -32,7 +32,7 @@ nodeName = "thresholdExtraction"
 
 # clean exit code
 def signal_handler(sig,frame): # setup the clean exit code with a warning
-    print('[behaviorFSM] SIGINT received, Exiting')
+    print(f'{nodeName} SIGINT received, Exiting')
     sys.exit(0)
 
 
@@ -246,7 +246,7 @@ readCalls = nodeParameters['thresh_calc_len'] # make sure we have enough data to
 thresholds = calc_thresh(r, inStreamName, threshMult, readCalls, packetLength, numChannels, sos, zi) # get the array
 if type(thresholds) == int:
     print(f"[{nodeName}] Did not receive neural data to calculate thresholds. Exiting")
-    exit()
+    exit(1)
 
 r.xadd('thresholds',{b'thresholds':thresholds.astype('short').tostring()}) # push it into a new redis stream. 
 # interesting note for putting data back into redis: we don't have to use pack, since it's already stored as a byte object in numpy. 

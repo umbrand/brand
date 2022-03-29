@@ -142,6 +142,7 @@ Nodes:
             enable_Notch_60:        False
             enable_Notch_120:       False
             enable_CAR:             True
+            output_filtered:        False
 
     - Name:         behaviorFSM.bin
       Version:      0.0
@@ -155,8 +156,8 @@ Nodes:
             touchpad_thresh:        -5000
             movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                .1  # time in seconds
-                max:                .1 # time in seconds
+                min:                .5  # time in seconds
+                max:                .5 # time in seconds
             target_hold_time:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
@@ -167,33 +168,58 @@ Nodes:
                 min:                1 # time in seconds
                 max:                2 # time in seconds
             cursor:
-                x_offset:           0
-                y_offset:           0
-                gain_x_0:           .05
+                x_offset:           -66
+                y_offset:           27
+                gain_x_0:           .03
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           .05
+                gain_y_1:           .03
                 width:              5
                 height:             5
             target_list:
-                left:
+                left_close:
                     x:              -100
                     y:              0
                     width:          100
                     height:         100
-                right:
+                left_far:
+                    x:              -200
+                    y:              0
+                    width:          100
+                    height:         100
+                right_close:
                     x:              100
+                    y:              0
+                    width:          100
+                    height:         100
+                right_far:
+                    x:              200
                     y:              0
                     width:          100
                     height:         100
                 up:
                     x:              0
-                    y:              200
+                    y:              100
                     width:          100
                     height:         100
-                left:
-                    x:              0
-                    y:              -200
+                left_up:
+                    x:              100
+                    y:              -100
+                    width:          100
+                    height:         100
+                left_down:
+                    x:              -100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_up:
+                    x:              100
+                    y:              100
+                    width:          100
+                    height:         100
+                right_down:
+                    x:              -100
+                    y:              100
                     width:          100
                     height:         100
 
@@ -207,24 +233,14 @@ Nodes:
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
 
-#     - Name:         decoder.py
-#       Version:      0.0
-#       stage:        main
-#       Parameters:
-#             log:            DEBUG
-#             n_targets:      3
-#             n_features:     3
-#             decoder_type:   ridge
-#             model_path:     ../graph/Northwestern
-
     - Name: wiener_filter.bin
-      Version:      0.0
       Stage:        main
+      Version:      0.0
       redis_inputs:                 [thresholdCrossings]
       redis_outputs:                [decoder]
       Parameters:
                 # logging level for the process
-                log:                DEBUG
+                log:                INFO
                 # Number of targets the wiener_filter should predict
                 # e.g. n_targets=2 for decoding x and y channels
                 n_targets:          3
@@ -238,3 +254,5 @@ Nodes:
                 n_history:          50
                 # bin size (in samples)
                 bin_size:           5
+                # are we predicting Y or dY/dt? (good for force predictions)
+                deriv:              True
