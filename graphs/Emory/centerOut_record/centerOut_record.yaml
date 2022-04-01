@@ -80,76 +80,16 @@ RedisStreams:
 
 
 Nodes:
-#    - Name:         xPC_to_redis.bin
-#      Version:      0.0 
-#      Stage:        main
-#      redis_inputs:                 []
-#      redis_outputs:                [thresholdCrossings]
-#      Parameters:
-#            pack_per_call:          1       # number of redis packets to pull per loop
-    - Name:         behaviorFSM.bin
+    - Name:         xPC_adapter.bin
       Version:      0.0
-      Stage:        main
-      redis_inputs:                 [taskInput]
-      redis_outputs:                [cursorData,targetData,state]
+      Stage:        start
+      redis_inputs:                 []
+      redis_outputs:                [thresholdCrossings]
       Parameters:
-            loop_time:              .002 # time for the full processing loop, in seconds
-            cursor_sensors:         [0, 1] 
-            touchpad_sensor:        2
-            touchpad_thresh:        -5000
-            movement_max_time:      4 # time in seconds
-            touchpad_time:
-                min:                .1  # time in seconds
-                max:                .1 # time in seconds
-            target_hold_time:
-                min:                .25 # time in seconds
-                max:                .5 # time in seconds
-            dispense_time:
-                min:                .25 # time in seconds
-                max:                .5 # time in seconds
-            inter_trial_time:
-                min:                1 # time in seconds
-                max:                2 # time in seconds
-            cursor:
-                x_offset:           0
-                y_offset:           0
-                gain_x_0:           .05
-                gain_x_1:           0
-                gain_y_0:           0
-                gain_y_1:           .05
-                width:              5
-                height:             5
-            target_list:
-                left:
-                    x:              -100
-                    y:              0
-                    width:          100
-                    height:         100
-                right:
-                    x:              100
-                    y:              0
-                    width:          100
-                    height:         100
-                up:
-                    x:              0
-                    y:              200
-                    width:          100
-                    height:         100
-                down:
-                    x:              0
-                    y:              -200
-                    width:          100
-                    height:         100
-
-    - Name:         beep.py
-      Version:      0.0
-      Stage:        main
-      redis_inputs:                 [state]
-      redis_outputs:                []
-      Parameters:
-                goSound:            go3.wav
-                rewardSound:        reward3.wav
-                failureSound:       fail3.wav
+                udp_ip:             127.0.0.1 #192.168.30.255
+                udp_port:           50114
+                n_channels:         128  
+                log:                INFO          
 
     - Name:         decoder_trainer.py # internal code is not fully on-BRAND yet
       Version:      0.0

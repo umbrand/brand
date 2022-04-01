@@ -6,13 +6,6 @@ if [ ${CONDA_DEFAULT_ENV} != "rt" ]; then
 source setup.sh
 fi
 
-
-
-
-
-
-
-
 ##############################################
 # set up colors and warnings
 ##############################################
@@ -39,7 +32,7 @@ if [ "$#" -lt 1 ]; then # if no graph name given
 fi
 
 echo "${SITE}" 
-if [ ! -d "../graphs/${SITE}/${1}" ]; then
+if [ ! -d "../${SITE}/graphs/${1}" ]; then
     error "Invalid Graph Name"
 fi
 
@@ -48,10 +41,10 @@ fi
 # set up the save rdb name
 ##############################################
 # save the file in the save directory
-redis_cfg=../graphs/${SITE}/${1}/redis.${1}.conf
-graphCfg=../graphs/${SITE}/${1}/${1}.yaml
+redis_cfg=${BRAND_BASE_DIR}/${SITE}/graphs/${1}/redis.${1}.conf
+graphCfg=${BRAND_BASE_DIR}/${SITE}/graphs/${1}/${1}.yaml
 partID=`grep "participant_id: " ${graphCfg} | awk '{print $2}'`
-rdb="`date +"%Y%m%dT%H%M"`_${partID}.rdb"
+rdb="${1}_`date +"%Y%m%dT%H%M"`_${partID}.rdb"
 
 
 ##############################################
@@ -76,15 +69,17 @@ main_nodes_pid=()
 sleep 2s
 
 echo "--------------------------------"
-echo "Loading start modules"
+echo "Loading start nodes"
 echo "--------------------------------"
 
 for proc in ${start_nodes[*]}
 do
-    module_name=`echo $proc | cut -d '.' -f1`
-    pushd ../nodes/$module_name 1>/dev/null
-    ./$proc ../$graphCfg &
-    ppid=`pgrep $module_name`
+    nodes_name=`echo $proc | cut -d '.' -f1`
+    module_path=`python -m brand.tools $graphCfg --module $nodes_name`
+    echo $module_path
+    pushd ${BRAND_BASE_DIR}/$module_path/nodes/$nodes_name 1>/dev/null
+    ./$proc $graphCfg &
+    ppid=`pgrep $nodes_name`
     start_nodes_pid+="$ppid "
     sleep 1s
     renice -20 $ppid
@@ -92,14 +87,16 @@ do
 done
 
 echo "--------------------------------"
-echo "Loading main modules"
+echo "Loading main nodes"
 echo "--------------------------------"
 
 for proc in ${main_nodes[*]}
 do
-    module_name=`echo $proc | cut -d '.' -f1`
-    pushd ../nodes/$module_name 1>/dev/null
-    ./$proc ../$graphCfg &
+    nodes_name=`echo $proc | cut -d '.' -f1`
+    module_path=`python -m brand.tools $graphCfg --module $nodes_name`
+    echo $module_path
+    pushd ${BRAND_BASE_DIR}/$module_path/nodes/$nodes_name 1>/dev/null
+    ./$proc $graphCfg &
     main_nodes_pid+="$ppid "
     ppid=$!
     sleep 1s
@@ -135,7 +132,7 @@ done
 #
 
 echo "--------------------------------"
-echo "Shutting down modules"
+echo "Shutting down nodes"
 echo "--------------------------------"
 
 
@@ -152,13 +149,13 @@ do
 done
 
 echo "--------------------------------"
-echo "Loading finalization modules"
+echo "Loading finalization nodes"
 echo "--------------------------------"
 
 for proc in ${end_nodes[*]}
 do
-    module_name=`echo $proc | cut -d '.' -f1`
-    pushd ../nodes/$module_name 1>/dev/null
+    nodes_name=`echo $proc | cut -d '.' -f1`
+    pushd ../nodes/$nodes_name 1>/dev/null
     ./$proc ../$graphCfg
     sleep 1s
     popd 1>/dev/null
@@ -171,5 +168,7 @@ echo "--------------------------------"
 ./redis-cli save
 
 pkill -SIGINT redis-server
+
+pkill -P $$  # kill all child processes (in case we missed one)
 
 
