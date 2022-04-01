@@ -83,28 +83,12 @@ Nodes:
     - Name:         xPC_adapter.bin
       Version:      0.0
       Stage:        start
+      Module:       ../brand-modules/brand-emory
       redis_inputs:                 []
       redis_outputs:                [thresholdCrossings]
       Parameters:
-                udp_ip:             127.0.0.1 #192.168.30.255
+                udp_ip:             192.168.30.255
                 udp_port:           50114
-                n_channels:         128  
+                udp_interface:      enp6s0
+                n_channels:         256  
                 log:                INFO          
-
-    - Name:         decoder_trainer.py # internal code is not fully on-BRAND yet
-      Version:      0.0
-      Stage:        end
-      redis_inputs:                 [thresholdCrossings, taskInput] 
-      redis_outputs:                []
-      Parameters:
-            log:            INFO # logging level for the process
-            model_path:     ./model.pkl # path to save the model
-            trainStream:    thresholdCrossings
-            trainSamp:      crossings
-            trainTS:        timestamps
-            targetStream:   taskInput
-            targetSamp:     samples
-            targetTS:       timestamps
-            sample_rate:    1e3
-            bin_size:       50
-            num_lags:       10
