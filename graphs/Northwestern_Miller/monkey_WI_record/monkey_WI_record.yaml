@@ -175,33 +175,63 @@ Nodes:
                 min:                1 # time in seconds
                 max:                2 # time in seconds
             cursor:
-                x_offset:           -44
-                y_offset:           18
-                gain_x_0:           .02
+                x_offset:           -63
+                y_offset:           36
+                gain_x_0:           .04
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           .02
+                gain_y_1:           .04
                 width:              5
                 height:             5
             target_list:
-                left:
-                    x:              -100
+                left_close:
+                    x:              -150
                     y:              0
                     width:          100
                     height:         100
-                right:
-                    x:              100
+                left_far:
+                    x:              -300
+                    y:              0
+                    width:          100
+                    height:         100
+                right_close:
+                    x:              150
+                    y:              0
+                    width:          100
+                    height:         100
+                right_far:
+                    x:              300
                     y:              0
                     width:          100
                     height:         100
                 up:
                     x:              0
-                    y:              200
+                    y:              150
                     width:          100
                     height:         100
                 down:
                     x:              0
-                    y:              -200
+                    y:              -150
+                    width:          100
+                    height:         100
+                left_up:
+                    x:              -100
+                    y:              100
+                    width:          100
+                    height:         100
+                left_down:
+                    x:              -100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_down:
+                    x:              100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_up:
+                    x:              100
+                    y:              100
                     width:          100
                     height:         100
 

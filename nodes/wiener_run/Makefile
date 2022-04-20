@@ -1,4 +1,4 @@
-PROJECT=decoder_trainer
+PROJECT=wiener_run
 
 ifneq ($(CONDA_DEFAULT_ENV),rt)
 $(error real-time conda env (rt) not active)
@@ -13,7 +13,7 @@ PYTHON_LIB=python$(PYTHON_VERSION)
 LIBPYTHON=$(CONDA_PREFIX)/lib/
 INCPYTHON=$(CONDA_PREFIX)/include/$(PYTHON_LIB)
 
-TARGET=$(BIN_PATH)/$(PROJECT)
+TARGET=$(PROJECT).bin
 CYTHON_TARGET=$(GENERATED_PATH)/$(PROJECT).c
 
 all:

@@ -12,7 +12,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from brand import get_node_parameter_value, initializeRedisFromYAML
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import RidgeCV
 
 
 ###########################################
@@ -62,7 +62,7 @@ def bin_data(data, binsize=5):
     """
     end = binsize * (data.shape[0] // binsize)
     binned_data = data[:end, :].reshape(data.shape[0] // binsize, binsize,
-                                        data.shape[1]).mean(axis=1)
+                                        data.shape[1]).sum(axis=1)
     return binned_data
 
 # -----------------------------------------
@@ -232,15 +232,16 @@ kin_df.rename(columns={col: col.decode()
               inplace=True)
 
 # separating out x and y position for the moment, but might be worth just keeping them...
-pos = np.stack(kin_df[targetSamples])
+pos = np.stack(kin_df[targetSamples]).astype(int)
+# are we going to use the derivative (ie dF/dt) instead of the recorded value (ie Force)?
+deriv_flag = get_node_parameter_value(YAML_FILE, NAME, 'deriv')
+if deriv_flag:
+    pos = np.diff(pos, axis=0)
+    pos = np.append(pos, np.zeros([1,pos.shape[1]]), axis=0)
+
 kin_df['x_pos'] = pos[:, 1] # touchpad is sensor 0, so x is sensor 1 and y is sensor 2
 kin_df['y_pos'] = pos[:, 2]
 kin_df['t_pad'] = np.zeros(kin_df['x_pos'].shape)
-
-
-deriv_flag = get_node_parameter_value(YAML_FILE, NAME, 'deriv')
-if deriv:
-    kin_df = kin_df.diff() # the single sample difference
 
 # ----------------------------------------------------------
 # align spikes and target signal 
@@ -280,11 +281,14 @@ else:
 # train a decoder
 #print(f"[{NAME}] Training Decoder")
 logging.info("Training Decoder")
-mdl = Ridge()
+mdl = RidgeCV(cv=10, alphas=np.array([.01]))
 mdl.fit(binned_spikes, binned_kin)
 
 # give some info to the screen...
 #print(f"[{NAME}] Linear decoder built with average Cooeficient of Determination of {mdl.score(binned_spikes, binned_kin)}")
+#logging.info(f"CoD for output 0: {mdl.score(binned_spikes, binned_kin.loc[0])}")
+#logging.info(f"CoD for output 1: {mdl.score(binned_spikes, binned_kin.loc[1])}")
+#logging.info(f"CoD for output 2: {mdl.score(binned_spikes, binned_kin.loc[2])}")
 logging.info(f"Linear decoder built with average Cooeficient of Determination of {mdl.score(binned_spikes, binned_kin)}")
 
 # %%

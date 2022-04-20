@@ -137,7 +137,7 @@ class Decoder():
             X[0, :] = window.mean(axis=1).T.reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
-            if deriv: # if we're predicting dy/dt
+            if deriv_flag: # if we're predicting dy/dt
                 y = y+self.predict(X).astype(np.int16)
             else:
                 y = self.predict(X).astype(np.int16)
