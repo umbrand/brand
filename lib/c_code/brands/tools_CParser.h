@@ -1,7 +1,7 @@
 
 #include <hiredis.h>
 
-#define ROOT_PATH "../.."
+#define ROOT_PATH ".."
 
 int load_YAML_variable_string(char *process, char *yaml_path, char *value, char *buffer, int n);
 int initialize_redis_from_YAML(char *process);
