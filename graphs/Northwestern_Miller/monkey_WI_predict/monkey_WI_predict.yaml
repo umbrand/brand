@@ -110,8 +110,9 @@ RedisStreams:
 
 
 Nodes:
-    - Name:         cerebusAdapter
+    - Name:         cerebusAdapter.bin
       Version:      0.0
+      Stage:        start
       redis_inputs:
       redis_outputs:                [continuousNeural, rawEMG, taskInput]
       Parameters:                   
@@ -123,8 +124,9 @@ Nodes:
             chan_per_stream:        [96, 12, 3]                           # more than just the standard info
             samp_per_stream:        [30, 10, 1]                           # per stream
 
-    - Name:         thresholdExtraction 
+    - Name:         thresholdExtraction.bin
       Version:      0.0 
+      Stage:        main
       redis_inputs:                 [continuousNeural]
       redis_outputs:                [filteredCerebusAdapter, thresholdCrossings]
       Parameters:
@@ -140,9 +142,11 @@ Nodes:
             enable_Notch_60:        False
             enable_Notch_120:       False
             enable_CAR:             True
+            output_filtered:        False
 
-    - Name:         behaviorFSM
+    - Name:         behaviorFSM.bin
       Version:      0.0
+      Stage:        main
       redis_inputs:                 [decoder]
       redis_outputs:                [cursorData,targetData,state]
       Parameters:
@@ -152,8 +156,8 @@ Nodes:
             touchpad_thresh:        -5000
             movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                .1  # time in seconds
-                max:                .1 # time in seconds
+                min:                .5  # time in seconds
+                max:                .5 # time in seconds
             target_hold_time:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
@@ -161,53 +165,100 @@ Nodes:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
             inter_trial_time:
-                min:                1 # time in seconds
-                max:                2 # time in seconds
+                min:                2 # time in seconds
+                max:                3 # time in seconds
             cursor:
-                x_offset:           -200
-                y_offset:           0
-                gain_x_0:           .03
+                x_offset:           -63
+                y_offset:           36
+                gain_x_0:           .04
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           0
+                gain_y_1:           .04
                 width:              5
                 height:             5
             target_list:
-                left:
-                    x:              -200
+                left_close:
+                    x:              -150
                     y:              0
                     width:          100
                     height:         100
-                right:
-                    x:              200
+                left_far:
+                    x:              -300
                     y:              0
                     width:          100
                     height:         100
-    - Name:         beep
+                right_close:
+                    x:              150
+                    y:              0
+                    width:          100
+                    height:         100
+                right_far:
+                    x:              300
+                    y:              0
+                    width:          100
+                    height:         100
+                up:
+                    x:              0
+                    y:              150
+                    width:          100
+                    height:         100
+                down:
+                    x:              0
+                    y:              -150
+                    width:          100
+                    height:         100
+                left_up:
+                    x:              100
+                    y:              -100
+                    width:          100
+                    height:         100
+                left_down:
+                    x:              -100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_up:
+                    x:              100
+                    y:              100
+                    width:          100
+                    height:         100
+                right_down:
+                    x:              -100
+                    y:              100
+                    width:          100
+                    height:         100
+
+    - Name:         beep.py
       Version:      0.0
+      Stage:        main
       redis_inputs:                 [state]
       redis_outputs:                []
       Parameters:
                 goSound:            go3.wav
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
-    - Name: wiener_filter
-      Version: 0.0
+
+    - Name: wiener_run.bin
+      Stage:        main
+      Version:      0.0
       redis_inputs:                 [thresholdCrossings]
       redis_outputs:                [decoder]
       Parameters:
-            # logging level for the process
-            log: DEBUG
-            # Number of targets the wiener_filter should predict
-            # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
-            # Number of features to use for decoding
-            n_features: 96
-            # Type of wiener_filter to use
-            decoder_type: linear
-            # path to the saved model
-            model_path: ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
-            # history for the Wiener filter
-            n_history: 50
-            # bin size (in samples)
-            bin_size: 5
+                # logging level for the process
+                log:                INFO
+                # Number of targets the wiener_filter should predict
+                # e.g. n_targets=2 for decoding x and y channels
+                n_targets:          3
+                # Number of features to use for decoding
+                n_features:         96
+                # Type of wiener_filter to use
+                decoder_type:       linear
+                # path to the saved model
+                model_path:         ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl
+                # history for the Wiener filter
+                n_history:          50
+                # bin size (in samples)
+                bin_size:           5
+                # are we predicting Y or dY/dt? (good for force predictions)
+                deriv:              True
+

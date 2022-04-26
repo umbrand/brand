@@ -312,6 +312,7 @@ while True:
         sensor0,sensor1 = sensors[1:3]
         sensTouch = sensors[0]
         curs.update_cursor(sensor0, sensor1) # sensor names
+        curs.printCurs()
         currTimestamp = dt.now().timestamp() # for sample timestamps
         p = r.pipeline()
         p.xadd(b'cursorData',curs.packCurs(cursorFrame[0][1][b'timestamps']))

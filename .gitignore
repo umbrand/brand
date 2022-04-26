@@ -1,5 +1,5 @@
 tmp/
-run/
+#run/
 proc/rest/elm-stuff/
 
 # vim swap files
@@ -32,10 +32,11 @@ bin/
 
 
 # matlab data
-.mat
+*.mat
 
 # Duplicate .pyx files
 pyglet_display.pyx
 
 # Python
 *.egg-info
+*.pkl

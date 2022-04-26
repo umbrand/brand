@@ -50,7 +50,7 @@ def get_node_parameter_value(yaml_path, node, field):
         yamlData = yaml.safe_load(f)
 
     for node_list in yamlData['Nodes']:
-        if node_list['Name'] == node:
+        if node_list['Name'].split('.')[0] == node:
             return node_list['Parameters'][field]
 
 
@@ -73,10 +73,14 @@ def get_node_parameter_dump(yaml_path, node):
         for given node
     """
     with open(yaml_path, 'r') as f:
-        yamlData = yaml.safe_load(f)
-        for node_list in yamlData['Nodes']:
-            if node_list['Name'] == node:
-                return node_list['Parameters']
+        yamlData = yaml.safe_load(f) # load the parameters file
+
+        if node is not None:        # if we got a node name, return its parameters
+            for node_list in yamlData['Nodes']:
+                if node_list['Name'].split('.')[0] == node:
+                    return node_list['Parameters']
+        else:                       # otherwise, return the full "nodes" dictionary
+            return yamlData['Nodes']
 
 
 # -----------------------------------------------------------
@@ -168,6 +172,8 @@ def get_node_io(yaml_path,node):
 
     # initialize the io dict
     io = {'redis_inputs':{}, 'redis_outputs':{}}
+    redis_inputs = None
+    redis_outputs = None
 
 
     with open(yaml_path, 'r') as f:
@@ -176,7 +182,7 @@ def get_node_io(yaml_path,node):
 
         # get the list of inputs and outputs for the matching node
         for node_data in yamlData['Nodes']:
-            if node_data['Name'] == node:
+            if node_data['Name'].split('.')[0] == node:
                 redis_inputs = node_data['redis_inputs']
                 redis_outputs = node_data['redis_outputs']
                 if type(redis_inputs) is str:
@@ -192,6 +198,34 @@ def get_node_io(yaml_path,node):
                 io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
                 
     return io
+
+# -----------------------------------------------------------
+# Moving all node settings into Redis
+def nodes_into_redis(yaml_path):
+    """
+    Takes all node and stream information from the passed Graph YAML
+    settings file, and puts it into a series of Redis streams
+
+
+    Parameters
+    ----------
+    yaml_path : str
+        path of the YAML graph settings file
+
+    Returns:
+    failure   : int
+        0 : loaded into Redis without a problem,
+        1 : generic error
+    """
+    
+    r = initializeRedisFromYAML(yaml_path, 'yamlIntoRedis')
+
+    node_params = get_node_parameter_dump(yaml_path) # get the full "node" dictionary
+
+    p = r.pipeline() # create a new pipeline -- we'll just spit this all in at once
+    
+    for node,params in node_params.items():
+        p.xadd(f"{node}_params", params)
 
 
 # -----------------------------------------------------------
@@ -224,7 +258,26 @@ def unpack_string(yaml_path, stream):
     # output string = <#values><var type> -- 10I, 960h etc
     packString = str(num_chans * num_samp) + packString
     return packString
+
  
+# -----------------------------------------------------------
+# list of processes for a particular stage
+def node_stage(yaml_path, stage):
+    """
+    Returns the names of all of the nodes that have been associated
+    with that stage of the run process
+    """
+    
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+
+    # return the list of node names that match the desired stage
+    stage_nodes = []
+    for nodes in yamlData['Nodes']:
+        if nodes['Stage'].lower() == stage.lower():
+            stage_nodes.append(nodes['Name'])
+    
+    return ' '.join(stage_nodes) # create a single string of all of the items with spaces between -- for bash convenience
     
 # -----------------------------------------------------------
 # running the function as a script -- for C and Bash usage
@@ -233,15 +286,23 @@ def main():
     description = """
         Tools for initializing processes. The default behavior is to look into a YAML file
         and then initialize all of the variables from the YAML script into Redis. This
-        behavior, by default, is verbose. If you supply an --ip or --port flag, then
+        behavior, by default, is verbose. 
+
+        If you supply an --ip or --port flag, then the script will look specifically for
         the script will look specifically for the redis_ip or redis_port variable from
-        the script and print it. This should be used only for .c processes"""
+        the script and print it. 
+        
+        the --stage flag is used with "start", "main" or "end" to return a list of nodes
+        that will run during that process period. Refer to the run script for more info
+
+        This should be used only for c or bash."""
 
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--name', help='Return the value in the YAML file', type=str)
     parser.add_argument('--node', help='Which node to use', type=str)
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
     parser.add_argument('--redis', help="Return the port and ip for the redis instance")
+    parser.add_argument('--stage', type=str, help="Returns list of Start, Main or End modules")
     redisGroup = parser.add_mutually_exclusive_group()
     redisGroup.add_argument('--ip', help='IP for the redis instance', action="store_true")
     redisGroup.add_argument('--port', help='port for the redis instance',  action="store_true")
@@ -259,6 +320,8 @@ def main():
             print(get_node_parameters(args.file, args.node), end="")
     elif args.name: # if no node name is supplied... probably mostly for the redis connection
         print(get_parameter_value(args.file, args.name), end="")
+    elif args.stage:
+        print(node_stage(args.file, args.stage), end="")
 
 
 if __name__ == '__main__':
