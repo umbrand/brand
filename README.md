@@ -147,12 +147,44 @@ graphs/
 
 Where `nodes/` and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also rebuild all nodes within the external module directories.  
 
-## yaml files
+## YAML files
 
-YAML files used for configuring processes can contain whatever sub-headings are needed, but at minimum should contain a key called `parameters` with the following structure:
+### graphs
+
+YAML files used for configuring graphs at minimum should contain information on the Redis connection:
+```
+RedisConnection:
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_config: redis.realtime.conf
+```
+and a list of all nodes to run with their names, version number, execution stage, relative path from core BRAND directory to module, Redis I/O streams, and parameters:
+```
+Nodes:
+    - Name:         node-from-core-brand
+      Version:      0.0
+      Stage:        start
+      module:       .
+      redis_inputs:                     [template_stream_A] 
+      redis_outputs:                
+      Parameters:
+            foo:                        42
+    - Name:         node-from-external-module
+      Version:      0.0
+      Stage:        main
+      module:       ../brand-modules/some-cool-module
+      redis_inputs:                     
+      redis_outputs:                    [template_stream_A] 
+      Parameters:
+            cool-foo:                   42
+```
+
+### nodes
+
+YAML files used for configuring nodes can contain whatever sub-headings are needed, but at minimum should contain a key called `parameters` with the following structure:
 
 ```
-parameters:
+Parameters:
 - name: bar
   value: 12345
   description: This text describes how important bar is
