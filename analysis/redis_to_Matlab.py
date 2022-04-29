@@ -10,33 +10,35 @@ import numpy as np
 from struct import unpack
 from sys import getsizeof
 from datetime import datetime
+import h5py
 
 
 r = Redis('localhost','6379')
 
 pageSize = 1000 # number of packets per xread call
 
-rdb_prefix = str(datetime.fromtimestamp(r.info('persistence')['rdb_last_save_time'])).replace(' ','T')
+# rdb_prefix = str(datetime.fromtimestamp(r.info('persistence')['rdb_last_save_time'])).replace(' ','T')
+hd5_filename = 
 print(rdb_prefix)
 
 
-FN_filt = rdb_prefix + 'redis_export_filt.mat'
+#FN_filt = rdb_prefix + 'redis_export_filt.mat'
 FN_thresh = rdb_prefix + 'redis_export_thresh.mat'
 FN_raw_neural = rdb_prefix + 'redis_export_raw_neural.mat'
-FN_raw_EMG = rdb_prefix + 'redis_export_raw_EMG.mat'
+#FN_raw_EMG = rdb_prefix + 'redis_export_raw_EMG.mat'
 num_channels = 96
 num_samples = 30
 FN_raw_task = rdb_prefix + 'redis_export_raw_task.mat'
 FN_cursor = rdb_prefix + 'redis_export_cursor.mat'
 FN_target = rdb_prefix + 'redis_export_target.mat'
 
-filtLength = r.xinfo_stream(b'filteredCerebusAdapter')['length']
+#filtLength = r.xinfo_stream(b'filteredCerebusAdapter')['length']
 threshLength = r.xinfo_stream(b'thresholdCrossings')['length']
 rawNeuralLength = r.xinfo_stream(b'continuousNeural')['length']
 rawTaskLength = r.xinfo_stream(b'taskInput')['length']
 cursorLength = r.xinfo_stream(b'cursorData')['length']
 targetLength = r.xinfo_stream(b'targetData')['length']
-rawEMGLength = r.xinfo_stream(b'rawEMG')['length']
+#rawEMGLength = r.xinfo_stream(b'rawEMG')['length']
 
 readLocn_Neural_raw = 0
 readLocn_Task_raw = 0
@@ -100,7 +102,7 @@ io.savemat(FN_thresh,thresh_dict,do_compression=True)
 del thresh_dict
 
 
-"""
+
 # raw data
 print('--------------------------------')
 print('converting raw data')
@@ -129,7 +131,7 @@ while(1):
 print('saving  file')
 io.savemat(FN_raw_neural,raw_neural_dict,do_compression=True)
 del raw_neural_dict
-"""
+
 
 # task data
 print('--------------------------------')

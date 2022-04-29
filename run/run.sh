@@ -61,6 +61,8 @@ IFS=' ' read -ra end_nodes <<< "$end_nodes"
 
 start_nodes_pid=()
 main_nodes_pid=()
+start_nodes_pnames=()
+main_nodes_pnames=()
 
 ##############################################
 # Load the nodes
@@ -82,11 +84,8 @@ do
     pushd ${BRAND_BASE_DIR}/$module_path/nodes/$nodes_name 1>/dev/null
     chrt -f 99 ./$proc $graphCfg &
     ppid=$!
-    start_nodes_pid+="$ppid "
-    #ppid=`pgrep $nodes_name`
-    #start_nodes_pid+="$ppid "
+    start_nodes_pid+="$ppid "   
     sleep 1s
-    #renice -20 $ppid
     popd 1>/dev/null
 done
 
@@ -104,7 +103,6 @@ do
     ppid=$!
     main_nodes_pid+="$ppid "
     sleep 1s
-    #renice -20 $ppid
     popd 1>/dev/null
 done
 

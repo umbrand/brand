@@ -144,50 +144,80 @@ Nodes:
       redis_outputs:                [cursorData,targetData,state]
       Parameters:
             loop_time:              .002 # time for the full processing loop, in seconds
-            cursor_sensors:         [0, 1] 
-            touchpad_sensor:        2
+            cursor_sensors:         [1, 2] 
+            touchpad_sensor:        0
             touchpad_thresh:        -5000
             movement_max_time:      4 # time in seconds
             touchpad_time:
-                min:                .1  # time in seconds
-                max:                .1 # time in seconds
-            target_hold_time:
-                min:                .25 # time in seconds
+                min:                .5  # time in seconds
                 max:                .5 # time in seconds
+            target_hold_time:
+                min:                .5 # time in seconds
+                max:                .75 # time in seconds
             dispense_time:
                 min:                .25 # time in seconds
                 max:                .5 # time in seconds
             inter_trial_time:
-                min:                1 # time in seconds
-                max:                2 # time in seconds
+                min:                2 # time in seconds
+                max:                3 # time in seconds
             cursor:
-                x_offset:           0
-                y_offset:           0
-                gain_x_0:           .05
+                x_offset:           -63
+                y_offset:           36
+                gain_x_0:           .04
                 gain_x_1:           0
                 gain_y_0:           0
-                gain_y_1:           .05
+                gain_y_1:           .04
                 width:              5
                 height:             5
             target_list:
-                left:
-                    x:              -100
+                left_close:
+                    x:              -150
                     y:              0
                     width:          100
                     height:         100
-                right:
-                    x:              100
+                left_far:
+                    x:              -300
+                    y:              0
+                    width:          100
+                    height:         100
+                right_close:
+                    x:              150
+                    y:              0
+                    width:          100
+                    height:         100
+                right_far:
+                    x:              300
                     y:              0
                     width:          100
                     height:         100
                 up:
                     x:              0
-                    y:              200
+                    y:              150
                     width:          100
                     height:         100
                 down:
                     x:              0
-                    y:              -200
+                    y:              -150
+                    width:          100
+                    height:         100
+                left_up:
+                    x:              -100
+                    y:              100
+                    width:          100
+                    height:         100
+                left_down:
+                    x:              -100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_down:
+                    x:              100
+                    y:              -100
+                    width:          100
+                    height:         100
+                right_up:
+                    x:              100
+                    y:              100
                     width:          100
                     height:         100
 
@@ -201,14 +231,14 @@ Nodes:
                 rewardSound:        reward3.wav
                 failureSound:       fail3.wav
 
-    - Name:         decoder_trainer.py # internal code is not fully on-BRAND yet
+    - Name:         wiener_trainer.py # internal code is not fully on-BRAND yet
       Version:      0.0
       Stage:        end
       redis_inputs:                 [thresholdCrossings, taskInput] 
       redis_outputs:                []
       Parameters:
             log:            INFO # logging level for the process
-            model_path:     ./model.pkl # path to save the model
+            model_path:     ../../graphs/Northwestern_Miller/monkey_WI_predict/model.pkl # path to save the model
             trainStream:    thresholdCrossings
             trainSamp:      crossings
             trainTS:        timestamps
@@ -216,6 +246,7 @@ Nodes:
             targetSamp:     samples
             targetTS:       timestamps
             sample_rate:    1e3
-            bin_size:       50
-            num_lags:       10
+            deriv:          True # dx/dt?
+            bin_size:       5
+            num_lags:       50
 

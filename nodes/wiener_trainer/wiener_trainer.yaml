@@ -22,6 +22,7 @@ Nodes:
             targetSamp:     samples
             targetTS:       timestamps
             sample_rate:    1e3
+            deriv:          True # dx/dt
             bin_size:       50
             num_lags:       10
             

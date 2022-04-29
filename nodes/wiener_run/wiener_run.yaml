@@ -39,17 +39,19 @@ Nodes:
       redis_outputs:                [cursorData]
       Parameters:
             # logging level for the process
-            log: DEBUG
+            log:                    DEBUG
             # Number of targets the wiener_filter should predict
             # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 3
+            n_targets:              3
             # Number of features to use for decoding
-            n_features: 96
+            n_features:             96
             # Type of wiener_filter to use
-            decoder_type: linear
+            decoder_type:           linear
             # path to the saved model
             model_path: /home/snel/Projects/brand/graphs/sharedDevelopment/replayTest/0.0/model.pkl
             # history for the Wiener filter
-            n_history: 50
+            n_history:              50
             # bin size (in samples)
-            bin_size: 5
+            bin_size:               5
+            # are we predicting Y or dY/dt? (good for force predictions)
+            deriv:                  True

@@ -32,6 +32,19 @@ if not isinstance(numeric_level, int):
 logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
                     level=numeric_level)
 
+deriv_flag = get_node_parameter_value(YAML_FILE, NAME, 'deriv')
+
+# clean signal handling
+def signal_handler(sig,frame):
+    logging.info("SIGINT received, exiting")
+    gc.collect()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+
+
+
 
 class Decoder():
     def __init__(self):
@@ -51,8 +64,6 @@ class Decoder():
         self.data_id = '$'
         self.param_id = '$'
 
-        # terminate on SIGINT
-        signal.signal(signal.SIGINT, self.terminate)
 
     def build(self):
         self.model_path = get_node_parameter_value(YAML_FILE, NAME,
@@ -60,20 +71,23 @@ class Decoder():
         logging.info(f"Attempting to load model from file {self.model_path}")
         try:
             with open(self.model_path, 'rb') as f:
-                self.mdl = pickle.load(f)
+                mdl = pickle.load(f)
+                self.mdl = {} # initialize a dictionary
+                self.mdl['coef'] = np.asarray(mdl['attr']['coef_'])
+                print(self.mdl['coef'].shape)
+                self.mdl['intercept'] = np.asarray(mdl['attr']['intercept_'])
+                print(self.mdl['intercept'].shape)
                 logging.info(f'Loaded model from {self.model_path}')
         except Exception:
-            logging.warning('Failed to load wiener_filter.'
-                            ' Initializing a new one.')
-            self.mdl = Ridge()
-            X = np.ones((100, self.n_features * self.n_history))
-            y = np.ones((100, self.n_targets))
-            self.mdl.fit(X, y)
+            logging.error('Failed to load wiener_filter.'
+                          'Exiting now')
+            sys.exit(1)
 
     def predict(self, x):
         # implementing this step directly instead of using mdl.predict() for
         # best performance
-        y = x.dot(self.mdl.coef_.T) + self.mdl.intercept_
+        y = x.dot(self.mdl['coef'].T) + self.mdl['intercept'].T
+        #y = self.mdl.predict(x) # using just predict to make it easier for now
         return y
 
     def run(self):
@@ -92,7 +106,7 @@ class Decoder():
         # binned decoder input
         X = np.zeros((1, self.n_features * self.n_history))
         # decoder output
-        y = np.zeros(self.n_targets + 1, dtype=np.int16)
+        y = np.zeros(self.n_targets, dtype=np.int16)
         # initialize variables
         # entry to the decoder output stream
         decoder_entry = {
@@ -123,7 +137,10 @@ class Decoder():
             X[0, :] = window.mean(axis=1).T.reshape(
                 1, self.n_features * self.n_history)
             # generate a prediction
-            y[1:] = self.predict(X).astype(np.int16)
+            if deriv_flag: # if we're predicting dy/dt
+                y = y+self.predict(X).astype(np.int16)
+            else:
+                y = self.predict(X).astype(np.int16)
             logging.debug(y)
 
             # write results to Redis
@@ -140,10 +157,6 @@ class Decoder():
             # reset the input timestamp
             input_timestamp = None
 
-    def terminate(self, sig, frame):
-        logging.info('SIGINT received, Exiting')
-        gc.collect()
-        sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,10 @@
-# Real-time Asynchronous Neural Decoding System (RANDS)
+# Branded Real-time Asynchronous Neural Data System (BRANDS)
+## Architecture
+BRANDS is built using a graph architecture with small, individual nodes that can be flexibly interconnected. Each node is a separate process, so as to allow for parallelization and re-prioritization of each node. Interprocess communication and data storage is all built around the [Redis](redis.io) in-memory database and caching system.
+
+The layout of each graph is defined in its associated .yaml settings file. Graph settings files are organized by experimental site to allow easy sharing of graphs between experimental sites while allowing customization per-site. BRANDS is set up to make creation of new graphs and development of new nodes easy and consistent.
+
+
 ## Building
 ### Requirements
 * Host Machine Running Ubuntu 18.04
@@ -44,37 +50,39 @@ Having installed and compiled the code, there are some simple steps needed to ru
 
 ```
 source setup.sh
-load cerebusTest
-run
+setSite <site name>
+run <graph name>
 ```
+
+### setup.sh
+`source` tells the shell to run all of the commands inside of the .sh file in the current terminal.
 
 `setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment, in case you forgot. 
 
-### load.sh
+### setSite
+`setSite` is a helper function defined when you run `setup.sh`. It sets an environmental variable to let BRANDS know where to look for graph YAML settings files. 
 
-The `load cerebusTest` command executes the `load.sh` in the folder `session/cerebusTest`. The `load.sh` file contains all of the configuration information required in order to start an experiment. At the end of calling `load.sh`, all files pertaining to an experiment will be put into the folder `run/`. At a minimum, after calling `load.sh` there should be a file `run/run.sh`.
-
-Examples of the contents for a `session/` folder include the `yaml` files used for configuring modules, `.conf` files for configuring redis, etc. This makes it easy to keep all of the information in one place. Usually the process of populating a `run/` folder is done with symbolic links. For instance, `load.sh` will create symbolic links to binaries in the `bin/`, such as linking `bin/cerebusAdapter` to `run/cerebusAdapter`. Next, it will create a symbolic link from `proc/rest/rest.pyx` to `run/rest.pyx`. By looking at the list of links, one should know exactly what modules are called, and where they're defined. 
-
-The expectation is that multiple session types will use a combination of different modules to run an experiment. However, the configurations for each module may be different depending on the experiment being performed. 
+`setSite` has tab completion. To see all currently defined sites, type `setSite <TAB> <TAB>`
 
 
-### run.sh
+### run
 
-The `run` command executes the `run.sh` file located in the `run/` directory. `run.sh` should contain the instructions to run an experiment. Running an experiment has the following sequences of events:
+The `run` command executes the `run.sh` file located in the `run/` directory. It expects a graph name as a command line argument, and has tab completion. To see all currently defined graphs, type `run <TAB> <TAB>`
+
+`run.sh` contains all of the instructions to run an experiment and should not be edited to run a specific graph. Run parses the yaml file from the graph and runs everything accordingly. For a single experiment, it goes through the following steps:
 
 1. Start redis
-2. Start the initial modules 
-3. Start the main modules 
-4. Wait
-5. Stop the main modules
-6. Stop the initial modules
-7. Start the finalization modules 
-8. Stop the finalization modules
+2. Start the initial nodes 
+3. Start the main nodes 
+4. Wait until the user types `q <ENTER>`
+5. Stop the main nodes
+6. Stop the initial nodes
+7. Start the finalization nodes 
+8. Stop the finalization nodes
 9. Save redis database to disk
 10. Stop redis
 
-Modules run in the initial stage should be supportive. For example, these modules may handle incoming UDP information, replay previously collected data, manage a rest server, etc. The modules in the main stage do the bulk of the work, including signal processing, decoding algorithms, etc. When the program exits, it first shuts down main and start modules, and then runs the finalization modules. For example, modules that would tidy up the redis database would be called at this stage.
+Nodes run in the initial stage should be supportive. For example, these nodes may handle incoming UDP information, replay previously collected data, manage a rest server, etc. The nodes in the main stage do the bulk of the work, including signal processing, decoding algorithms, etc. When the program exits, it first shuts down main and start nodes, and then runs the finalization nodes. For example, nodes that would tidy up the redis database would be called at this stage.
 
 
 
@@ -83,16 +91,31 @@ Modules run in the initial stage should be supportive. For example, these module
 The primary organization of the rig is:
 
 ```
-bin/
+nodes/
+graphs/
 lib/
-proc/
-session/
 run/
+bin/
 ```
+
+### nodes/
+`nodes/` contains all of the code for the different nodes, each separated into a subdirectory. Within each node subdirectory, there should be the original code and a g compatible Makefile if the code is meant to be compiled. The compiled executable should be kept in the same directory and have a .bin extension
+
+### graphs/
+`graphs/` contains the YAML settings files for the graphs. The directory organization is:
+    
+    ```
+    graphs/
+    |
+    --->[site name]
+        |
+        --->[graph name]
+
+    ```
 
 ### bin/
 
-`bin/` contains the compiled output of the various processes. Calling `make` in the root directory will make all of the modules and git submodules (e.g. redis, etc.). To compile a specific process, run `make [process]` from the root directory.
+`bin/` contains the compiled code from non-node supporting functions.
 
 ### lib/
 

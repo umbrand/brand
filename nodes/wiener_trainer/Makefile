@@ -1,4 +1,4 @@
-PROJECT=wiener_filter
+PROJECT=wiener_trainer
 
 ifneq ($(CONDA_DEFAULT_ENV),rt)
 $(error real-time conda env (rt) not active)
@@ -13,8 +13,8 @@ PYTHON_LIB=python$(PYTHON_VERSION)
 LIBPYTHON=$(CONDA_PREFIX)/lib/
 INCPYTHON=$(CONDA_PREFIX)/include/$(PYTHON_LIB)
 
-TARGET=$(PROJECT).bin
-CYTHON_TARGET=$(GENERATED_PATH)/$(PROJECT).c
+TARGET=$(PROJECT)
+CYTHON_TARGET=$(PROJECT).c
 
 all:
 	cp $(PROJECT).py $(PROJECT).pyx
