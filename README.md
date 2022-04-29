@@ -88,7 +88,7 @@ Nodes run in the initial stage should be supportive. For example, these nodes ma
 
 # Folder organization
 
-The primary organization of the rig is:
+The primary directory organization within the core BRAND directory is:
 
 ```
 nodes/
@@ -107,9 +107,7 @@ bin/
     ```
     graphs/
     |
-    --->[site name]
-        |
-        --->[graph name]
+    --->[graph name]
 
     ```
 
@@ -128,40 +126,26 @@ lib/redisTools
 
 `hiredis` is a submodule that links to a different git repository. `redisTools` is an in-house folder that has some wrapper functions for working with redis.
 
-### proc/
-
-The `proc/` folder contains the modules used for the rig. Suppose we call our module `foo`. If `foo` is written in a compiled language, like C, then it should have as a minimum:
-
-```
-proc/foo/foo.c
-proc/foo/foo.yaml
-proc/foo/README.md
-proc/foo/Makefile
-```
-
-If processes need to be compiled: they should be written so that they are compiled in their local directory (i.e. `/proc/foo/`), with the destination of the binary being the `bin/` directory. The processes should expect to be run in the `run/` directory. This can be very important for linking dependencies.
-
-The reasoning for this is as follows: we want to compile all of the modules the start, since this may take time. If, however, we want to change our experiment on the fly, we simply call `load newSession`, which will change the symbolic links and allow us to start a new session immediately. 
-
-The `foo.yaml` file contains configuration information for the process. DO NOT CONFIGURE YOUR EXPERIMENT BASED ON THE YAML FILE IN THE PROC SUBDIRECTORY. Instead, create a `foo.yaml` file in the relevant `session/` subfolder. 
-
-### session/
-
-A folder within session should contain all of the relevant information for running a session. For example:
-
-```
-session/cerebusTest/load.sh
-session/cerebusTest/run.sh
-session/cerebusTest/cerebusAdapter.yaml
-session/cerebusTest/monitor.yaml
-session/cerebusTest/README.md
-```
-
-At a minimum, `load.sh` would then link all of the contents of `session/cerebusTest` as well as `bin/cerebusTest` and `bin/monitor` to the `run/` folder. 
-
 ### run/
 
 This folder should contain all of the information needed to run the session. It will also likely contain the `dump.rdb` file created by redis, and any analysis output pertaining to the run.
+
+## external modules
+
+The core BRAND directory can be extended to run additional graphs and nodes from an external module. From the core BRAND directory, external modules must be installed in the following relative path:  
+
+```
+../brand-modules/[module name]/
+```
+
+And within each module, the primary organization is the following: 
+
+```
+nodes/
+graphs/
+```
+
+Where `nodes/` and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also rebuild all nodes within the external module directories.  
 
 ## yaml files
 
@@ -177,7 +161,7 @@ parameters:
 
 The name of the parameter is called `bar`, and it has value `12345` (N.B. This can be a string or a number). The description is a text-field that describes how the variable is used (and potentially common values). 
 
-Parameters can be "static" or "non-static." A static variable is one that is set during initialization and is not changed thereafter. A non-static is one that can be changed while the module is running. For instance, the host address of the Redis instance will likely be a static, whereas a boolean flag indicating whether a matrix multiplication does or doesn't occur during a module's run-cycle can be static: false. 
+Parameters can be "static" or "non-static." A static variable is one that is set during initialization and is not changed thereafter. A non-static is one that can be changed while the module is running. For instance, the host address of the Redis instance will likely be a static, whereas a boolean flag indicating whether a matrix multiplication does or doesn't occur during a node's run-cycle can be static: false. 
 
 
 ## Redis as a mechanism for IPC
@@ -193,23 +177,23 @@ stream_key ID key value key value ...
 
 The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at N and increments for every simultaneously created entry within the same millisecond.
 
-When a module wants to share data with others, it does so using a stream. There are several advantages to using a stream: 
+When a node wants to share data with others, it does so using a stream. There are several advantages to using a stream: 
 
 1. Data is automatically timestamped
 2. Adding new data to the stream is cheap, since it's stored internally as a linked-list. 
-3. It makes it easy to have a pub/sub approach to IPC, since modules can simply call the `xread` command 
+3. It makes it easy to have a pub/sub approach to IPC, since nodes can simply call the `xread` command 
 4. It makes it easy to query previously collected data using the `xrange` or `xrevrange` command. Reading new data from either the head or the tail of the stream is computationally cheap.
 
-# Creating a new module
+# Creating a new node
 
-Modules can be written in any language. Modules are launched, and stopped, in the `run.sh` script. Conceptually, a module should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Modules are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 modules running.
+Nodes can be written in any language. Nodes are launched, and stopped, in the `run.sh` script. Conceptually, a node should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Nodes are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 nodes running.
 
-At a minimum, a module should have the following characteristics:
+At a minimum, a node should have the following characteristics:
 
 1. Catch SIGINT to close gracefully
 2. Have a `.yaml` configuration file
 
-Since it's inpredictable how modules will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the module.
+Since it's inpredictable how nodes will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the node.
 
 # Performance Optimization
 CPUs will scale their operating frequency according to load, which makes it difficult to get predictable timing. To get around this, we'll use `cpufrequtils`:
@@ -237,9 +221,9 @@ This was tested on Intel CPUs. The commands may be difference for CPUs from othe
 
 It turns out that with Ubuntu 18.04 running PREEMPT_RT kernel version 5.4.40-rt24, there are some surprising conditions under which the terminal will crash, resulting in a `bash: fork: error` being displayed in the terminal, requiring one to restart their connection.
 
-First, *do not write a module that both sets a `SCHED_FIFO` prioritization and interacts with Redis*. The way around this is to have a process do one or the other. If a process needs to run a timer, then have the process `pause()` until if gets a signal from a different module (scheduled with SCHED_FIFO) indicating that it's time to run.
+First, *do not write a node that both sets a `SCHED_FIFO` prioritization and interacts with Redis*. The way around this is to have a process do one or the other. If a process needs to run a timer, then have the process `pause()` until if gets a signal from a different node (scheduled with SCHED_FIFO) indicating that it's time to run.
 
-Second, *do not write a module that sets `SCHED_FIFO` that is launched from python*. The way to do this is to lanch the processes using the `run.sh` script. 
+Second, *do not write a node that sets `SCHED_FIFO` that is launched from python*. The way to do this is to lanch the processes using the `run.sh` script. 
 
 ### Saving data in Redis with minimal latency
 
