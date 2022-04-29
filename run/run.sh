@@ -6,6 +6,7 @@ if [ ${CONDA_DEFAULT_ENV} != "rt" ]; then
 source setup.sh
 fi
 
+
 ##############################################
 # set up colors and warnings
 ##############################################
@@ -65,7 +66,8 @@ main_nodes_pid=()
 # Load the nodes
 ##############################################
 
-./redis-server ${redis_cfg} --dbfilename ${rdb} --dir ../${RDB_SAVE_DIR} &
+#taskset -c 0-1 chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${rdb} &
+chrt -f 99 ./redis-server ${redis_cfg} --dbfilename ${rdb} --dir ../${RDB_SAVE_DIR} &
 sleep 2s
 
 echo "--------------------------------"
@@ -78,11 +80,13 @@ do
     module_path=`python -m brand.tools $graphCfg --module $nodes_name`
     echo $module_path
     pushd ${BRAND_BASE_DIR}/$module_path/nodes/$nodes_name 1>/dev/null
-    ./$proc $graphCfg &
-    ppid=`pgrep $nodes_name`
+    chrt -f 99 ./$proc $graphCfg &
+    ppid=$!
     start_nodes_pid+="$ppid "
+    #ppid=`pgrep $nodes_name`
+    #start_nodes_pid+="$ppid "
     sleep 1s
-    renice -20 $ppid
+    #renice -20 $ppid
     popd 1>/dev/null
 done
 
@@ -96,11 +100,11 @@ do
     module_path=`python -m brand.tools $graphCfg --module $nodes_name`
     echo $module_path
     pushd ${BRAND_BASE_DIR}/$module_path/nodes/$nodes_name 1>/dev/null
-    ./$proc $graphCfg &
-    main_nodes_pid+="$ppid "
+    chrt -f 99 ./$proc $graphCfg &
     ppid=$!
+    main_nodes_pid+="$ppid "
     sleep 1s
-    renice -20 $ppid
+    #renice -20 $ppid
     popd 1>/dev/null
 done
 
@@ -135,6 +139,8 @@ echo "--------------------------------"
 echo "Shutting down nodes"
 echo "--------------------------------"
 
+#echo ${start_nodes_pid[*]}
+#echo ${main_nodes_pid[*]}
 
 for proc_pid in ${main_nodes_pid[*]}
 do
