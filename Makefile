@@ -8,14 +8,27 @@ SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
 # make some clean targets for all subdirs
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
-all: $(SUBDIRS) hiredis lpcnet redis
+# Get all directories in ../brand-modules/*/nodes/ that contain a Makefile
+MODULES_SUBDIR_BASE_PATH=../brand-modules
+MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/*/Makefile))
+
+# make some clean targets for all subdirs
+MODULES_CLEANDIRS = $(MODULES_SUBDIRS:%=clean-%)
+
+all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis lpcnet redis
 
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
+.PHONY: modules_subdirs $(MODULES_SUBDIRS)
+.PHONY: modules_subdirs $(MODULES_CLEANDIRS)
 
 # make targets for all relevant paths under nodes/
 $(SUBDIRS): hiredis lpcnet redis
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
+
+# make targets for all relevant paths under nodes/
+$(MODULES_SUBDIRS): hiredis lpcnet redis
+	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$@
 
 # Linking to hiredis seems to have a bug, where make
 # attempt to link to an so filename with the full ver.
@@ -45,10 +58,13 @@ redis-test:
 
 clean-all: clean clean-hiredis clean-lpcnet
 
-clean: $(CLEANDIRS)
+clean: $(CLEANDIRS) $(MODULES_CLEANDIRS)
 
 $(CLEANDIRS):
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$(@:clean-%=%) clean
+
+$(MODULES_CLEANDIRS):
+	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$(@:clean-%=%) clean
 
 clean-hiredis:
 	$(MAKE) -C $(HIREDIS_PATH) clean

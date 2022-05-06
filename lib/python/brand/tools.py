@@ -278,7 +278,33 @@ def node_stage(yaml_path, stage):
             stage_nodes.append(nodes['Name'])
     
     return ' '.join(stage_nodes) # create a single string of all of the items with spaces between -- for bash convenience
-    
+
+# -----------------------------------------------------------
+# get module name for a given node
+def get_node_module(yaml_path, node_name):
+    """
+    Get the module name from the node name in a yaml file
+
+    Parameters
+    ----------
+    yaml_path : str
+        Path of the YAML file
+    node_name : str
+        Name of the node to use
+
+    Returns
+    -------
+    str
+        Module name for node
+    """
+
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+
+    for node in yamlData['Nodes']:
+        if node['Name'].split('.')[0] == node_name:
+            return node['Module']
+
 # -----------------------------------------------------------
 # running the function as a script -- for C and Bash usage
 def main():
@@ -300,6 +326,7 @@ def main():
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--name', help='Return the value in the YAML file', type=str)
     parser.add_argument('--node', help='Which node to use', type=str)
+    parser.add_argument('--module', type=str, help='Return module name for given node')
     parser.add_argument('file', default="", type=str, help='The YAML file to be loaded')
     parser.add_argument('--redis', help="Return the port and ip for the redis instance")
     parser.add_argument('--stage', type=str, help="Returns list of Start, Main or End modules")
@@ -317,11 +344,13 @@ def main():
         if args.name: # if we have a particular value
             print(get_node_parameter_value(args.file, args.node, args.name), end="")
         else: # return all values
-            print(get_node_parameters(args.file, args.node), end="")
+            print(get_node_parameter_dump(args.file, args.node), end="")
     elif args.name: # if no node name is supplied... probably mostly for the redis connection
         print(get_parameter_value(args.file, args.name), end="")
     elif args.stage:
         print(node_stage(args.file, args.stage), end="")
+    elif args.module: # if we ask for module name for a node
+        print(get_node_module(args.file, args.module), end="")
 
 
 if __name__ == '__main__':

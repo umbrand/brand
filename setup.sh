@@ -20,6 +20,8 @@ if [ ! -d ${RDB_SAVE_DIR} ]; then # if the directory doesn't exist, create it
 fi
 export RDB_SAVE_DIR # push up to the environment
 
+BRAND_BASE_DIR=$(pwd)
+export BRAND_BASE_DIR # save brand base dir to the environment
 
 ################################################
 # defining functions
@@ -40,6 +42,17 @@ setSite() {
     graph_list=$""
     if [ $(ls graphs/$SITE/ | wc -l) -gt 0 ]; then
         graph_list=$(ls -d graphs/$SITE/* | cut -d '/' -f3)
+    fi
+    complete -W "`echo ${graph_list[@]}`" run
+
+}
+
+# hard code Emory module directory for now
+setSiteEmory() {
+    export SITE="../brand-modules/brand-emory"
+    graph_list=$""
+    if [ $(ls $SITE/graphs/ | wc -l) -gt 0 ]; then
+        graph_list=$(ls -d $SITE/graphs/* | cut -d '/' -f5)
     fi
     complete -W "`echo ${graph_list[@]}`" run
 

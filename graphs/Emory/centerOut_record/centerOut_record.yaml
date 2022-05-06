@@ -1,0 +1,94 @@
+Metadata:
+    participant_id:             0
+    session_description:        "for center out task"
+        
+# ---------------------------------------------------
+
+RedisConnection:
+    redis_realtime_ip: 127.0.0.1
+    redis_realtime_port: 6379
+    redis_realtime_socket: /var/run/redis.sock
+    redis_realtime_config: redis.realtime.conf
+
+# ---------------------------------------------------
+
+
+# -- stream definitions --
+# expected format:
+#
+#   streamName:
+#       chan_per_stream:    [required]
+#       samp_per_stream:    [required]
+#       sample_name:        [required]
+#       timestamp_name:     [required]
+#       sample_type:        [required]
+#       timestamp_type:     [required]
+#       samp_freq:          [optional]
+
+RedisStreams:
+    taskInput:
+        chan_per_stream:    3
+        samp_per_stream:    1
+        sample_name:        samples
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uInt32
+        samp_freq:          1000
+    thresholdCrossings:
+        chan_per_stream:    256
+        samp_per_stream:    1
+        sample_name:        crossings
+        timestamp_name:     timestamps
+        sample_type:        int16
+        timestamp_type:     uint32
+    state:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        None
+        timestamp_name:     time
+        sample_type:        char
+        timestamp_type:     float
+    cursorData:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        uint32
+        timestamp_type:     uint32
+        X_Name:             X
+        X_sample_type:      int16
+        Y_Name:             Y
+        Y_sample_type:      int16
+    targetData:
+        chan_per_stream:    1
+        samp_per_stream:    1
+        sample_name:        state
+        timestamp_name:     timestamp
+        sample_type:        uint32
+        timestamp_type:     uint32
+        Y_Name:             Y
+        Y_sample_type:      int16
+        X_Name:             X
+        X_sample_type:      int16
+        width_Name:         width
+        width_sample_type:  int16
+        height_Name:        height
+        height_sample_type: int16
+    
+
+# -----------------------------------------------------        
+
+
+Nodes:
+    - Name:         xPC_adapter.bin
+      Version:      0.0
+      Stage:        start
+      Module:       ../brand-modules/brand-emory
+      redis_inputs:                 []
+      redis_outputs:                [thresholdCrossings]
+      Parameters:
+                udp_ip:             192.168.30.255
+                udp_port:           50114
+                udp_interface:      enp6s0
+                n_channels:         256  
+                log:                INFO          
