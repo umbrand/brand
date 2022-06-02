@@ -3,6 +3,7 @@
 ### System Information
 Example:
 Kernel version (via `uname -msr`): `Linux 4.15.0-101-generic x86_64`
+
 Ubuntu version (via `lsb_release -a`):
 ```
 Distributor ID:	Ubuntu
@@ -12,7 +13,7 @@ Codename:	bionic
 ```
 
 ### Downloading the patch
-Find the most recent long-term kernel [here](kernel.org). Go to the `PREEMPT_RT` project and find the most recent `rt` patch for the long-term kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/). Note that all three version numbers of the Linux kernel must match all three numbers of the `rt` patch (except the `rtXX`), so find the matching Linux kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/). For example, If the most recent long-term Linux kernel version is `5.15.44` but the `rt` project only has `5.15.43`, then you must use the Linux kernel for version `5.15.43` too. Be sure to download the `.xz` file extension for the Linux kernel and the `.patch.xz` extension for the `rt` patch.
+Find the most recent long-term kernel [here](https://kernel.org). Go to the `PREEMPT_RT` project and find the most recent `rt` patch for the long-term kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/). Note that all three version numbers of the Linux kernel must match all three numbers of the `rt` patch (except the `rtXX`), so find the matching Linux kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/). For example, If the most recent long-term Linux kernel version is `5.15.44` but the `rt` project only has `5.15.43`, then you must use the Linux kernel for version `5.15.43` too. Be sure to download the `.xz` file extension for the Linux kernel and the `.patch.xz` extension for the `rt` patch.
 ```
 cd
 mkdir -p Installs/rt-kernel
@@ -31,7 +32,7 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
 1. Extract the archive and apply the patch.
     ```
     xz -cd linux-5.15.43.tar.xz | tar xvf -
-    cd linux-5.14.43
+    cd linux-5.15.43
     xzcat ../patch-5.15.43-rt45.patch.xz | patch -p1
     ```
 1. Copy the old configuration as the basis for the new kernel.
@@ -39,17 +40,17 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
     cp /boot/config-5.13.0-44-generic .config # example
     make menuconfig
     ```
-1. Under `General setup --->` > `Preemption Model (Fully Preemptible Kernel (Real-Time)) --->` choose `Fully Preemptible Kernel (Real-Time)`. Hit `Exit` to go back to the top config menu.
+1. Under `General setup --->` > `Preemption Model (Voluntary Kernel Preemption (Desktop)) --->` (or something in the parentheses) choose `Fully Preemptible Kernel (Real-Time)`. Hit `Exit` to go back to the top config menu.
 1. Under `Cryptographic API (CRYPTO [-y])` > `Certificates for signature checking` (last item in the list) > `(debian/canonical-certs.pem) Additional X.509 keys for default system keyring` (or something like that in the parentheses), delete the string in the field.
-1. In the same menu under `(debian/canonical-certs.pem) X.509 certificates to be preloaded into the system blacklist keyring` (or something like that in the parentheses), delete the string in the field.
+1. In the same menu under `(debian/canonical-revoked-certs.pem) X.509 certificates to be preloaded into the system blacklist keyring` (or something like that in the parentheses), delete the string in the field.
 1. Hit `Save`, then `Exit` all the way out of `menuconfig`.
 1. Compile the new kernel. Note the `-j` option runs parallel jobs, so increase the number to speed up the process, but too many can hang the system.
     ```
-    make -j8 all; make -j8 modules_install; sudo make -j8 install
+    make -j8 all; sudo make -j8 modules_install; sudo make -j8 install
     ```
 1. Update the `ramdisk` initialization options based on [this Stack Exchange post](https://unix.stackexchange.com/a/671382):
     ```
-    nano /etc/initramfs-tools/initramfs.conf
+    sudo nano /etc/initramfs-tools/initramfs.conf
     ```
 1. Update the `MODULES` line to say:
     ```
@@ -57,8 +58,9 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
     ```
 1. Regenerate the `ramdisk` initialization options.
     ```
-    update-initramfs -c -k 5.15.43-rt45
+    sudo update-initramfs -c -k 5.15.43-rt45
     ```
+1. Reboot to boot the `PREEMPT_RT` kernel.
 
 #### Installation Notes
 - The `make -j8 deb-pkg` step took about 30 minutes to complete on `SNEL-Rig1-A` (Intel Core i7-4790K CPU @ 4.00GHz).
@@ -68,21 +70,102 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
 #### Installing the tests
 Dependencies:
 ```
-apt-get install libnuma-dev  # for cyclictest
+sudo apt-get install libnuma-dev  # for cyclictest
 ```
 Tests:
 ```
+cd ~/Installs
 git clone git://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git  # cyclictest
 cd rt-tests/
 git checkout stable/v1.0
 make all
 ```
-#### Breaking down the [OSADL](http://www.osadl.org) `cyclictest` command
+
+1. Open a second terminal instance and run:
+    ```
+    cd ~/Installs/rt-tests
+    ```
+1. Run a background process:
+    ```
+    ./hackbench -l10000000
+    ```
+1. Switch to the first terminal instance, and run:
+    ```
+    sudo ./cyclictest -l1000000 -m -Sp99 -i200 -h400 -q > output
+    ```
+    This will run for approximately three minutes.
+1. When the above step is finished, switch back to the second terminal instance and kill the command with `CTRL+c`.
+
+#### Generate the latency plot, based on [these instructions](http://www.osadl.org/Create-a-latency-plot-from-cyclictest-hi.bash-script-for-latency-plot.0.html).
+1. Get maximum latency.
+    ```
+    max=`grep "Max Latencies" output | tr " " "\n" | sort -n | tail -1 | sed s/^0*//`
+    ```
+1. Grep data lines, remove empty lines and create a common field separator.
+    ```
+    grep -v -e "^#" -e "^$" output | tr " " "\t" >histogram 
+    ```
+1. Set the number of cores.
+    ```
+    cores=$(nproc)
+    ```
+1. Create two-column data sets with latency classes and frequency values for each core.
+    ```
+    for i in `seq 1 $cores`
+    do
+        column=`expr $i + 1`
+        cut -f1,$column histogram >histogram$i
+    done
+    ```
+1. Create plot command header.
+    ```
+    echo -n -e "set title \"Latency plot\"\n\
+    set terminal png\n\
+    set xlabel \"Latency (us), max $max us\"\n\
+    set logscale y\n\
+    set xrange [0:400]\n\
+    set yrange [0.8:*]\n\
+    set ylabel \"Number of latency samples\"\n\
+    set output \"plot.png\"\n\
+    plot " >plotcmd
+    ```
+1. Append plot command data references.
+    ```
+    for i in `seq 1 $cores`
+    do
+        if test $i != 1
+        then
+            echo -n ", " >>plotcmd
+        fi
+        cpuno=`expr $i - 1`
+        if test $cpuno -lt 10
+        then
+            title=" CPU$cpuno"
+        else
+            title="CPU$cpuno"
+        fi
+        echo -n "\"histogram$i\" using 1:2 title \"$title\" with histeps" >>plotcmd
+    done
+    ```
+1. Install and execute plot command.
+    ```
+    sudo apt-get install gnuplot -y
+    gnuplot -persist <plotcmd
+    ```
+1. Switch to the GUI and open a new terminal. Then run:
+    ```
+    cd ~/Installs/rt-tests/
+    firefox plot.png
+    ```
+    If `PREEMPT_RT` was properly installed, you should see a plot similar to the following, where most latency samples are crowded towards the left side near 0us latency. If `PREEMPT_RT` was not properly installed, you will likely see latency samples much more distributed on the horizontal axis.
+    ![](preempt_rt_example_latency_plot.png)
+
+#### Breaking down the [OSADL](http://www.osadl.org) `cyclictest` command (removed two zeros from -l100000000 for shorter runtime)
 ```
-cyclictest -l100000000 -m -Sp99 -i200 -h400 -q
+sudo ./cyclictest -l1000000 -m -Sp99 -i200 -h400 -q
 ```
 ```
--l100000000 = 1e8 loops
+-l1000000 = 1e6 loops
 -m  = memlock
 -S = use the standard testing options for SMP systems
 -p99 = set the realtime priority to 99
@@ -90,5 +173,3 @@ cyclictest -l100000000 -m -Sp99 -i200 -h400 -q
 -h400 = dump latency histogram to stdout. 400 microseconds is the max latency time to track.
 -q = Run the tests quietly and print only a summary on exit.
 ```
-#### Running the tests:
-Follow the instructions [here](http://www.osadl.org/Create-a-latency-plot-from-cyclictest-hi.bash-script-for-latency-plot.0.html) to make a latency plot.
