@@ -80,7 +80,7 @@ RedisStreams:
             ...
 ```
 
-In the case of variable entry rates for a node's incoming streams, it is up to the node's developer to decide which is being used to block. However, in all cases, it is *strongly recommended* that the higher time-resoultion stream should be used for blocking, but the most recent label for all input streams should be included in the label key.
+In the case of variable entry rates for a node's incoming streams, it is up to the node's developer to decide which is being used to block. However, in all cases, it is *strongly recommended* that the higher time-resolution stream should be used for blocking, but the most recent label for all input streams should be included in the label key.
 
 ## Global Timestamps
 
