@@ -158,6 +158,7 @@ make all
     firefox plot.png
     ```
     If `PREEMPT_RT` was properly installed, you should see a plot similar to the following, where most latency samples are crowded towards the left side near 0us latency. If `PREEMPT_RT` was not properly installed, you will likely see latency samples much more distributed on the horizontal axis.
+    
     ![](preempt_rt_example_latency_plot.png)
 
 #### Breaking down the [OSADL](http://www.osadl.org) `cyclictest` command (removed two zeros from -l100000000 for shorter runtime)
