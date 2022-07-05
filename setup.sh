@@ -80,8 +80,6 @@ createGraph () {
 
 # Activate the rt environment to get to work
 conda activate rt
-
-
 load () {
    ./graphs/sharedDevelopment/$1/load.sh
 }

@@ -197,16 +197,16 @@ class Supervisor:
         self.model["nodes"] = {}   
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing 
         for n in nodes:
-            yaml_f = self.search_node_yaml_file(n["module"],n["name"]) 
-            logger.info("yaml file path: %s" % yaml_f)
+            # yaml_f = self.search_node_yaml_file(n["module"],n["name"]) 
+            # logger.info("yaml file path: %s" % yaml_f)
             bin_f = self.search_node_bin_file(n["module"],n["name"])  # uncomment this if you've executable for each node in form of bin/exec
-            if(os.path.exists(yaml_f) and os.path.exists(bin_f)):
+            if(os.path.exists(bin_f)):
                 logger.info("Yaml and bin files exist in the path")
                 logger.info("%s is a valid node...." % n["nickname"])
-                with open(yaml_f, 'r') as stream:
-                    node_dict = yaml.safe_load(stream)
+                #with open(yaml_f, 'r') as stream:
+                node_dict = {}
             else:
-                logger.info("Yaml or bin files do not exist in the path")
+                logger.info("Bin files / executables do not exist in the path")
                 logger.error("%s is not a valid node...." % n["nickname"])
                 sys.exit(1)
                 
@@ -216,29 +216,29 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["module"] = n["module"]
             self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
-            self.model["nodes"][n["nickname"]]["parameters"] = node_dict["parameters"]
+            self.model["nodes"][n["nickname"]]["parameters"] = []
             param_list = len(self.model["nodes"][n["nickname"]]["parameters"])
-            for i in range(param_list):
-                if(not self.model["nodes"][n["nickname"]]["parameters"][i]["type"] or (not self.model["nodes"][n["nickname"]]["parameters"][i]["name"])):
-                    param_flag = False
-                    logger.error("%s  is an invalid node because type or name aren't present" % n["nickname"])
-                    sys.exit(1)
-                self.model["nodes"][n["nickname"]]["parameters"][i]["value"] = n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])] 
-                if( self.model["nodes"][n["nickname"]]["parameters"][i]["value"] == None):
-                    param_flag = False
-                    logger.info(n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])])
-                    logger.error("%s  is an invalid node because value isn't present" % n["nickname"])
-                    sys.exit(1)
-        if(param_flag): 
-            logger.info("Type, name and value fields are present in the model")
-            self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
-            model_pub = json.dumps(self.model) 
-            payload = {
-                "data": model_pub
-            }
-            self.r.xadd("supergraph_stream",payload)
-            logger.info("Supergraph Stream (Model) published successfully with payload..")
-            self.r.xadd("graph_status", {'status': self.state[4]}) #status 4 means graph is running and supergraph is published
+            # for i in range(param_list):
+            #     if(not self.model["nodes"][n["nickname"]]["parameters"][i]["type"] or (not self.model["nodes"][n["nickname"]]["parameters"][i]["name"])):
+            #         param_flag = False
+            #         logger.error("%s  is an invalid node because type or name aren't present" % n["nickname"])
+            #         sys.exit(1)
+            #     self.model["nodes"][n["nickname"]]["parameters"][i]["value"] = n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])] 
+            #     if( self.model["nodes"][n["nickname"]]["parameters"][i]["value"] == None):
+            #         param_flag = False
+            #         logger.info(n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])])
+            #         logger.error("%s  is an invalid node because value isn't present" % n["nickname"])
+            #         sys.exit(1)
+        #if(param_flag): 
+        #logger.info("Type, name and value fields are present in the model")
+        self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
+        model_pub = json.dumps(self.model) 
+        payload = {
+            "data": model_pub
+        }
+        self.r.xadd("supergraph_stream",payload)
+        logger.info("Supergraph Stream (Model) published successfully with payload..")
+        self.r.xadd("graph_status", {'status': self.state[4]}) #status 4 means graph is running and supergraph is published
 
 
     ####### functions for the booting and stopping node #######  

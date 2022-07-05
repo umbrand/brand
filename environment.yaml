@@ -94,5 +94,8 @@ dependencies:
     - webencodings==0.5.1
     - werkzeug==1.0.1
     - widgetsnbextension==3.5.1
+    - argparse==1.4.0
+    - pickle5
+    - coloredlogs==15.0.1 
     - -e ./lib/python
 
