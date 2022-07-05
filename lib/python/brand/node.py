@@ -49,16 +49,16 @@ class BRANDNode():
         
         signal.signal(signal.SIGINT, self.terminate)
 
-        # initialize output stream entry data
-        self.sync_dict = {}
-        self.sync_dict_json = json.dumps(self.sync_dict)
+        # # initialize output stream entry data
+        # self.sync_dict = {}
+        # self.sync_dict_json = json.dumps(self.sync_dict)
         
-        self.output_entry = {
-            self.time_key: time.monotonic(), 
-            self.sync_key: self.sync_dict_json.encode(), 
-        }
+        # self.output_entry = {
+        #     self.time_key: time.monotonic(), 
+        #     self.sync_key: self.sync_dict_json.encode(), 
+        # }
 
-        self.output_stream = "default"
+        # self.output_stream = "default"
 
         #logging.info('Redis connection established and parameters loaded')    
 
@@ -110,18 +110,21 @@ class BRANDNode():
 
         model_data = json.loads(entry_dict[b'data'].decode())
 
-        self.sync_key = model_data['sync_key'].encode()
-        self.time_key = model_data['time_key'].encode()
+        # self.sync_key = model_data['sync_key'].encode()
+        # self.time_key = model_data['time_key'].encode()
 
         node_parameters = {}
         for node in model_data['nodes']:
             if model_data['nodes'][node]['nickname'] == self.NAME:
                 node_parameters = model_data['nodes'][node]['parameters']
+                print(type(model_data['nodes'][node]['parameters']))
                 break
         
-        for parameter in node_parameters:
-            self.parameters[parameter['name']] = parameter['value']
-
+        #for parameter in node_parameters:
+            #self.parameters[parameter['name']] = parameter['value']
+        for key,value in node_parameters.items():
+            self.parameters[key] = value
+                
         #print(self.parameters)
 
     # def initializeMain(self):
@@ -151,14 +154,14 @@ class BRANDNode():
         """
         pass
 
-    def write_brand(self):
+    # def write_brand(self):
     
-        self.sync_dict_json = json.dumps(self.sync_dict)
+    #     self.sync_dict_json = json.dumps(self.sync_dict)
         
-        self.output_entry[self.time_key] = time.monotonic()
-        self.output_entry[self.sync_key] = self.sync_dict_json.encode()
+    #     self.output_entry[self.time_key] = time.monotonic()
+    #     self.output_entry[self.sync_key] = self.sync_dict_json.encode()
 
-        self.r.xadd(self.output_stream, self.output_entry)
+    #     self.r.xadd(self.output_stream, self.output_entry)
 
 
     def updateParameters(self):
@@ -202,7 +205,7 @@ class BRANDNodeOld():
         self.initializeParameters()
 
         # set up logging
-        loglevel = self.parameters['log']
+        #loglevel = self.parameters['log']
         numeric_level = getattr(logging, loglevel.upper(), None)
 
         if not isinstance(numeric_level, int):

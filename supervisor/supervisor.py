@@ -216,7 +216,7 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["module"] = n["module"]
             self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
-            self.model["nodes"][n["nickname"]]["parameters"] = []
+            self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
             param_list = len(self.model["nodes"][n["nickname"]]["parameters"])
             # for i in range(param_list):
             #     if(not self.model["nodes"][n["nickname"]]["parameters"][i]["type"] or (not self.model["nodes"][n["nickname"]]["parameters"][i]["name"])):
