@@ -218,19 +218,6 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
             self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
             param_list = len(self.model["nodes"][n["nickname"]]["parameters"])
-            # for i in range(param_list):
-            #     if(not self.model["nodes"][n["nickname"]]["parameters"][i]["type"] or (not self.model["nodes"][n["nickname"]]["parameters"][i]["name"])):
-            #         param_flag = False
-            #         logger.error("%s  is an invalid node because type or name aren't present" % n["nickname"])
-            #         sys.exit(1)
-            #     self.model["nodes"][n["nickname"]]["parameters"][i]["value"] = n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])] 
-            #     if( self.model["nodes"][n["nickname"]]["parameters"][i]["value"] == None):
-            #         param_flag = False
-            #         logger.info(n["parameters"][str(self.model["nodes"][n["nickname"]]["parameters"][i]["name"])])
-            #         logger.error("%s  is an invalid node because value isn't present" % n["nickname"])
-            #         sys.exit(1)
-        #if(param_flag): 
-        #logger.info("Type, name and value fields are present in the model")
         self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model) 
         payload = {
