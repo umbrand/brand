@@ -1,22 +1,15 @@
-import subprocess
-from concurrent.futures import process
-from distutils import extension
-from multiprocessing.sharedctypes import Value
-import sys
-import os
-from matplotlib.font_manager import json_dump
-import yaml
 import argparse
-import time
-import psutil
-import signal,re 
-from redis import Redis
-import numpy as np
-import pickle
 import json
-import logging, coloredlogs
+import logging
+import os
+import signal
+import subprocess
+import sys
 from datetime import datetime
 
+import coloredlogs
+import yaml
+from redis import Redis
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
