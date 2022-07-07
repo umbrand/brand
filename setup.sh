@@ -86,18 +86,5 @@ createGraph () {
 
 # Activate the rt environment to get to work
 conda activate rt
-load () {
-   ./graphs/sharedDevelopment/$1/load.sh
-}
 
-run () {
-    pushd run
-    sudo -E env "PATH=$PATH" ./run.sh $1
-    popd
-}
-
-#analyze () {
-#    pushd run
-#    ./analyze.sh
-#    popd
-#}
+alias run="sudo -E env 'PATH=$PATH' python supervisor/supervisor.py"
