@@ -106,38 +106,10 @@ class Decoder(BRANDNode):
         logging.info('SIGINT received, Exiting')
         sys.exit(0)
 
-# class RNNDecoder(Decoder):
-#     def build(self):
-#         self.seq_len = 1
-#         self.model = keras.Sequential()
-#         self.model.add(
-#             layers.Input(shape=(self.seq_len, self.n_features), batch_size=1))
-#         self.model.add(
-#             layers.SimpleRNN(self.n_features,
-#                              return_sequences=False,
-#                              stateful=True,
-#                              unroll=True))
-#         self.model.add(layers.Dense(self.n_targets))
-#         self.model(np.random.rand(1, self.seq_len, self.n_features))  # init
-
-#     def predict(self, x):
-#         y = self.model(x[None, None, :]).numpy()[0, :]
-#         logging.debug(y)
-#         return y
-
 
 if __name__ == "__main__":
     gc.disable()
     gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
-
-    # decoder_type = get_node_parameter_value(YAML_FILE, NAME, 'decoder_type')
-    # logging.info(f'PID: {os.getpid()}')
-    # logging.info(f'Decoder type: {decoder_type}')
-    # if decoder_type.lower() == 'rnn':
-    #     dec = RNNDecoder()
-    # else:
-    #     dec = Decoder()
-    # logging.info('Waiting for data...')
 
     # setup
     dec = Decoder()
