@@ -67,7 +67,9 @@ class Supervisor:
         if args.cfg is not None:
             self.redis_args.append(args.cfg)
         else:
-            self.redis_args.append(self.BRAND_BASE_DIR+'/supervisor/redis.supervisor.conf')
+            self.redis_args.append(
+                os.path.join(self.BRAND_BASE_DIR,
+                             '/supervisor/redis.supervisor.conf'))
         if args.host is not None:
             self.redis_args.append('--bind')
             self.redis_args.append(args.host)
@@ -101,7 +103,7 @@ class Supervisor:
             name : node name
         '''
         # change the working directory to the module directory
-        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes/"+name)]
+        directory = [os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name)]
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".yaml"):
@@ -116,7 +118,7 @@ class Supervisor:
             module: module name
             name : node name
         '''
-        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes"+"/"+name)]
+        directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".bin") or file.endswith(".out"):
