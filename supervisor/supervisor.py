@@ -69,7 +69,7 @@ class Supervisor:
         else:
             self.redis_args.append(
                 os.path.join(self.BRAND_BASE_DIR,
-                             '/supervisor/redis.supervisor.conf'))
+                             'supervisor/redis.supervisor.conf'))
         if args.host is not None:
             self.redis_args.append('--bind')
             self.redis_args.append(args.host)
