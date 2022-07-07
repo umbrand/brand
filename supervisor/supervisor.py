@@ -242,10 +242,11 @@ class Supervisor:
                     binary, '-n', node_stream_name, '-hs', host, '-p',
                     str(port)
                 ]
-                if 'run_priority' in node_info:
+                if 'run_priority' in node_info:  # if priority is specified
                     priority = node_info['run_priority']
-                    chrt_args = ['chrt', '-f', str(priority)]
-                    args = chrt_args + args
+                    if priority:  # if priority is not None or empty
+                        chrt_args = ['chrt', '-f', str(int(priority))]
+                        args = chrt_args + args
                 try:
                     subprocess.run(args)
                 except subprocess.CalledProcessError as e:
