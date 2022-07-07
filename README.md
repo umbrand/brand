@@ -300,3 +300,26 @@ Use Wireshark to check the size of the header. In our case, the header is the fi
 bittwiste -I mypackets.pcap -O mypackets_no_headers.pcap -D 1-42
 ```
 Now `mypackets_no_headers.pcap` is a copy of our `mypackets.pcap` file with headers removed.
+
+
+### Utilities 
+
+#### Supervisor 
+
+> Supervisor is a core process in BRAND serving the following functions - 
+1. Boots nodes
+    - Boots up a single graph with all the nodes and supervisor maintains PIDs of each independently running nodes.
+2. Kills nodes
+    - Receives command to stop all nodes.
+3. Maintain internal model of the state of the graph
+    - List of nodes running and their PIDs.
+    - Most recent published status of each node.
+  
+#### Execution of Supervisor
+```
+1. $ python supervisor/supervisor.py -g <name_of_the_graph_yaml_file>
+2. Start the graph using command ```$xadd supervisor_ipstream * commands startGraph```
+3. Check the model published on the model stream using command ```$xrevrange supergraph_stream + - count 1```
+4. Check the status of the graph anytime using command ```$xrevrange graph_status + - count 1```
+5. Update of parameters on the go can be done by using command ```xadd supervisor_ipstream * commands startGraph file <path_to_file>```
+6. Stop the graph using command ```$xadd supervisor_ipstream * commands stopGraph```. 

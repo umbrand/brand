@@ -1,20 +1,12 @@
-Metadata:
-    participant_id: 0
-    session_description: ""
-
-RedisConnection:
-    redis_realtime_ip: 127.0.0.1
-    redis_realtime_port: 6379
-    redis_realtime_socket: /var/run/redis.sock
-    redis_realtime_config: redis.realtime.conf
+metadata:
+  description: Generate sinusoidal data and write to Redis
+  author: n/a
 
 # node-specific parameters
 Nodes:
     - Name: func_generator
       Version: 0.0
       Parameters:
-            # logging level for the process
-            log: INFO
             # Whether to wait for timer interrupts when sending samples
             use_timer: false
             # Sample rate to use when use_timer=false
@@ -26,3 +18,39 @@ Nodes:
             n_features: 96
             # duration of the test
             duration: 30  # seconds
+
+parameters:
+  - type: float
+    name: sample_rate
+    label: Sample rate at which to output data (Hz)
+    static: True
+    mustExist: True
+    # Number of targets the decoder should predict
+    # e.g. n_targets=2 for decoding x and y channels
+  - type: int
+    name: n_targets
+    label: Number of targets to predict
+    static: True
+    mustExist: True
+    min: 1
+    max: 100
+  - type: int
+    name: n_features
+    label: Number of features to use for decoding
+    static: True
+    mustExist: True
+    min: 1
+    max: 1000
+  - type: string
+    name: log
+    label: Logging info
+    static: True
+    mustExist: True
+
+inputs: []
+outputs:
+  - stream: func_generator
+    values:
+    - type: float64
+      name: samples
+      label: Generated features

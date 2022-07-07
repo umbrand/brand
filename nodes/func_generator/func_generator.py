@@ -2,113 +2,85 @@
 # -*- coding: utf-8 -*-
 # func_generator.py
 
-import gc
 import logging
-import os
-import signal
-import sys
 import time
-
+import gc
 import numpy as np
-from brand import get_node_parameter_value, initializeRedisFromYAML
+import json
 
-NAME = 'func_generator'
-YAML_FILE = sys.argv[1] if len(sys.argv) > 1 else 'func_generator.yaml'
-if len(sys.argv) > 2:
-    N_FEATURES = int(sys.argv[2])
-else:
-    N_FEATURES = get_node_parameter_value(YAML_FILE, NAME, 'n_features')
+from brand import BRANDNode
 
-# setup up logging
-loglevel = get_node_parameter_value(YAML_FILE, NAME, 'log')
-numeric_level = getattr(logging, loglevel.upper(), None)
-
-if not isinstance(numeric_level, int):
-    raise ValueError('Invalid log level: %s' % loglevel)
-
-logging.basicConfig(format='%(levelname)s:func_generator:%(message)s',
-                    level=numeric_level)
-
-
-class Generator():
+class FunctionGenerator(BRANDNode):
     def __init__(self):
-        self.sample_rate = get_node_parameter_value(YAML_FILE, NAME,
-                                                    'sample_rate')
-        self.use_timer = get_node_parameter_value(YAML_FILE, NAME, 'use_timer')
+        
+        super().__init__()
+        
+        self.sample_rate = self.parameters['sample_rate']
+        self.n_features = self.parameters['n_features']
+        self.n_targets = self.parameters['n_targets']
 
-        # signal handlers
-        signal.signal(signal.SIGINT, self.terminate)
-        if self.use_timer:
-            signal.signal(signal.SIGUSR1, self.send_sample)
-            logging.info('Waiting for timer signal...')
-        else:
-            signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+        # initialize output stream entry data
+        self.i = 0
+        self.x = np.zeros((1, self.n_features), dtype=np.float64)
 
-        self.r = initializeRedisFromYAML(YAML_FILE)
+        self.syncDict = {'i': self.i}
+        self.syncDictJson = json.dumps(self.syncDict)
 
-        self.t: int = 0  # initialize time variable
-        # set the number of features and targets
-        self.n_features = N_FEATURES
-        self.n_targets = get_node_parameter_value(YAML_FILE, NAME, 'n_targets')
-        self.duration = get_node_parameter_value(YAML_FILE, NAME, 'duration')
+        self.stream_entry = {
+            'ts': time.monotonic(), 
+            'sync': self.syncDictJson.encode(),
+            'samples': self.x.tobytes(),
+            'i': self.i    
+        }
 
-        self.sample = {'ts': float(), 't': int()}
+        logging.info('Starting function generator...')
+
+    def build(self):
+        # set initial offsets for each target
+        self.t_arr = np.arange(self.n_targets)
+        # create array used to generate features
+        self.A = np.ones((self.n_features, self.n_targets), dtype=np.float64)
+        logging.info(f'Generating {self.n_features} features for '
+                     f'{self.n_targets} targets')
 
     def send_sample(self):
-        x = np.sin(self.t_arr + (self.t * 0.05 * 2 * np.pi),
+        self.x = np.sin(self.t_arr + (self.i * 0.05 * 2 * np.pi),
                    dtype=np.float64).dot(self.A.T)
-        self.sample['ts'] = time.time()
-        self.sample['t'] = self.t
-        self.sample['x'] = x.tobytes()
-        self.r.xadd('func_generator', self.sample)
-        self.t += 1
 
-    def build(self, n_features, n_targets):
-        # set initial offsets for each target
-        self.t_arr = np.arange(n_targets)
-        # create array used to generate features
-        self.A = np.ones((n_features, n_targets), dtype=np.float64)
-        logging.info(f'Generating {n_features} features for '
-                     f'{n_targets} targets')
+        self.syncDict = {'i': self.i}
+        self.syncDictJson = json.dumps(self.syncDict)
+
+        self.stream_entry = {
+            'ts': time.monotonic(), 
+            'sync': self.syncDictJson.encode(),
+            'samples': self.x.tobytes(),
+            'i': self.i    
+        }
+
+        self.r.xadd('func_generator', self.stream_entry)
+
+        self.i += 1
 
     def run(self):
-        if self.use_timer:
-            while True:
-                signal.pause()
-        else:
-            logging.info('Sending data')
 
-            self.build(self.n_features, self.n_targets)
-            last_time = 0
-            start_time = time.perf_counter()
-            # send samples to Redis at the specified sampling rate
-            while time.perf_counter() - start_time < self.duration:
-                current_time = time.perf_counter()
-                if current_time - last_time >= 1 / self.sample_rate:
-                    self.send_sample()
-                    last_time = current_time
-            logging.info('Exiting')
+        self.build()
+        
+        logging.info('Sending data...')
 
-            # wait for the decoder to finish
-            waiting = True
-            while waiting:
-                entry_dict = self.r.xrevrange('decoder', count=1)[0][1]
-                if int(entry_dict[b't']) != self.t - 1:
-                    time.sleep(1)
-                else:
-                    waiting = False
-
-    def terminate(self, sig, frame):
-        logging.info('SIGINT received, Exiting')
-        sys.exit(0)
+        last_time = 0
+        # send samples to Redis at the specified sampling rate
+        while True:
+            current_time = time.perf_counter()
+            if current_time - last_time >= 1 / self.sample_rate:
+                self.send_sample()
+                last_time = current_time
 
 
 if __name__ == "__main__":
     gc.disable()
 
     # setup
-    logging.info(f'PID: {os.getpid()}')
-    gen = Generator()
+    gen = FunctionGenerator()
 
     # main
     gen.run()
