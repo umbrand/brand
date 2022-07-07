@@ -24,11 +24,11 @@ class Supervisor:
         self.parent = None
         self.children = []
 
-        self.BRAND_BASE_DIR = os.getcwd()   #os.getenv('BRAND_BASE_DIR')
-        #self.SITE_DIR = os.getenv('SITE')
+        self.BRAND_BASE_DIR = os.getcwd()
 
-        self.state = ("initialized","parsing","graph failed","running","published","stopped/not initialized")
-        
+        self.state = ("initialized", "parsing", "graph failed", "running",
+                      "published", "stopped/not initialized")
+
         self.graph_file = None
 
         signal.signal(signal.SIGINT, self.terminate)
@@ -37,7 +37,7 @@ class Supervisor:
 
         self.start_redis_server()
         self.r.xadd("graph_status", {'status': self.state[5]})
-        
+
         if self.graph_file is not None: self.load_graph(graph_dict)
 
     def handler(signal_received,self):
@@ -48,7 +48,7 @@ class Supervisor:
         Child handler
         '''
         logger.debug("Checking the status from the node")
-        self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)  
+        self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)
 
     def parse_args(self)->dict:
         ''' Parse the graph file loaded from the command line and return the graph dictionary using -g option/cmdline argument
@@ -62,30 +62,26 @@ class Supervisor:
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         args = ap.parse_args()
 
-        #self.host_arg = args.host
-        #self.port_arg = args.port
-        #self.cfg_arg = args.cfg
-        
         self.redis_args = []
 
-        if args.cfg is not None: 
+        if args.cfg is not None:
             self.redis_args.append(args.cfg)
         else:
             self.redis_args.append(self.BRAND_BASE_DIR+'/supervisor/redis.supervisor.conf')
-        if args.host is not None: 
+        if args.host is not None:
             self.redis_args.append('--bind')
             self.redis_args.append(args.host)
             self.host = args.host
         else:
             self.host = '127.0.0.1'
-        if args.port is not None: 
+        if args.port is not None:
             self.redis_args.append('--port')
-            self.redis_args.append(args.port) 
+            self.redis_args.append(args.port)
             self.port = args.port
         else:
             self.port = 6379
 
-        self.graph_file = args.graph    
+        self.graph_file = args.graph
         graph_dict = {}
         if self.graph_file is not None:
             try:
@@ -104,9 +100,8 @@ class Supervisor:
             module: module name
             name : node name
         '''
-        #change the working directory to the module directory
-        #directory = [str(self.BRAND_BASE_DIR+"/brand-modules/"+self.SITE_DIR+"/nodes"+"/"+name), str(self.BRAND_BASE_DIR+"/nodes/"+name)]
-        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes/"+name)]#, str(self.BRAND_BASE_DIR+"/nodes/"+name)]
+        # change the working directory to the module directory
+        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes/"+name)]
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".yaml"):
@@ -121,7 +116,7 @@ class Supervisor:
             module: module name
             name : node name
         '''
-        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes"+"/"+name)]#, str(self.BRAND_BASE_DIR+"/nodes/"+name)]
+        directory = [str(self.BRAND_BASE_DIR+"/"+module+"/nodes"+"/"+name)]
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".bin") or file.endswith(".out"):
@@ -144,15 +139,9 @@ class Supervisor:
 
 
     def start_redis_server(self):
-        #host = graph_dict['redis']['ip']
-        #port = graph_dict['redis']['port']
-        #cfg = graph_dict['redis']['config']
-        
         print(self.redis_args)
 
-        #get a process name by psutil
-        #proc = subprocess.Popen(['sudo',  'redis-server', self.cfg], stdout=subprocess.PIPE)
-        #proc = subprocess.Popen(['redis-server'], stdout=subprocess.PIPE) 
+        # get a process name by psutil
         proc = subprocess.Popen(['redis-server'] + self.redis_args, stdout=subprocess.PIPE)
         try:
             out, _ = proc.communicate(timeout=1)
@@ -165,7 +154,7 @@ class Supervisor:
                 raise Exception("Could not run redis-server (unhandled reason), aborting.")
         except subprocess.TimeoutExpired:
             logger.info('redis-server has been running for a while now....')
-        self.r = Redis(self.host,self.port,socket_connect_timeout=1) 
+        self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
 
     def load_graph(self,graph_dict,rdb_filename=None):
@@ -173,11 +162,10 @@ class Supervisor:
         Args:
             graph_dict: graph dictionary
         '''
-        nodes = graph_dict['nodes'] 
-        param_flag = True
-        
+        nodes = graph_dict['nodes']
+
         self.graph_name = graph_dict['metadata']['graph_name']
-        
+
         # Set rdb filename
         if rdb_filename is None:
             rdb_filename =  self.graph_name + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
@@ -187,41 +175,37 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
-        self.model["nodes"] = {}   
-        self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing 
+        self.model["nodes"] = {}
+        self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
         for n in nodes:
-            # yaml_f = self.search_node_yaml_file(n["module"],n["name"]) 
-            # logger.info("yaml file path: %s" % yaml_f)
-            bin_f = self.search_node_bin_file(n["module"],n["name"])  # uncomment this if you've executable for each node in form of bin/exec
+            bin_f = self.search_node_bin_file(n["module"],n["name"])
             if(os.path.exists(bin_f)):
                 logger.info("Yaml and bin files exist in the path")
                 logger.info("%s is a valid node...." % n["nickname"])
-                #with open(yaml_f, 'r') as stream:
-                node_dict = {}
             else:
                 logger.info("Bin files / executables do not exist in the path")
                 logger.error("%s is not a valid node...." % n["nickname"])
                 sys.exit(1)
-                
-        #### Loading the nodes and graph into self.model dict and do checking for type, name and value
+
+            # Loading the nodes and graph into self.model dict and do checking for type, name and value
             self.model["nodes"][n["nickname"]] = {}
             self.model["nodes"][n["nickname"]]["name"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["module"] = n["module"]
             self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
             self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
-            param_list = len(self.model["nodes"][n["nickname"]]["parameters"])
-        self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
-        model_pub = json.dumps(self.model) 
+
+        self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
+        model_pub = json.dumps(self.model)
         payload = {
             "data": model_pub
         }
         self.r.xadd("supergraph_stream",payload)
         logger.info("Supergraph Stream (Model) published successfully with payload..")
-        self.r.xadd("graph_status", {'status': self.state[4]}) #status 4 means graph is running and supergraph is published
+        self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
 
 
-    ####### functions for the booting and stopping node #######  
+    ####### functions for the booting and stopping node #######
     def start_graph(self):
         ''' Start the graph '''
         current_state = self.r.xrevrange("graph_status",count = 1)
@@ -232,8 +216,8 @@ class Supervisor:
         port = self.model["redis_port"]
         for i in range(len(self.model["nodes"])):
             node_stream_name = self.model["nodes"][list(self.model["nodes"].keys())[i]]["nickname"]
-            pid = os.fork()#forking the supervisor process
-            self.r.xadd("graph_status", {'status': self.state[3]}) #status  3 means graph is parsed and running successfully
+            pid = os.fork() # forking the supervisor process
+            self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
             if(pid > 0):
                 try:
                     self.read_commands_from_redis()
@@ -242,26 +226,27 @@ class Supervisor:
                     self.children.append(pid)
                     logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
                 except signal.SIGCHLD:
-                    signal(signal.SIGCHLD,callback = self.child_process_handler(node_stream_name))                       
+                    signal(signal.SIGCHLD,callback = self.child_process_handler(node_stream_name))
             elif(pid < 0):
                 logger.critical("Unable to create a child process")
                 sys.exit(1)
             else:
                 logger.info("Child process created with pid: %s" % os.getpid())
-                binary = self.model["nodes"][list(self.model["nodes"].keys())[i]]["binary"]                 
+                binary = self.model["nodes"][list(self.model["nodes"].keys())[i]]["binary"]
                 logger.info("Binary for %s is %s" % (list(self.model["nodes"].keys())[i],binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(os.getpid())
-                args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)] #[binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
                 try:
                     subprocess.run(args)
                 except subprocess.CalledProcessError as e:
                     logger.info("Something wrong",e)
-        self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is running and publishing data 
- 
-                        
-                                        
+        # status 3 means graph is running and publishing data
+        self.r.xadd("graph_status", {'status': self.state[3]})
+
+
+
 
     def stop_graph(self):
         '''
@@ -270,26 +255,14 @@ class Supervisor:
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         print(self.children)
-        if(self.children):  
+        if(self.children):
             for i in range(len(self.children)):
                 os.kill(self.children[i], signal.SIGINT)
                 logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
-    
-        
-        #include this only if you want to kill the parent process
-        #try:
-        #    subprocess.Popen(["pkill", "-9", "redis-server.*"])  
-        #    os.kill(os.getpid(), signal.SIGINT)  
-        #except KeyboardInterrupt:
-        #    sys.exit(1)
-
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
-        
-        #self.r.close()
-        #subprocess.Popen(["pkill", "-9", "redis-server.*"]) 
         sys.exit(0)
 
     def parseCommands(self,command,file=None,rdb_filename=None):
@@ -324,7 +297,7 @@ class Supervisor:
         Reads the commands from redis and calls the appropriate function
         '''
         commands = {
-        "startGraph": "", #"/Users/kushant/Desktop/Brand/BRAND/modules/davis/graphs/syllableRepeat/2022.04.02-0/davis_syllableRepeat_2022.04.02-0.yaml"},
+        "startGraph": "",
         "stopGraph": "",
         "file": "",
         }
@@ -338,18 +311,14 @@ def main():
     while(True):
         cmd = supervisor.r.xread({"supervisor_ipstream":"$"},count=1,block=50000)
         if cmd:
-            #try:
-                key,messages = cmd[0]
-                last_id,data = messages[0]
-                cmd = (data[b'commands']).decode("utf-8")
-                if(len(data) == 2):
-                    file = data[b'file'].decode("utf-8")
-                    supervisor.parseCommands(cmd,file)
-                else:
-                    supervisor.parseCommands(cmd)
-            #except KeyError as e:
-             #   logger.warning("KeyError")
-
+            key,messages = cmd[0]
+            last_id,data = messages[0]
+            cmd = (data[b'commands']).decode("utf-8")
+            if(len(data) == 2):
+                file = data[b'file'].decode("utf-8")
+                supervisor.parseCommands(cmd,file)
+            else:
+                supervisor.parseCommands(cmd)
 
 
 if __name__ == "__main__":
