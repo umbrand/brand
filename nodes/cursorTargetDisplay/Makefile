@@ -20,7 +20,6 @@ CINCLUDE = -I$(ROOT)/lib/redisTools/ \
 
 CFILES = $(ROOT)/lib/redisTools/redisTools.c
 
-//TARGET=$(BIN_PATH)/$(PROJECT)
 TARGET=$(PROJECT).bin
 
 all: cursorTargetDisplay
