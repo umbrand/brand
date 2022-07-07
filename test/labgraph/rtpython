@@ -1,2 +1,0 @@
-#!/bin/bash
-sudo -E env "PATH=$PATH" chrt -f 99 python "$@"
