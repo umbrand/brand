@@ -141,21 +141,22 @@ class Supervisor:
 
 
     def start_redis_server(self):
-        print(self.redis_args)
-
+        redis_command = ['redis-server'] + self.redis_args
+        logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
-        proc = subprocess.Popen(['redis-server'] + self.redis_args, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
         try:
             out, _ = proc.communicate(timeout=1)
-            print(out)
+            logger.debug(out.decode())
             if 'Address already in use' in str(out):
-                print("Could not run redis-server (address already in use).")
-                print("Assuming that the process using the TCP port is another redis-server instance and going on.")
+                logger.warning("Could not run redis-server (address already in use).")
+                logger.warning(
+                    "Assuming that the process using the TCP port"
+                    " is another redis-server instance. Continuing.")
             else:
-                logger.error("Could not run redis-server (address already in use).")
-                raise Exception("Could not run redis-server (unhandled reason), aborting.")
-        except subprocess.TimeoutExpired:
-            logger.info('redis-server has been running for a while now....')
+                raise Exception("Could not run redis-server. Aborting.")
+        except subprocess.TimeoutExpired:  # no error message received
+            logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
 
@@ -172,7 +173,7 @@ class Supervisor:
         if rdb_filename is None:
             rdb_filename =  self.graph_name + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', rdb_filename)
-        print(rdb_filename)
+        logger.info(f'rdb filename: {rdb_filename}')
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
         self.model["redis_host"] = self.host
@@ -256,7 +257,7 @@ class Supervisor:
         '''
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
-        print(self.children)
+        logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
                 os.kill(self.children[i], signal.SIGINT)
