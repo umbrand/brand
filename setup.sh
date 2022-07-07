@@ -10,6 +10,12 @@ export SITE="" # current site, is empty
 # tab complete for load and setSite commands
 complete -W "`echo ${site_list[@]}`" setSite
 
+# list of module names
+module_list=($(ls -d ../brand-modules/* | cut -d '/' -f3))
+
+# tab complete for setModule command
+complete -W "`echo ${module_list[@]}`" setModule
+
 # rdb save location -- saving to an environment variable to be useful 
 # for different shells run at the same time
 if [ -z ${RDB_SAVE_DIR} ]; then # if it doesn't exist, set to a default
@@ -32,26 +38,29 @@ sudo chmod -R 777 "/var/run/redis"
 ################################################
 # defining functions
 ################################################
-# setting the site location
-setSite() {
-    # check if the specified site is valid
+
+
+# Define external module (site) for Makefile
+setModule() {
+    # error if no module argument is specififed
     if (($# < 1)); then
-        >&2 echo "Please specify current location"
+        >&2 echo "Please specify a module"
         return
     fi
-    if [ ! $( echo ${site_list[@]} | grep -w ${1} | wc -l ) ]; then
-        >&2 echo "$1 is not a valid location"
-        >&2 echo "Valid locations are: " ${site_list[@]}
+    if [ ! $( echo ${module_list[@]} | grep -w ${1} | wc -l ) ]; then
+        >&2 echo "$1 is not a valid module"
+        >&2 echo "Valid modules are: " ${module_list[@]}
         return
-    fi
-    export SITE=$1
+    fi    
+    export SITE="../brand-modules/$1"
     graph_list=$""
-    if [ $(ls graphs/$SITE/ | wc -l) -gt 0 ]; then
-        graph_list=$(ls -d graphs/$SITE/* | cut -d '/' -f3)
+    if [ $(ls ../brand-modules/$SITE/graphs/ | wc -l) -gt 0 ]; then
+        graph_list=$(ls -d ../brand-modules/$SITE/graphs/* | cut -d '/' -f5)
     fi
     complete -W "`echo ${graph_list[@]}`" run
 
 }
+
 
 # hard code Emory module directory for now
 setSiteEmory() {
@@ -63,6 +72,8 @@ setSiteEmory() {
     complete -W "`echo ${graph_list[@]}`" run
 
 }
+
+
 
 # creating a new graph
 createGraph () {
