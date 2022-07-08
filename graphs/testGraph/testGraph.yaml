@@ -1,7 +1,8 @@
 metadata:
     participant_id:            0
     graph_name:                testGraph
-    description:               BRAND test graph, func_generator -> decoder1 (core module)  
+    session_description:               BRAND test graph, func_generator -> decoder1 (core module) 
+    participant_file:          /home/mattia/Projects/Data/Participant0/T_0.yaml
         
 # ---------------------------------------------------
 
@@ -44,4 +45,13 @@ nodes:
                 n_targets:          2
                 model_path:         ./model.json
                 log:                INFO  
+
+analyzers:
+  - exportNWB:
+      version:      0.0
+      redis_inputs:                 [func_generator]
+      redis_outputs:                []
+      parameters:
+            enable_nwb:
+                thresholdCrossings1ms:   True
         

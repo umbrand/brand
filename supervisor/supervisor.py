@@ -26,6 +26,19 @@ class Supervisor:
 
         self.BRAND_BASE_DIR = os.getcwd()
 
+        self.participant_id = "Participant0"
+        self.session_number = 0
+
+        self.save_path = os.path.join(self.BRAND_BASE_DIR,
+                                "../Data",
+                                self.participant_id,
+                                "Session"+str(self.session_number),
+                                "Raw_Data")
+        self.save_path_rdb = os.path.join(self.save_path,
+                                "RDB")
+        self.save_path_nwb = os.path.join(self.save_path,
+                                "NWB")
+
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
 
@@ -126,6 +139,7 @@ class Supervisor:
                     logger.info("bin/exec file path: %s" % bin_file)
         return bin_file
 
+
     def get_graph_status(self,state)->str:
         '''
         Utility function to get the graph status
@@ -159,6 +173,17 @@ class Supervisor:
             logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
+        # Set rdb save directory
+        if not os.path.exists(self.save_path_rdb):
+            os.makedirs(self.save_path_rdb)
+        self.r.config_set('dir', self.save_path_rdb)
+        logger.info(f"RDB save directory set to {self.save_path_rdb}")
+        # Set new rdb filename 
+        self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f"RDB file name set to {self.rdb_filename}")
+        
+
 
     def load_graph(self,graph_dict,rdb_filename=None):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
@@ -171,13 +196,21 @@ class Supervisor:
 
         # Set rdb filename
         if rdb_filename is None:
-            rdb_filename =  self.graph_name + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        self.r.config_set('dbfilename', rdb_filename)
-        logger.info(f'rdb filename: {rdb_filename}')
+            self.rdb_filename =  self.graph_name + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        else:
+            self.rdb_filename = rdb_filename
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f'rdb filename: {self.rdb_filename}')
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
+        
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
+        
+        self.model["metadata"] = {}
+        metadata = graph_dict['metadata']
+        self.model["metadata"] = metadata
+        
         self.model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
         for n in nodes:
@@ -197,6 +230,13 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
             self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
+
+        self.model["analyzers"] = {}
+        analyzers = graph_dict['analyzers']
+        for a in analyzers:
+            a_name = list(a.keys())[0]
+            a_values = a[a_name]
+            self.model["analyzers"][a_name] = a_values
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -264,9 +304,47 @@ class Supervisor:
                 logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
 
+
+    def stop_graph_and_save_nwb(self):
+        '''
+        Stops the graph
+        '''
+        # Kill child processes (nodes)
+        self.stop_graph()
+
+        # Save rdb file
+        self.r.config_set('dir',  self.save_path_rdb)
+        logger.info(f"RDB save directory set to {self.save_path_rdb}")
+        self.r.save()
+        logger.info(f"RDB data saved to file: {self.rdb_filename}")
+
+        # Generate NWB dataset
+        # execute generate nwb
+        p_nwb = subprocess.Popen(['python',
+                            'nodes/exportNWB/exportNWB.py',
+                            self.save_path_rdb,
+                            self.rdb_filename,
+                            self.host,
+                            str(self.port)], 
+                            stdout=subprocess.PIPE)
+        p_nwb.wait()
+
+        # Flush database
+        self.r.flushdb()
+
+        # Set new rdb filename (to avoid overwriting what we just saved)
+        self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f"New RDB file name set to {self.rdb_filename}")        
+
+        # New RDB, so need to reset graph status
+        self.r.xadd("graph_status", {'status': self.state[5]})
+
+
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
         sys.exit(0)
+
 
     def parseCommands(self,command,file=None,rdb_filename=None):
         '''
@@ -289,11 +367,14 @@ class Supervisor:
         elif command == "startGraph":
             logger.info("Start graph command received")
             self.start_graph()
-        elif command == "stopGraph" or file is not None:
+        elif command == "stopGraph":
             logger.info("Stop graph command received")
             self.stop_graph()
+        elif command == "stopGraphAndSaveNWB":
+            logger.info("Stop graph and save NWB command received")
+            self.stop_graph_and_save_nwb()
         else:
-            logger.debug("Invalid command")
+            logger.warning("Invalid command")
 
     def read_commands_from_redis(self):
         '''
