@@ -1,3 +1,0 @@
-#!/bin/bash
-
-./lpcnet_decode | ffplay -fflags nobuffer -fflags flush_packets -nodisp -hide_banner -loglevel panic -autoexit -ar 16k -ac 1 -f s16le -probesize 32 -sync ext -
