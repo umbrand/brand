@@ -9,12 +9,12 @@ SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
 # Get all directories in ../brand-modules/*/nodes/ that contain a Makefile
-#MODULES_SUBDIR_BASE_PATH=../brand-modules
-#MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/${SITE}/nodes/*/Makefile))
+MODULES_SUBDIR_BASE_PATH=../brand-modules
+MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/*/Makefile))
 
 # Get all directories in ../brand-modules/${SITE}/nodes/ that contain a Makefile
-MODULES_SUBDIR_BASE_PATH=../brand-modules
-MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/${SITE}/nodes/*/Makefile))
+#MODULES_SUBDIR_BASE_PATH=../brand-modules
+#MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/${SITE}/nodes/*/Makefile))
 
 # make some clean targets for all subdirs
 MODULES_CLEANDIRS = $(MODULES_SUBDIRS:%=clean-%)

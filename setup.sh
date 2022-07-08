@@ -52,7 +52,7 @@ setModule() {
         >&2 echo "Valid modules are: " ${module_list[@]}
         return
     fi    
-    export SITE="../brand-modules/$1"
+    export SITE="$1"
     graph_list=$""
     if [ $(ls ../brand-modules/$SITE/graphs/ | wc -l) -gt 0 ]; then
         graph_list=$(ls -d ../brand-modules/$SITE/graphs/* | cut -d '/' -f5)
@@ -64,10 +64,10 @@ setModule() {
 
 # hard code Emory module directory for now
 setSiteEmory() {
-    export SITE="../brand-modules/brand-emory"
+    export SITE="brand-emory"
     graph_list=$""
-    if [ $(ls $SITE/graphs/ | wc -l) -gt 0 ]; then
-        graph_list=$(ls -d $SITE/graphs/* | cut -d '/' -f5)
+    if [ $(ls ../brand-modules/$SITE/graphs/ | wc -l) -gt 0 ]; then
+        graph_list=$(ls -d ../brand-modules/$SITE/graphs/* | cut -d '/' -f5)
     fi
     complete -W "`echo ${graph_list[@]}`" run
 
