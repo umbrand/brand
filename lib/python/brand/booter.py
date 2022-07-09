@@ -121,6 +121,11 @@ class Booter():
                     cfg['binary'], '-n', node_stream_name, '-hs', host, '-p',
                     str(port)
                 ]
+                if 'run_priority' in cfg:  # if priority is specified
+                    priority = cfg['run_priority']
+                    if priority:  # if priority is not None or empty
+                        chrt_args = ['chrt', '-f', str(int(priority))]
+                        args = chrt_args + args
                 p = subprocess.Popen(args)
                 self.children[node] = p
 
