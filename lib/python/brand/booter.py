@@ -136,7 +136,7 @@ class Booter():
         for node, p in self.children.items():
             p.send_signal(signal.SIGINT)
             try:
-                p.wait(timeout=1)
+                p.wait(timeout=15)
                 self.logger.info(f'Killed the {node} process with pid {p.pid}')
             except Exception:
                 self.logger.exception(f'Could not kill the {node} node with'
