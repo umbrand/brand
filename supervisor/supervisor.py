@@ -230,6 +230,9 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
             self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
+            self.model["nodes"][n["nickname"]]["redis_inputs"] = n["redis_inputs"]
+            self.model["nodes"][n["nickname"]]["redis_outputs"] = n["redis_outputs"]
+            self.model["nodes"][n["nickname"]]["run_priority"] = n["run_priority"]
 
         self.model["analyzers"] = {}
         analyzers = graph_dict['analyzers']
@@ -313,19 +316,21 @@ class Supervisor:
         self.stop_graph()
 
         # Save rdb file
+        if not os.path.exists(self.save_path_rdb):
+            os.makedirs(self.save_path_rdb)
         self.r.config_set('dir',  self.save_path_rdb)
         logger.info(f"RDB save directory set to {self.save_path_rdb}")
         self.r.save()
         logger.info(f"RDB data saved to file: {self.rdb_filename}")
 
         # Generate NWB dataset
-        # execute generate nwb
         p_nwb = subprocess.Popen(['python',
-                            'nodes/exportNWB/exportNWB.py',
+                            'analyzers/exportNWB/exportNWB.py',
                             self.save_path_rdb,
                             self.rdb_filename,
                             self.host,
-                            str(self.port)], 
+                            str(self.port),
+                            self.save_path_nwb], 
                             stdout=subprocess.PIPE)
         p_nwb.wait()
 

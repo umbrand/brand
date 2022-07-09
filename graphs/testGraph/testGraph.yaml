@@ -19,9 +19,7 @@ metadata:
 
 nodes:
     - name:         func_generator #.bin
-      version:      0.0
       nickname:     func_generator
-      stage:        main
       module:       .
       redis_inputs:                 []
       redis_outputs:                [func_generator]
@@ -33,9 +31,7 @@ nodes:
                 log:                INFO   
     
     - name:         decoder #.bin
-      version:      0.0
       nickname:     decoder1
-      stage:        main
       module:       .
       redis_inputs:                 [func_generator]
       redis_outputs:                [decoder]
@@ -53,5 +49,5 @@ analyzers:
       redis_outputs:                []
       parameters:
             enable_nwb:
-                thresholdCrossings1ms:   True
+                func_generator:   True
         

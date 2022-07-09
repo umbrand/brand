@@ -10,16 +10,6 @@ export SITE="" # current site, is empty
 # tab complete for load and setSite commands
 complete -W "`echo ${site_list[@]}`" setSite
 
-# rdb save location -- saving to an environment variable to be useful 
-# for different shells run at the same time
-if [ -z ${RDB_SAVE_DIR} ]; then # if it doesn't exist, set to a default
-RDB_SAVE_DIR="../BRANDS_rdb"
-fi
-if [ ! -d ${RDB_SAVE_DIR} ]; then # if the directory doesn't exist, create it
-    mkdir ${RDB_SAVE_DIR}
-fi
-export RDB_SAVE_DIR # push up to the environment
-
 BRAND_BASE_DIR=$(pwd)
 export BRAND_BASE_DIR # save brand base dir to the environment
 

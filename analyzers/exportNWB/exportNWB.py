@@ -7,7 +7,7 @@ exportNWB.py
 Takes data from a dump.rdb and a graph to export it as an NWB file for
 analysis in Python and MATLAB
 Requires first input be the RDB dump and the second be the graph YAML
-@author Sam Nason-Tomaszewski
+@author Sam Nason-Tomaszewski, adapted for supervisor by Mattia Rigotti
 """
 
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
@@ -32,21 +32,13 @@ NAME = 'exportNWB'
 BATCH_SIZE = 1000   # max number of samples to grab from redis at a time
 
 rdb_dir = sys.argv[1]
-#rdb_path = '/home/samnt/Projects/BRANDS_rdb/individuated_finger_test_20220614T0957_T_TEMPLATE.rdb'
-#rdb_name = os.path.split(rdb_path)[1]
-#rdb_dir = os.path.split(rdb_path)[0]
 rdb_file = sys.argv[2]
-
-# graph_path = sys.argv[2]
 
 redis_host = sys.argv[3]
 redis_port = sys.argv[4]
 
-graph_path = '/home/samnt/Projects/brand-modules/brand-emory/graphs/individuated_finger_test/individuated_finger_test.yaml'
-#graph_name = os.path.split(graph_path)[1]
-
-sync_key = 'sync' #graph_timing['SyncKey']
-time_key = 'ts' #graph_timing['TimeKey']
+save_filename = os.path.splitext(rdb_file)[0]
+save_filepath = sys.argv[5]
 
 devices_path = os.getenv('BRAND_BASE_DIR') + '/../Data/devices.yaml'
 
@@ -59,10 +51,6 @@ logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
                     level=numeric_level)
 
 logging.info(f'PID: {os.getpid()}')
-
-redis_server_started = True
-
-
 
 #############################################################
 ## setting up clean exit code
@@ -272,7 +260,90 @@ def create_nwb_unitspiketimes(nwbfile, stream, stream_data, var_params):
                     spike_times     = stream_data[crossings_var]['sync_timestamps'][stream_data[crossings_var]['data'][:, electrode].astype(bool)],
                     stream          = stream)
 
+def create_nwb_timeseries(nwbfile, stream, stream_data, var_params):
+    """
+    Generates a time series container
+    Parameters
+    ----------
+    nwbfile : NWBFile
+        The NWBFile in which to store the series
+    stream : str
+        The name of the stream sourcing the data
+    stream_data : dict
+        The stream's data
+    var_params : dict
+        NWB storage parameters for each variable
+    """
+    var = list(stream_data.keys())[0]
 
+    timeseries = TimeSeries(
+                        name        = stream,
+                        data        = stream_data[var]['data'],
+                        unit        = var_params[var]['nwb']['unit'],
+                        timestamps  = stream_data[var]['sync_timestamps'],
+                        description = var_params[var]['nwb']['description'])
+
+    nwbfile.add_acquisition(timeseries)
+
+def get_stream_source(graph_data, stream):
+    """
+    Returns the node sourcing a redis stream.
+    Parameters
+    ----------
+    graph_data : dict
+        supergraph dictionary
+    stream : str
+        name of the stream whose source to search
+    Returns
+    -------
+    str
+        name of the node sourcing stream
+    """
+    for node in graph_data['nodes']:
+        if stream in graph_data['nodes'][node]['redis_outputs']:
+            return graph_data['nodes'][node]['name']    
+    return None
+
+def get_node_module(graph_data, node_name):
+    """
+    Get the module name from the node name in a yaml file
+    Parameters
+    ----------
+    graph_data : dict
+        supergraph dictionary
+    node_name : str
+        Name of the node to use
+    Returns
+    -------
+    str
+        Module name for node
+    """
+    for node in graph_data['nodes']:
+        if graph_data['nodes'][node]['name'] == node_name:
+            return graph_data['nodes'][node]['module']
+
+def get_stream_configuration(yaml_path,stream):
+    """
+    Return information about a stream, as
+    defined by the node's yaml file
+    Parameters
+    ----------
+    yaml_path : str
+        path of the node YAML file
+    stream    : str
+        name of the stream we're inspecting
+    Returns:
+    dict
+        a dictionary with stream configuration 
+    """
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+    inputs_and_outputs = yamlData['RedisStreams']['value'] 
+    if inputs_and_outputs is not None:
+        for io in inputs_and_outputs.keys():
+            if inputs_and_outputs[io] is not None and stream in inputs_and_outputs[io].keys():
+                return inputs_and_outputs[io][stream]          
+    return {}
 
 ###############################################
 # Connect to redis
@@ -302,10 +373,14 @@ except IndexError as e:
     sys.exit(1)
 
 entry_id, entry_dict = model_stream_entry
-
 model_data = json.loads(entry_dict[b'data'].decode())
 
-logging.info(str(model_data))
+# Get graph name
+graph_name = model_data['metadata']['graph_name']
+
+# Get timing keys
+sync_key = 'sync' #graph_timing['SyncKey']
+time_key = 'ts' #graph_timing['TimeKey']
 
 ## Get exportnwb_io
 exportnwb_io = {'redis_inputs':{}, 'redis_outputs':{}}
@@ -317,13 +392,8 @@ if type(redis_inputs) is str:
 if type(redis_outputs) is str:
     redis_outputs = [redis_outputs]
 
-# TODO: check if commenting this out doesn't break anything
-# if redis_inputs is not None:
-#     for in_stream in redis_inputs:
-#         exportnwb_io['redis_inputs'][in_stream] = yamlData['RedisStreams'][in_stream]
-# if redis_outputs is not None:
-#     for out_stream in redis_outputs:
-#         exportnwb_io['redis_outputs'][out_stream] = yamlData['RedisStreams'][out_stream]
+exportnwb_io['redis_inputs'] = redis_inputs
+exportnwb_io['redis_outputs'] = redis_outputs
 
 exportnwb_enables = model_data['analyzers']['exportNWB']['parameters']['enable_nwb']
 
@@ -331,14 +401,14 @@ stream_dict = {k:{'source':None, 'source_yaml':None, 'config':{}, 'last_id':b'-'
                 for k in exportnwb_io['redis_inputs']}
 stream_to_del = []
 for stream in stream_dict:
-    stream_dict[stream]['source'] = get_stream_source(graph_path, stream)
+    stream_dict[stream]['source'] = get_stream_source(model_data, stream)
     if stream_dict[stream]['source'] is None:
         logging.error(f'Wrong graph! Source node not found! Stream: {stream}')
         stream_to_del.append(stream)
     else:
         stream_dict[stream]['source'] = stream_dict[stream]['source'].rsplit('.', 1)[0] # gets node name even if filetype included in name
         stream_dict[stream]['source_yaml'] =    os.getenv('BRAND_BASE_DIR') + '/' \
-                                                + get_node_module(graph_path, stream_dict[stream]['source']) + '/' \
+                                                + get_node_module(model_data, stream_dict[stream]['source']) + '/' \
                                                 + 'nodes/' \
                                                 + stream_dict[stream]['source'] + '/' \
                                                 + stream_dict[stream]['source'] + '.yaml'
@@ -385,8 +455,6 @@ if trial_stream is not None:
     key_order.insert(0, trial_stream)
     stream_dict = {k:stream_dict[k] for k in key_order}
     has_trial_stream = True
-
-
 
 ###############################################
 # Prepare NWB file
@@ -473,7 +541,8 @@ for implant in participant_implants:
 nwb_funcs = {   'Trial'                 : create_nwb_trials,
                 'Trial_Info'            : add_nwb_trial_info,
                 'Position'              : create_nwb_position,
-                'Spike_Times'           : create_nwb_unitspiketimes}
+                'Spike_Times'           : create_nwb_unitspiketimes,
+                'Time_Series'           : create_nwb_timeseries}
 
 # loop through streams to extract data
 for stream in stream_dict:
@@ -567,10 +636,6 @@ for stream in stream_dict:
 
         logging.info(f'Export completed. Stream: {stream}')
 
-if redis_server_started:
-    rs.kill()
-
-
 
 ###############################################
 # Save the NWB object to file
@@ -578,21 +643,14 @@ if redis_server_started:
 
 # TODO add block information
 
-# first validate that we have a participant session directory
-save_path = [os.getcwd().rsplit('/', 1)[0], 'Session/Data', participant_metadata['participant_id']]
-if not os.path.isdir(os.path.join(*save_path)):
-    os.makedirs(os.path.join(*save_path))
+save_filename = save_filename + '.nwb'
 
-# now create new session directory
-sessions = sorted(os.listdir(os.path.join(*save_path)))
-session_number = 0 if len(sessions) == 0 else int(sessions[-1][-3:])+1
-save_path.extend(['ses-'+str(session_number).zfill(3), 'nwb'])
-os.makedirs(os.path.join(*save_path))
+if not os.path.exists(save_filepath):
+    os.makedirs(save_filepath)
 
-# add on the file name
-save_path.append('_'.join(save_path[2:-2])+'.nwb')
+save_path = os.path.join(save_filepath, save_filename)
 
 # save the file
-logging.info(f'Saving NWB file to {os.path.join(*save_path)}')
-with NWBHDF5IO(os.path.join(*save_path), 'w') as io:
+logging.info(f'Saving NWB file to: {save_path}')
+with NWBHDF5IO(save_path, 'w') as io:
     io.write(nwbfile)
