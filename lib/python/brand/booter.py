@@ -7,8 +7,8 @@ import json
 import logging
 import os
 import signal
-import sys
 import subprocess
+import sys
 
 import coloredlogs
 import redis
@@ -29,6 +29,7 @@ class Booter():
         Child processes that are currently running. Keys are node nicknames
         and values are subprocess.Popen instances for each running node.
     """
+
     def __init__(self,
                  machine,
                  host=DEFAULT_REDIS_IP,
@@ -192,6 +193,7 @@ class Booter():
         self.logger.info('SIGINT received, Exiting')
         sys.exit(0)
 
+
 def parse_booter_args():
     """
     Parse command-line arguments for Booter
@@ -228,6 +230,7 @@ def parse_booter_args():
                     help="Configure the logging level")
     args = ap.parse_args()
     return args
+
 
 if __name__ == '__main__':
     # parse command line arguments
