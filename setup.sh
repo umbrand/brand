@@ -86,18 +86,7 @@ createGraph () {
 
 # Activate the rt environment to get to work
 conda activate rt
-load () {
-   ./graphs/sharedDevelopment/$1/load.sh
-}
 
-run () {
-    pushd run
-    sudo -E env "PATH=$PATH" ./run.sh $1
-    popd
-}
-
-#analyze () {
-#    pushd run
-#    ./analyze.sh
-#    popd
-#}
+# Make aliases for booter and supervisor
+alias booter='sudo -E env "PATH=$PATH" python -m brand.booter'
+alias supervisor='sudo -E env "PATH=$PATH" python supervisor/supervisor.py'

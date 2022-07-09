@@ -2,9 +2,9 @@
 # Usage:
 #     Let's say we have a Redis host machine with IP address 192.168.1.101
 #     On the Redis host machine, run:
-#         python supervisor/supervisor.py -m brand -i 192.168.1.101
+#         supervisor -m brand -i 192.168.1.101
 #     On another machine run:
-#         python -m brand.booter -m gpc -i 192.168.1.101
+#         booter -m gpc -i 192.168.1.101
 #     Then start a graph in the redis-cli:
 #         XADD supervisor_ipstream * commands startGraph file graphs/testGraph/testBooter.yaml
 #     And stop the graph:
