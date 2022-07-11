@@ -40,7 +40,7 @@ redis_port = sys.argv[4]
 save_filename = os.path.splitext(rdb_file)[0]
 save_filepath = sys.argv[5]
 
-devices_path = os.getenv('BRAND_BASE_DIR') + '/../Data/devices.yaml'
+devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),'../Data/devices.yaml')
 
 # set up logging
 loglevel = 'INFO'
@@ -49,8 +49,6 @@ if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
                     level=numeric_level)
-
-logging.info(f'PID: {os.getpid()}')
 
 #############################################################
 ## setting up clean exit code
@@ -353,7 +351,7 @@ try:
     r = Redis(redis_host,redis_port,retry_on_timeout=True)
     r.ping()
 except ConnectionError as e:
-    logging.info(f"Error with Redis connection, check again: {e}")
+    logging.error(f"Error with Redis connection, check again: {e}")
     sys.exit(1)  
 except:
     logging.error('Failed to connect to Redis. Exiting.')
@@ -441,7 +439,7 @@ for stream in stream_dict:
     # if the stream is of type 'Trial_Info'
     elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'Trial_Info':
         trial_info_stream = stream
-    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'SpikeTimes':
+    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'Spike_Times':
         spike_times_streams.append(stream)
 
 # guarantee there is a 'Trial' stream if we have a 'Trial_Info' stream
@@ -531,8 +529,6 @@ for implant in participant_implants:
         #                     spike_times=[0],    # hack so it creates the appropriate shape for units
         #                     stream='')
 
-
-
 ###############################################
 # Pull data from streams and write to NWB
 ###############################################
@@ -553,7 +549,7 @@ for stream in stream_dict:
     # checks the ENABLE_NWB parameter is set to true
     if stream_dict[stream]['config']['enable_nwb']:
 
-        logging.info(f'Extracting data.  Stream: {stream}')
+        logging.info(f'Extracting data. Stream: {stream}')
 
         ###################################
         # first extract the data from redis
@@ -627,7 +623,7 @@ for stream in stream_dict:
         # now append the data to the NWB file
         #####################################
         add_stream_sync_timeseries(nwbfile, stream, time_data)
-            
+
         nwb_funcs[stream_dict[stream]['config']['type_nwb']](
             nwbfile,
             stream,
