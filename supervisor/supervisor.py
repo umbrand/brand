@@ -87,6 +87,9 @@ class Supervisor:
             self.port = 6379
 
         self.unixsocket = args.socket
+        if self.unixsocket is not None:
+            self.redis_args += ['--unixsocket', self.unixsocket]
+
         self.machine = args.machine
         self.redis_priority = args.redis_priority
 
