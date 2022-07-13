@@ -59,6 +59,7 @@ class Supervisor:
         ap.add_argument("-g", "--graph", required=False, help="path to graph file")
         ap.add_argument("-i", "--host", required=False, help="ip address to bind redis server to")
         ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
+        ap.add_argument("-s", "--socket", required=False, help="unix socket to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
@@ -85,6 +86,7 @@ class Supervisor:
         else:
             self.port = 6379
 
+        self.unixsocket = args.socket
         self.machine = args.machine
         self.redis_priority = args.redis_priority
 
@@ -250,7 +252,10 @@ class Supervisor:
                     logger.info("Node Stream Name: %s" % node_stream_name)
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
-                    args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                    args = [binary, '-n',node_stream_name]
+                    args += ['-hs', host, '-p', str(port)]
+                    if self.unixsocket:
+                        args += ['-s', self.unixsocket]
                     if 'run_priority' in node_info:  # if priority is specified
                         priority = node_info['run_priority']
                         if priority:  # if priority is not None or empty
