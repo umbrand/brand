@@ -317,8 +317,11 @@ class Supervisor:
 
 def main():
     supervisor = Supervisor()
+    last_id = '$'
     while(True):
-        cmd = supervisor.r.xread({"supervisor_ipstream":"$"},count=1,block=50000)
+        cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
+                                 count=1,
+                                 block=50000)
         if cmd:
             key,messages = cmd[0]
             last_id,data = messages[0]
