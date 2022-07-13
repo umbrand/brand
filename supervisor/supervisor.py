@@ -285,13 +285,12 @@ class Supervisor:
         logger.info('SIGINT received, Exiting')
         sys.exit(0)
 
-    def parseCommands(self,command,file=None,rdb_filename=None):
+    def parseCommands(self, command, file=None, rdb_filename=None, graph=None):
         '''
         Parses the command and calls the appropriate function
         Args:
             command: command to be parsed
         '''
-
         if command == "startGraph" and file is not None:
             logger.info("Start graph command received with file")
             graph_dict = {}
@@ -302,6 +301,10 @@ class Supervisor:
                 logger.error(exc)
                 sys.exit(1)
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
+            self.start_graph()
+        elif command == "startGraph" and graph is not None:
+            logger.info("Start graph command received with graph dict")
+            self.load_graph(graph)
             self.start_graph()
         elif command == "startGraph":
             logger.info("Start graph command received")
@@ -334,9 +337,12 @@ def main():
             key,messages = cmd[0]
             last_id,data = messages[0]
             cmd = (data[b'commands']).decode("utf-8")
-            if(len(data) == 2):
+            if b'file' in data:
                 file = data[b'file'].decode("utf-8")
-                supervisor.parseCommands(cmd,file)
+                supervisor.parseCommands(cmd, file=file)
+            elif b'graph' in data:
+                graph = json.loads(data[b'graph'])
+                supervisor.parseCommands(cmd, graph=graph)
             else:
                 supervisor.parseCommands(cmd)
 
