@@ -61,6 +61,7 @@ class Supervisor:
         ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
+        ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -85,6 +86,7 @@ class Supervisor:
             self.port = 6379
 
         self.machine = args.machine
+        self.redis_priority = args.redis_priority
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -145,6 +147,9 @@ class Supervisor:
 
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
+        if self.redis_priority:
+            chrt_args = ['chrt', '-f', f'{self.redis_priority :d}']
+            redis_command = chrt_args + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
