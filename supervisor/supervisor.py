@@ -234,7 +234,6 @@ class Supervisor:
                 self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
                 if(pid > 0):
                     try:
-                        self.read_commands_from_redis()
                         logger.info("Parent process is running and waiting for commands from redis..")
                         self.parent = os.getpid()
                         self.children.append(pid)
@@ -314,19 +313,6 @@ class Supervisor:
             self.stop_graph()
         else:
             logger.debug("Invalid command")
-
-    def read_commands_from_redis(self):
-        '''
-        Reads the commands from redis and calls the appropriate function
-        '''
-        commands = {
-        "startGraph": "",
-        "stopGraph": "",
-        "file": "",
-        }
-        if(self.r.ping()):
-            self.r.xadd("supervisor_ipstream",commands)
-
 
 
 def main():
