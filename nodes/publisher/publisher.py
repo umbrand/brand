@@ -22,15 +22,19 @@ class Publisher(BRANDNode):
         self.data_type = self.parameters['data_type']
         self.duration = self.parameters['duration']
         self.sample_rate = self.parameters['sample_rate']
+        self.stop_graph_when_done = self.parameters['stop_graph_when_done']
 
         self.data = np.random.randn(self.n_channels,
-                                    self.seq_len).astype(
-                                        self.data_type)
+                                    self.seq_len).astype(self.data_type)
 
         self.total_samples = int(self.duration * self.sample_rate)
 
-        # initialize IDs for the two Redis streams
-        self.data_id = '$'
+        # print expected memory usage
+        data_mem_size = self.data.size * self.data.itemsize  # bytes
+        total_data_mem_size = data_mem_size * self.duration * self.sample_rate
+        logging.info(f'Writing {data_mem_size / 2**10 :.4f} KB/sec'
+                     f' for {self.duration} seconds'
+                     f' (total: {total_data_mem_size / 2**20 :.4f} MB)')
 
     def run(self):
         # calculate the time between samples
@@ -48,12 +52,13 @@ class Publisher(BRANDNode):
             if current_time - last_time >= sample_period_ns:
                 # write results to Redis
                 publisher_entry['i'] = np.uint64(i).tobytes()
-                publisher_entry['t'] = np.uint64(
-                    time.monotonic_ns()).tobytes()
-                self.r.xadd('publisher', publisher_entry)
+                publisher_entry['t'] = np.uint64(time.monotonic_ns()).tobytes()
+                self.r.xadd(self.NAME, publisher_entry)
                 # update index and timestamp
                 i += 1
                 last_time = current_time
+        if self.stop_graph_when_done:
+            self.r.xadd('supervisor_ipstream', {'commands': 'stopGraph'})
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
