@@ -32,7 +32,8 @@ class Publisher(BRANDNode):
         # print expected memory usage
         data_mem_size = self.data.size * self.data.itemsize  # bytes
         total_data_mem_size = data_mem_size * self.duration * self.sample_rate
-        logging.info(f'Writing {data_mem_size / 2**10 :.4f} KB/sec'
+        logging.info(f'Writing {data_mem_size / 2**10 :.4f} KB samples'
+                     f' @ {self.sample_rate} Hz'
                      f' for {self.duration} seconds'
                      f' (total: {total_data_mem_size / 2**20 :.4f} MB)')
 
