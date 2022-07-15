@@ -234,12 +234,13 @@ class Supervisor:
             self.model["nodes"][n["nickname"]]["redis_outputs"] = n["redis_outputs"]
             self.model["nodes"][n["nickname"]]["run_priority"] = n["run_priority"]
 
-        self.model["analyzers"] = {}
-        analyzers = graph_dict['analyzers']
-        for a in analyzers:
-            a_name = list(a.keys())[0]
-            a_values = a[a_name]
-            self.model["analyzers"][a_name] = a_values
+        if "derivatives" in graph_dict:
+            self.model["derivatives"] = {}
+            derivatives = graph_dict['derivatives']
+            for a in derivatives:
+                a_name = list(a.keys())[0]
+                a_values = a[a_name]
+                self.model["derivatives"][a_name] = a_values
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -325,7 +326,7 @@ class Supervisor:
 
         # Generate NWB dataset
         p_nwb = subprocess.Popen(['python',
-                            'analyzers/exportNWB/exportNWB.py',
+                            'derivatives/exportNWB/exportNWB.py',
                             self.save_path_rdb,
                             self.rdb_filename,
                             self.host,

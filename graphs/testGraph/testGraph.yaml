@@ -42,7 +42,7 @@ nodes:
                 model_path:         ./model.json
                 log:                INFO  
 
-analyzers:
+derivatives:
   - exportNWB:
       version:      0.0
       redis_inputs:                 [func_generator]
