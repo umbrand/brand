@@ -437,9 +437,9 @@ for stream in stream_dict:
         else:
             logging.error(f'Multiple Trial streams, only one allowed! Stream: {stream}')
     # if the stream is of type 'Trial_Info'
-    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'Trial_Info':
+    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'TrialInfo':
         trial_info_stream = stream
-    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'Spike_Times':
+    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream]['config']['type_nwb'] == 'SpikeTimes':
         spike_times_streams.append(stream)
 
 # guarantee there is a 'Trial' stream if we have a 'Trial_Info' stream
