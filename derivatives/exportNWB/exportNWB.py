@@ -534,11 +534,11 @@ for implant in participant_implants:
 ###############################################
 
 # set up dictionary of NWB writing functions
-nwb_funcs = {   'Trial'                 : create_nwb_trials,
-                'Trial_Info'            : add_nwb_trial_info,
-                'Position'              : create_nwb_position,
-                'Spike_Times'           : create_nwb_unitspiketimes,
-                'Time_Series'           : create_nwb_timeseries}
+nwb_funcs = {   'Trial'                : create_nwb_trials,
+                'TrialInfo'            : add_nwb_trial_info,
+                'Position'             : create_nwb_position,
+                'SpikeTimes'           : create_nwb_unitspiketimes,
+                'TimeSeries'           : create_nwb_timeseries}
 
 # loop through streams to extract data
 for stream in stream_dict:

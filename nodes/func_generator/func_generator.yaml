@@ -39,7 +39,7 @@ RedisStreams:
       func_generator:
         sync:                 [i]
         enable_nwb:           True
-        type_nwb:             Time_Series
+        type_nwb:             TimeSeries
         samples:
           chan_per_stream:    96
           samp_per_stream:    1
