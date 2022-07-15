@@ -193,7 +193,7 @@ class Supervisor:
                 logger.error("%s is not a valid node...." % n["nickname"])
                 sys.exit(1)
 
-            # Loading the nodes and graph into self.model dict and do checking for type, name and value
+            # Loading the nodes and graph into self.model dict
             self.model["nodes"][n["nickname"]] = {}
             self.model["nodes"][n["nickname"]].update(n)
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
@@ -247,10 +247,16 @@ class Supervisor:
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
                     args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                    if 'run_priority' in node_info:  # if priority is specified
+                      priority = node_info['run_priority']
+                      if priority:  # if priority is not None or empty
+                          chrt_args = ['chrt', '-f', str(int(priority))]
+                          args = chrt_args + args
                     try:
                         subprocess.run(args)
                     except subprocess.CalledProcessError as e:
                         logger.info("Something wrong",e)
+
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
