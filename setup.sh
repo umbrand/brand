@@ -3,15 +3,6 @@
 ################################################
 # variables graphs and sites
 ################################################
-<<<<<<< HEAD
-# list of graph names and site names
-site_list=($(ls -d graphs/* | cut -d '/' -f2))
-export SITE="" # current site, is empty
-
-# tab complete for load and setSite commands
-complete -W "`echo ${site_list[@]}`" setSite
-=======
->>>>>>> dev
 
 BRAND_BASE_DIR=$(pwd)
 export BRAND_BASE_DIR # save brand base dir to the environment
