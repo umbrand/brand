@@ -223,16 +223,11 @@ class Supervisor:
                 logger.error("%s is not a valid node...." % n["nickname"])
                 sys.exit(1)
 
-            # Loading the nodes and graph into self.model dict and do checking for type, name and value
+            # Loading the nodes and graph into self.model dict
             self.model["nodes"][n["nickname"]] = {}
+            self.model["nodes"][n["nickname"]].update(n)
             self.model["nodes"][n["nickname"]]["name"] = n["nickname"]
-            self.model["nodes"][n["nickname"]]["module"] = n["module"]
-            self.model["nodes"][n["nickname"]]["nickname"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
-            self.model["nodes"][n["nickname"]]["parameters"] = n["parameters"]
-            self.model["nodes"][n["nickname"]]["redis_inputs"] = n["redis_inputs"]
-            self.model["nodes"][n["nickname"]]["redis_outputs"] = n["redis_outputs"]
-            self.model["nodes"][n["nickname"]]["run_priority"] = n["run_priority"]
 
         if "derivatives" in graph_dict:
             self.model["derivatives"] = {}
@@ -261,8 +256,8 @@ class Supervisor:
         logger.info("Validation of the graph is successful")
         host = self.model["redis_host"]
         port = self.model["redis_port"]
-        for i in range(len(self.model["nodes"])):
-            node_stream_name = self.model["nodes"][list(self.model["nodes"].keys())[i]]["nickname"]
+        for node, node_info in self.model["nodes"].items():
+            node_stream_name = node_info["nickname"]
             pid = os.fork() # forking the supervisor process
             self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
             if(pid > 0):
@@ -277,14 +272,22 @@ class Supervisor:
             elif(pid < 0):
                 logger.critical("Unable to create a child process")
                 sys.exit(1)
-            else:
+            else:  # we are in a child process
                 logger.info("Child process created with pid: %s" % os.getpid())
-                binary = self.model["nodes"][list(self.model["nodes"].keys())[i]]["binary"]
-                logger.info("Binary for %s is %s" % (list(self.model["nodes"].keys())[i],binary))
+                binary = node_info["binary"]
+                logger.info("Binary for %s is %s" % (node, binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(os.getpid())
-                args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                args = [
+                    binary, '-n', node_stream_name, '-hs', host, '-p',
+                    str(port)
+                ]
+                if 'run_priority' in node_info:  # if priority is specified
+                    priority = node_info['run_priority']
+                    if priority:  # if priority is not None or empty
+                        chrt_args = ['chrt', '-f', str(int(priority))]
+                        args = chrt_args + args
                 try:
                     subprocess.run(args)
                 except subprocess.CalledProcessError as e:
