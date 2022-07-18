@@ -180,9 +180,6 @@ def add_nwb_trial_info(nwbfile, stream, stream_data, var_params):
     num_trials = len(nwbfile.trials)
 
     for var in stream_data:
-
-        # var_data_per_trial = np.empty(  (num_trials, stream_data[var]['data'].shape[1]),
-        #                                 dtype = stream_data[var]['data'].dtype)
         var_data_per_trial = np.empty(  (num_trials),
                                         dtype = stream_data[var]['data'].dtype)
 
@@ -190,7 +187,6 @@ def add_nwb_trial_info(nwbfile, stream, stream_data, var_params):
         for id, trial in enumerate(nwbfile.trials):
             var_data_in_trial = stream_data[var]['data'][np.logical_and(    stream_data[var]['sync_timestamps'] >= trial.start_time.values,
                                                                             stream_data[var]['sync_timestamps'] <= trial.stop_time.values)]
-            # var_data_per_trial[id, :] = np.nan if var_data_in_trial.size == 0 else var_data_in_trial[0, :]
             var_data_per_trial[id] = np.nan if var_data_in_trial.size == 0 else var_data_in_trial[0]
         
         nwbfile.add_trial_column(
@@ -243,13 +239,6 @@ def create_nwb_unitspiketimes(nwbfile, stream, stream_data, var_params):
         if var_params[var]['nwb'] is not None and 'crossings' in var_params[var]['nwb']:
             crossings_var = var_params[var]['nwb']['crossings']
 
-    # for electrode in range(len(nwbfile.units)):
-    #     # concatenate new spike times
-    #     nwbfile.units.spike_times.data[electrode] = [nwbfile.units.spike_times.data[electrode]]\
-    #                                                 + stream_data[TC_DATA_VAR]['sync_timestamps'][stream_data[TC_DATA_VAR]['data'][:, electrode].astype(np.bool_)]
-    #     # provide the name of the source stream
-    #     nwbfile.units.stream.data[electrode] = stream
-    
     # TODO update to concatenate spike times for realtime
     for electrode in range(stream_data[crossings_var]['data'].shape[1]):
         nwbfile.add_unit(
@@ -523,11 +512,6 @@ for implant in participant_implants:
                                 location    = implant['location'],
                                 filtering   = '0.3 Hz to 7.5 kHz Butterworth',
                                 group       = nwb_group)
-    
-        # nwbfile.add_unit(   electrodes=[electrode],
-        #                     electrode_group=nwbfile.electrode_groups['T14_medial'],
-        #                     spike_times=[0],    # hack so it creates the appropriate shape for units
-        #                     stream='')
 
 ###############################################
 # Pull data from streams and write to NWB
