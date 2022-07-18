@@ -33,7 +33,7 @@ class Supervisor:
                                 "../Data",
                                 self.participant_id,
                                 "Session"+str(self.session_number),
-                                "Raw_Data")
+                                "RawData")
         self.save_path_rdb = os.path.join(self.save_path,
                                 "RDB")
         self.save_path_nwb = os.path.join(self.save_path,
