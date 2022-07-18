@@ -54,8 +54,8 @@ def signal_handler(sig,frame): # setup the clean exit code with a warning
     logging.info('SIGINT received. Exiting...')
     sys.exit(0)
 
-# place the sigint signal handler    
-signal.signal(signal.SIGINT, signal_handler) 
+# place the sigint signal handler
+signal.signal(signal.SIGINT, signal_handler)
 
 
 
@@ -126,7 +126,7 @@ def create_nwb_trials(nwbfile, stream, stream_data, var_params):
     end_inds = stream_data['state']['data'][ends]
     others = {k:np.isin(stream_data['state']['data'], k) for k in other_trial_indicators}
 
-    # get sync timestamps 
+    # get sync timestamps
     start_times = stream_data[trial_state]['sync_timestamps'][starts[:,0]]
     end_times = stream_data[trial_state]['sync_timestamps'][ends[:,0]]
     other_times = {k:stream_data[trial_state]['sync_timestamps'][others[k][:,0]] for k in others}
@@ -136,7 +136,7 @@ def create_nwb_trials(nwbfile, stream, stream_data, var_params):
     if start_times.shape[0] != end_times.shape[0]:
         start_times = start_times[:end_times.shape[0]]
         other_times = {k:other_times[k][other_times[k] < end_times[-1]] for k in other_times}
-    
+
     # add a column for our other trial milestones
     for k in other_times:
         nwbfile.add_trial_column(   name        = k,
@@ -185,7 +185,7 @@ def add_nwb_trial_info(nwbfile, stream, stream_data, var_params):
             var_data_in_trial = stream_data[var]['data'][np.logical_and(    stream_data[var]['sync_timestamps'] >= trial.start_time.values,
                                                                             stream_data[var]['sync_timestamps'] <= trial.stop_time.values)]
             var_data_per_trial[id] = np.nan if var_data_in_trial.size == 0 else var_data_in_trial[0]
-        
+
         nwbfile.add_trial_column(
             name        = stream + '_' + var,
             description = var_params[var]['nwb']['description'],
@@ -285,7 +285,7 @@ def get_stream_source(graph_data, stream):
     """
     for node in graph_data['nodes']:
         if stream in graph_data['nodes'][node]['redis_outputs']:
-            return graph_data['nodes'][node]['name']    
+            return graph_data['nodes'][node]['name']
     return None
 
 def get_node_module(graph_data, node_name):
@@ -322,11 +322,11 @@ def get_stream_configuration(yaml_path,stream):
     """
     with open(yaml_path, 'r') as f:
         yamlData = yaml.safe_load(f)
-    inputs_and_outputs = yamlData['RedisStreams']['value'] 
+    inputs_and_outputs = yamlData['RedisStreams']['value']
     if inputs_and_outputs is not None:
         for io in inputs_and_outputs.keys():
             if inputs_and_outputs[io] is not None and stream in inputs_and_outputs[io].keys():
-                return inputs_and_outputs[io][stream]          
+                return inputs_and_outputs[io][stream]
     return {}
 
 ###############################################
@@ -338,7 +338,7 @@ try:
     r.ping()
 except ConnectionError as e:
     logging.error(f"Error with Redis connection, check again: {e}")
-    sys.exit(1)  
+    sys.exit(1)
 except:
     logging.error('Failed to connect to Redis. Exiting.')
     sys.exit(1)
@@ -391,11 +391,11 @@ for stream in stream_dict:
         stream_to_del.append(stream)
     else:
         stream_dict[stream]['source'] = stream_dict[stream]['source'].rsplit('.', 1)[0] # gets node name even if filetype included in name
-        stream_dict[stream]['source_yaml'] =    os.getenv('BRAND_BASE_DIR') + '/' \
-                                                + get_node_module(model_data, stream_dict[stream]['source']) + '/' \
-                                                + 'nodes/' \
-                                                + stream_dict[stream]['source'] + '/' \
-                                                + stream_dict[stream]['source'] + '.yaml'
+        stream_dict[stream]['source_yaml'] = os.path.join(
+            os.getenv('BRAND_BASE_DIR'),
+            get_node_module(model_data, stream_dict[stream]['source']),
+            'nodes', stream_dict[stream]['source'],
+            stream_dict[stream]['source'] + '.yaml')
         stream_dict[stream]['config'] = get_stream_configuration(stream_dict[stream]['source_yaml'], stream)
 
         if 'enable_nwb' in stream_dict[stream]['config'] and 'type_nwb' in stream_dict[stream]['config']:
@@ -483,7 +483,7 @@ for implant in participant_implants:
         if implant['device'] == device_entry['name']:
             device = device_entry
             break
-    
+
     if device['name'] in nwbfile.devices:
         nwb_device = nwbfile.devices[implant['device']]
     else:
@@ -491,7 +491,7 @@ for implant in participant_implants:
                                 name            = device['name'],
                                 description     = device['description'],
                                 manufacturer    = device['manufacturer'])
-    
+
     nwb_group = nwbfile.create_electrode_group(
                             name        = implant['name'],
                             description = f'{implant["device"]} connected to {implant["connector"]}',
@@ -523,7 +523,7 @@ nwb_funcs = {   'Trial'                : create_nwb_trials,
 
 # loop through streams to extract data
 for stream in stream_dict:
-    
+
     # update enables for the stream
     update_nwb_enable()
 
@@ -552,7 +552,7 @@ for stream in stream_dict:
                                                             dtype=np.double),
                             'sample_count'      : 0}
                         for k in stream_dict[stream]['config'] if (k not in ['enable_nwb', 'type_nwb', 'sync'] and 'nwb' in stream_dict[stream]['config'][k])}
-        
+
         # time_data:
         #   sync_timestamps:    store sync timestamps for each piece of extracted data
         #                       dim0 = number of stream entries
@@ -566,7 +566,7 @@ for stream in stream_dict:
                         'redis_ts'          : np.empty(stream_len, dtype=np.double)}    # redis timestamp
         time_data.update({  k : np.empty(stream_len, dtype=np.double)
                             for k in stream_dict[stream]['config']['sync'] if k != stream_dict[stream]['config']['sync'][0]})
-        
+
         while entry_count < stream_len:
             stream_read = r.xrange( stream,
                                     min     = stream_dict[stream]['last_id'],
@@ -595,7 +595,7 @@ for stream in stream_dict:
                         stream_data[var]['data'][batch_idx, :] = np.frombuffer( entry[1][var.encode()], dtype=stream_data[var]['data'].dtype).reshape([var_config['samp_per_stream'], var_config['chan_per_stream']])
                     stream_data[var]['sync_timestamps'][batch_idx] = time_data['sync_timestamps'][entry_count+ind]
                     stream_data[var]['sample_count'] += var_config['samp_per_stream']
-            
+
             last_id = stream_read[-1][0].decode('utf-8').split('-') # get the last entry id, change from byte to string, split by the '-' in the middle
             stream_dict[stream]['last_id'] = last_id[0] + '-' + str(int(last_id[1])+1)   # increment the sequence number, recombine
             entry_count += len(stream_read)
