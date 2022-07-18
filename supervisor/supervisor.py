@@ -60,6 +60,7 @@ class Supervisor:
         ap.add_argument("-i", "--host", required=False, help="ip address to bind redis server to")
         ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
+        ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -82,6 +83,8 @@ class Supervisor:
             self.port = args.port
         else:
             self.port = 6379
+
+        self.machine = args.machine
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -193,7 +196,6 @@ class Supervisor:
             # Loading the nodes and graph into self.model dict
             self.model["nodes"][n["nickname"]] = {}
             self.model["nodes"][n["nickname"]].update(n)
-            self.model["nodes"][n["nickname"]]["name"] = n["nickname"]
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
@@ -209,7 +211,11 @@ class Supervisor:
     ####### functions for the booting and stopping node #######
     def start_graph(self):
         ''' Start the graph '''
-        current_state = self.r.xrevrange("graph_status",count = 1)
+        self.r.xadd('booter', {
+            'command': 'startGraph',
+            'graph': json.dumps(self.model)
+        })
+        current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
         logger.info("Validation of the graph is successful")
@@ -217,40 +223,40 @@ class Supervisor:
         port = self.model["redis_port"]
         for node, node_info in self.model["nodes"].items():
             node_stream_name = node_info["nickname"]
-            pid = os.fork() # forking the supervisor process
-            self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
-            if(pid > 0):
-                try:
-                    self.read_commands_from_redis()
-                    logger.info("Parent process is running and waiting for commands from redis..")
-                    self.parent = os.getpid()
-                    self.children.append(pid)
-                    logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
-                except signal.SIGCHLD:
-                    signal(signal.SIGCHLD,callback = self.child_process_handler(node_stream_name))
-            elif(pid < 0):
-                logger.critical("Unable to create a child process")
-                sys.exit(1)
-            else:  # we are in a child process
-                logger.info("Child process created with pid: %s" % os.getpid())
-                binary = node_info["binary"]
-                logger.info("Binary for %s is %s" % (node, binary))
-                logger.info("Node Stream Name: %s" % node_stream_name)
-                logger.info("Parent Running on: %d" % os.getppid())
-                self.children.append(os.getpid())
-                args = [
-                    binary, '-n', node_stream_name, '-hs', host, '-p',
-                    str(port)
-                ]
-                if 'run_priority' in node_info:  # if priority is specified
-                    priority = node_info['run_priority']
-                    if priority:  # if priority is not None or empty
-                        chrt_args = ['chrt', '-f', str(int(priority))]
-                        args = chrt_args + args
-                try:
-                    subprocess.run(args)
-                except subprocess.CalledProcessError as e:
-                    logger.info("Something wrong",e)
+            if ('machine' not in node_info
+                    or node_info["machine"] == self.machine):
+                pid = os.fork() # forking the supervisor process
+                self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
+                if(pid > 0):
+                    try:
+                        self.read_commands_from_redis()
+                        logger.info("Parent process is running and waiting for commands from redis..")
+                        self.parent = os.getpid()
+                        self.children.append(pid)
+                        logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
+                    except signal.SIGCHLD:
+                        signal(signal.SIGCHLD,callback = self.child_process_handler(node_stream_name))
+                elif(pid < 0):
+                    logger.critical("Unable to create a child process")
+                    sys.exit(1)
+                else:
+                    logger.info("Child process created with pid: %s" % os.getpid())
+                    binary = node_info["binary"]
+                    logger.info("Binary for %s is %s" % (node,binary))
+                    logger.info("Node Stream Name: %s" % node_stream_name)
+                    logger.info("Parent Running on: %d" % os.getppid())
+                    self.children.append(os.getpid())
+                    args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                    if 'run_priority' in node_info:  # if priority is specified
+                      priority = node_info['run_priority']
+                      if priority:  # if priority is not None or empty
+                          chrt_args = ['chrt', '-f', str(int(priority))]
+                          args = chrt_args + args
+                    try:
+                        subprocess.run(args)
+                    except subprocess.CalledProcessError as e:
+                        logger.info("Something wrong",e)
+
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
@@ -261,6 +267,7 @@ class Supervisor:
         '''
         Kills the child processes and stops the graph
         '''
+        self.r.xadd('booter', {'command': 'stopGraph'})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         logger.debug(self.children)
