@@ -14,15 +14,12 @@ from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.behavior import Position
 from redis import Redis, ConnectionError
 import numpy as np
-import subprocess
 import logging
 import os
 from datetime import datetime
 import yaml
 import sys, signal
 import json
-from hdmf.common import DynamicTable
-
 
 
 ###############################################
