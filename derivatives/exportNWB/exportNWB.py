@@ -510,7 +510,7 @@ with open(devices_path, 'r') as f:
     devices = yaml.safe_load(f)
 
 # TODO autogenerate these inputs to represent block information
-nwbfile = NWBFile(session_description=graph_meta['session_description'],
+nwbfile = NWBFile(session_description=graph_meta['description'],
                   identifier=graph_name,
                   session_start_time=datetime.today(),
                   file_create_date=datetime.today())

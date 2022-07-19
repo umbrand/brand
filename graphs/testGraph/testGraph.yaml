@@ -1,7 +1,7 @@
 metadata:
     participant_id:            0
     graph_name:                testGraph
-    session_description:               BRAND test graph, func_generator -> decoder1 (core module) 
+    description:               BRAND test graph, func_generator -> decoder1 (core module) 
     participant_file:          ../Data/t0/t0.yaml
         
 # ---------------------------------------------------
