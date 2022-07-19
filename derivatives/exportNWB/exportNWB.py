@@ -28,14 +28,13 @@ import json
 NAME = 'exportNWB'
 BATCH_SIZE = 1000   # max number of samples to grab from redis at a time
 
-rdb_dir = sys.argv[1]
-rdb_file = sys.argv[2]
+rdb_file = sys.argv[1]
 
-redis_host = sys.argv[3]
-redis_port = sys.argv[4]
+redis_host = sys.argv[2]
+redis_port = sys.argv[3]
 
 save_filename = os.path.splitext(rdb_file)[0]
-save_filepath = sys.argv[5]
+save_filepath = sys.argv[4]
 
 devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),'../Data/devices.yaml')
 

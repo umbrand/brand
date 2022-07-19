@@ -330,7 +330,6 @@ class Supervisor:
         # Generate NWB dataset
         p_nwb = subprocess.Popen(['python',
                             'derivatives/exportNWB/exportNWB.py',
-                            self.save_path_rdb,
                             self.rdb_filename,
                             self.host,
                             str(self.port),
