@@ -27,7 +27,7 @@ class Supervisor:
         self.BRAND_BASE_DIR = os.getcwd()
 
         self.save_path = self.BRAND_BASE_DIR
-        self.save_path_rdb = os.path.join(self.save_path, "RDB")
+        self.save_path_rdb = self.save_path
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
