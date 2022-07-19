@@ -1,5 +1,5 @@
-Metadata:
-  participant_id: T_0
+metadata:
+  participant_id: t0
   cortical_implant_date: 2022-05-09
 
 #####################################
@@ -13,7 +13,7 @@ Metadata:
 #   serial:         [required]  # serial number of the device
 #   array_map:      [required]  # path to the map file from the manufacturer
 #####################################
-Implants:
+implants:
   - name:           array 1
     location:       example location
     position:       [1, 2, 3]

@@ -443,8 +443,9 @@ graph_meta = model_data['metadata']
 participant_metadata_file = graph_meta['participant_file']
 with open(participant_metadata_file, 'r') as f:
     yamlData = yaml.safe_load(f)
-    participant_metadata = yamlData['Metadata']
-    participant_implants = yamlData['Implants']
+    participant_metadata = yamlData['metadata']
+    participant_implants = yamlData['implants']
+
 
 # get devices information
 with open(devices_path, 'r') as f:
