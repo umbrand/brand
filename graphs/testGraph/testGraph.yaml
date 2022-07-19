@@ -1,7 +1,8 @@
 metadata:
     participant_id:            0
     graph_name:                testGraph
-    description:               BRAND test graph, func_generator -> decoder1 (core module)  
+    description:               BRAND test graph, func_generator -> decoder1 (core module) 
+    participant_file:          ../Data/t0/t0.yaml
         
 # ---------------------------------------------------
 
@@ -18,9 +19,7 @@ metadata:
 
 nodes:
     - name:         func_generator #.bin
-      version:      0.0
       nickname:     func_generator
-      stage:        main
       module:       .
       redis_inputs:                 []
       redis_outputs:                [func_generator]
@@ -32,9 +31,7 @@ nodes:
                 log:                INFO   
     
     - name:         decoder #.bin
-      version:      0.0
       nickname:     decoder1
-      stage:        main
       module:       .
       redis_inputs:                 [func_generator]
       redis_outputs:                [decoder]
@@ -44,4 +41,13 @@ nodes:
                 n_targets:          2
                 model_path:         ./model.json
                 log:                INFO  
+
+derivatives:
+  - exportNWB:
+      version:      0.0
+      redis_inputs:                 [func_generator]
+      redis_outputs:                []
+      parameters:
+            enable_nwb:
+                func_generator:   True
         

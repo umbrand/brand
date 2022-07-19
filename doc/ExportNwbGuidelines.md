@@ -111,11 +111,11 @@ It is helpful to log de-identified participant information alongside data withou
 The `<participant>.yaml` file should be structured as follows, and all elements are required:
 
 ```
-Metadata:
+metadata:
   participant_id:         T<num>
   cortical_implant_date:  [date of cortical implant surgery]
 
-Implants:
+implants:
   - name:       [name of implant, i.e. medial hand knob]
     location:   [anatomical location of implant]
     position:   [stereotaxic position of implant]
