@@ -26,18 +26,8 @@ class Supervisor:
 
         self.BRAND_BASE_DIR = os.getcwd()
 
-        self.participant_id = "Participant0"
-        self.session_number = 0
-
-        self.save_path = os.path.join(self.BRAND_BASE_DIR,
-                                "../Data",
-                                self.participant_id,
-                                "Session"+str(self.session_number),
-                                "RawData")
-        self.save_path_rdb = os.path.join(self.save_path,
-                                "RDB")
-        self.save_path_nwb = os.path.join(self.save_path,
-                                "NWB")
+        self.save_path = self.BRAND_BASE_DIR
+        self.save_path_rdb = os.path.join(self.save_path, "RDB")
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
@@ -178,12 +168,47 @@ class Supervisor:
             os.makedirs(self.save_path_rdb)
         self.r.config_set('dir', self.save_path_rdb)
         logger.info(f"RDB save directory set to {self.save_path_rdb}")
-        # Set new rdb filename 
+        # Set new rdb filename
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', self.rdb_filename)
         logger.info(f"RDB file name set to {self.rdb_filename}")
-        
 
+    def get_save_path(self, graph_dict):
+        """
+        Get the path where the RDB and NWB files should be saved
+
+        Parameters
+        ----------
+        graph_dict : dict
+            Dictionary containing the supergraph parameters
+
+        Returns
+        -------
+        save_path : str
+            Path where data should be saved
+        """
+        # Check if the participant file exists
+        has_participant_file = (
+            'participant_file' in self.model['metadata']
+            and os.path.exists(graph_dict['metadata']['participant_file']))
+
+        # Get participant and session info
+        if has_participant_file:
+            with open(graph_dict['metadata']['participant_file'], 'r') as f:
+                participant_info = yaml.safe_load(f)
+            participant_id = participant_info['metadata']['participant_id']
+        elif 'participant_id' in graph_dict['metadata']:
+            participant_id = graph_dict['metadata']['participant_id']
+        else:
+            participant_id = 0
+
+        # Make paths for saving files
+        session_str = datetime.today().strftime(r'%Y.%m.%d')
+        session_id = f'{participant_id}.{session_str}'
+        save_path = os.path.join(self.BRAND_BASE_DIR, '..', 'Data',
+                                 str(participant_id), session_id, 'RawData')
+        save_path = os.path.abspath(save_path)
+        return save_path
 
     def load_graph(self,graph_dict,rdb_filename=None):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
@@ -203,14 +228,23 @@ class Supervisor:
         logger.info(f'rdb filename: {self.rdb_filename}')
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
-        
+
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
-        
+
         self.model["metadata"] = {}
         metadata = graph_dict['metadata']
         self.model["metadata"] = metadata
-        
+
+        # Set rdb save directory
+        self.save_path = self.get_save_path(graph_dict)
+        self.save_path_rdb = os.path.join(self.save_path, 'RDB')
+        if not os.path.exists(self.save_path_rdb):
+            os.makedirs(self.save_path_rdb)
+        self.r.config_set('dir', self.save_path_rdb)
+        logger.info(f"RDB save directory set to {self.save_path_rdb}")
+
+        # Load node information
         self.model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
         for n in nodes:
@@ -319,11 +353,9 @@ class Supervisor:
         # Kill child processes (nodes)
         self.stop_graph()
 
+        # Make path for saving NWB file
+        save_path_nwb = os.path.join(self.save_path, 'NWB')
         # Save rdb file
-        if not os.path.exists(self.save_path_rdb):
-            os.makedirs(self.save_path_rdb)
-        self.r.config_set('dir',  self.save_path_rdb)
-        logger.info(f"RDB save directory set to {self.save_path_rdb}")
         self.r.save()
         logger.info(f"RDB data saved to file: {self.rdb_filename}")
 
@@ -333,7 +365,7 @@ class Supervisor:
                             self.rdb_filename,
                             self.host,
                             str(self.port),
-                            self.save_path_nwb], 
+                            save_path_nwb],
                             stdout=subprocess.PIPE)
         p_nwb.wait()
 
@@ -343,7 +375,7 @@ class Supervisor:
         # Set new rdb filename (to avoid overwriting what we just saved)
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f"New RDB file name set to {self.rdb_filename}")        
+        logger.info(f"New RDB file name set to {self.rdb_filename}")
 
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
