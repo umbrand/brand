@@ -62,10 +62,6 @@ signal.signal(signal.SIGINT, signal_handler)
 ###############################################
 # Helper functions
 ###############################################
-def update_nwb_enable():
-    # TODO implement from graph in redis
-    pass
-
 def add_stream_sync_timeseries(nwbfile, stream, time_data):
     """
     Creates an sync timeseries representing the
@@ -236,7 +232,6 @@ def create_nwb_unitspiketimes(nwbfile, stream, stream_data, var_params):
         if var_params[var]['nwb'] is not None and 'crossings' in var_params[var]['nwb']:
             crossings_var = var_params[var]['nwb']['crossings']
 
-    # TODO update to concatenate spike times for realtime
     for electrode in range(stream_data[crossings_var]['data'].shape[1]):
         nwbfile.add_unit(
                     electrodes      = [electrode],
@@ -523,10 +518,6 @@ nwb_funcs = {   'Trial'                : create_nwb_trials,
 
 # loop through streams to extract data
 for stream in stream_dict:
-
-    # update enables for the stream
-    update_nwb_enable()
-
     # checks the ENABLE_NWB parameter is set to true
     if stream_dict[stream]['config']['enable_nwb']:
 
@@ -617,9 +608,6 @@ for stream in stream_dict:
 ###############################################
 # Save the NWB object to file
 ###############################################
-
-# TODO add block information
-
 save_filename = save_filename + '.nwb'
 
 if not os.path.exists(save_filepath):
