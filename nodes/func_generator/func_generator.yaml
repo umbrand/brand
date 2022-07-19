@@ -2,23 +2,6 @@ metadata:
   description: Generate sinusoidal data and write to Redis
   author: n/a
 
-# node-specific parameters
-Nodes:
-    - Name: func_generator
-      Version: 0.0
-      Parameters:
-            # Whether to wait for timer interrupts when sending samples
-            use_timer: false
-            # Sample rate to use when use_timer=false
-            sample_rate: 100
-            # Number of targets the decoder should predict
-            # e.g. n_targets=2 for decoding x and y channels
-            n_targets: 2
-            # Number of features to use for decoding
-            n_features: 96
-            # duration of the test
-            duration: 30  # seconds
-
 parameters:
   - type: float
     name: sample_rate
@@ -46,6 +29,24 @@ parameters:
     label: Logging info
     static: True
     mustExist: True
+
+RedisStreams:
+  description: input and output streams of the node
+  value:
+    Inputs:
+        ### what should be put in here?
+    Outputs:
+      func_generator:
+        sync:                 [i]
+        enable_nwb:           True
+        type_nwb:             TimeSeries
+        samples:
+          chan_per_stream:    96
+          samp_per_stream:    1
+          sample_type:        float64
+          nwb:
+            unit: n/a
+            description: arbitrary generated features
 
 inputs: []
 outputs:

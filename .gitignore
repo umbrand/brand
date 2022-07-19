@@ -1,5 +1,5 @@
+
 tmp/
-#run/
 proc/rest/elm-stuff/
 
 # vim swap files
@@ -23,12 +23,11 @@ bin/
 *.rdb
 
 # images and media
+*.png
 *.jbp
 *.bmp
 *.avi
 *.mp[0-9]
-
-
 
 # matlab data
 *.mat
