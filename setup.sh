@@ -21,4 +21,8 @@ sudo chmod -R 777 "/var/run/redis"
 
 # Activate the rt environment to get to work
 conda activate rt
-alias supervisor="sudo -E env 'PATH=$PATH' python supervisor/supervisor.py"
+
+# Make aliases for booter and supervisor
+alias booter='sudo -E env "PATH=$PATH" python -m brand.booter'
+alias supervisor='sudo -E env "PATH=$PATH" python supervisor/supervisor.py'
+
