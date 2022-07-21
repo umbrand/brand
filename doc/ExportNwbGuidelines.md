@@ -6,30 +6,31 @@ This guide will detail best practices for writing BRAND nodes to be compatible w
 * [PyNWB Documentation](https://pynwb.readthedocs.io/en/latest/index.html)
 * [MatNWB Documentation](https://neurodatawithoutborders.github.io/matnwb/doc/index.html)
 
-
-
 ## Graph YAML
 
-The graph contains a user's parameter settings for a variety of node parameters. For this reason, the graph should also contain the definition for the `exportNWB.py` node, even though it can be run independently of the graph:
+Configuration for the `exportNWB.py` script is included in the graph YAML, within the `derivatives` field.
 
 ```
-Nodes:
-...
-    - Name:         exportNWB.py
-      Version:      0.0
-      Stage:        end
+derivatives:
+    - exportNWB.py:
       redis_inputs:                 [list of all redis streams]
       redis_outputs:                []
-      Parameters:
-                enable_nwb:
-                    <redis_stream_1>:   <True/False>
-                    <redis_stream_2>:   <True/False>
-                    ...
+      parameters:
+          enable_nwb:
+              <redis_stream_1>:   <True/False>
+              <redis_stream_2>:   <True/False>
+              ...
 ```
 
-In this definition, the `stage` is set to `end` so that NWB logging only occurs at the call to `stopGraph()`. `redis_inputs` should contain all redis streams that a user may or may not want to have logged. This is for simple enabling/disabling of NWB logging for a given stream during graph execution.
+In this definition, `redis_inputs` should contain all redis streams that a user may or may not want to have logged. This is for simple enabling/disabling of NWB logging for a given stream during graph execution.
 
-As described below, the YAML file of the node that generates a stream will also contain an `enable_nwb` parameter for whether that stream is enabled for logging by default. The `enable_nwb` parameter in the `exportNWB.py` node definition in the graph YAML is the priority setting for a given stream. If a stream's name is not included under the graph's `enable_nwb`, then `exportNWB.py` pulls the parameter from the node's YAML.
+As described below, the YAML file of the node that generates a stream will also contain an `enable_nwb` parameter for whether that stream is enabled for logging by default. The `enable_nwb` parameter in the `exportNWB.py` derivative definition in the graph YAML is the priority setting for a given stream. If a stream's name is not included under the graph's `enable_nwb`, then `exportNWB.py` pulls the parameter from the node's YAML.
+
+As will be mentioned below, `exportNWB.py` also requires a YAML file with data on the participant. For now, the path to this file is also specified in the graph YAML, within the `metadata:participant_file` field.
+
+## Data Alignment
+
+Since BRAND runs asynchronous graphs, there is a need to track the flow of data through a graph for data integrity. See the [Guidelines for Data Alignment in BRAND](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/DataSyncGuidelines.md) for a description of how this is implemented in BRAND. This is therefore critical to the functionality of `exportNWB.py`, since it must take that data and store it in a deterministic way. To do so, data from all streams in a graph are logged using the `sync` key contained in each stream entry as the timestamp for that entry. `exportNWB.py` also generates a `<stream_name>_sync` container that uses the NWB `TimeSeries` container. The `<stream_name>_sync` `TimeSeries` has one item entered for each `sync` key value in the stream. In each item, `exportNWB.py` logs the `monotonic` timestamps, which are required according to DataSyncGuidelines.md, and Redis timestamps at which each entry was logged. Additionally, if the stream is composed of multiple input streams, any additional `sync` labels are included in a separate column of `<stream_name>_sync`.
 
 ## Node YAML
 
@@ -42,9 +43,9 @@ RedisStreams:
 
   Outputs:
     <output_stream_1>:
-      sync:                   [name of sync key]
+      sync:                   [name of sync key, as per data alignment guidelines]
       enable_nwb:             <True/False>
-      type_nwb:               <Position/Spike_Times/Trial/Trial_Info>
+      type_nwb:               <TimeSeries/Position/SpikeTimes/Trial/TrialInfo>
       <output_stream_1_key_1>:
         chan_per_stream:      [number of channels in each stream entry]
         samp_per_stream:      [number of samples per channel in each stream entry]
@@ -59,13 +60,21 @@ RedisStreams:
       ...
 ```
 
-Datatypes supported by `exportNWB.py` include any numeric datatype inherently supported by `numpy` and strings. In the stream's definition in the node YAML, strings must have the datatype `str` to be logged in the NWB file without crashing the script.
+Datatypes supported by `exportNWB.py` include any numeric datatype inherently supported by `numpy`, and strings. In the stream's definition in the node YAML, strings must have the datatype `str` to be logged in the NWB file without crashing the script.
 
-`enable_nwb` is a required parameter that represents the default of whether the stream `output_stream_1` should be exported to NWB if the `enable_nwb` parameter is not defined for `output_stream_1` at the graph level, which is the priority value. `type_nwb` is a required parameter that represents what NWB mechanism (see Rules below) should be used to fit all the data of the stream. Within each stream's keys, one can enable logging of that key by including an `nwb:` parameter field even if no parameters are required. Omitting the `nwb:` parameter field disables that key from being logged. Current supported mechanisms are `Position`, `Spike_Times`, `Trial`, and `Trial_Info`. See sections below for required `nwb` parameters for each mechanism.
+`enable_nwb` is a required parameter that represents the default behavior for whether the stream `output_stream_1` should be exported to NWB if the `enable_nwb` parameter is not defined for `output_stream_1` at the graph level, which is the priority value. `type_nwb` is a required parameter that represents what NWB mechanism (see Rules below) should be used to fit all the data of the stream. Within each stream's keys, one can enable logging of that key by including an `nwb:` parameter field even if no parameters are required. Omitting the `nwb:` parameter field disables that key from being logged. Current supported mechanisms are `TimeSeries`, `Position`, `SpikeTimes`, `Trial`, and `TrialInfo`. See sections below for required `nwb` parameters for each mechanism.
 
 ### Rules for NWB Logging Mechanisms
 
 Please follow each mechanism's rules to guarantee your data is properly logged in the NWB file.
+
+#### `TimeSeries`
+
+The `TimeSeries` mechanism creates a `TimeSeries` NWB container with data stored as a generic time series. This is equivalent to storing a `numpy.ndarray` of size `[num_time, num_dimensions]`. `exportNWB.py` logs sample times using the `sync` key included in the entry (see DataSyncGuidelines.md). Required `nwb` parameters in the stream's definition are those required for a [`TimeSeries`](https://pynwb.readthedocs.io/en/stable/pynwb.behavior.html#pynwb.behavior.TimeSeries) object in the NWB format, namely:
+
+* `unit`: (`str`) the base unit of measurement (should be SI unit)
+
+Note: `name`, `data`, and one of `timestamps` or `rate` are required, but these are generated automatically by `exportNWB.py`.
 
 #### `Position`
 
@@ -100,13 +109,9 @@ The `Trial_Info` mechanism adds trial information as columns to the `trials` tab
 
 * `description`: (`str`) description of the trial column to be added, which is required in the NWB file format.
 
-## Data Alignment
-
-Since BRAND runs asynchronous graphs, there is a need to track the flow of data through a graph for data integrity. See DataSyncGuidelines.md for a description of how this is implemented in BRAND. This is therefore critical to the functionality of `exportNWB.py`, since it must take that data and store it in a deterministic way. To do so, data from all streams in a graph are logged using the `sync` key contained in each stream entry as the timestamp for that entry. `exportNWB.py` also generates a `<stream_name>_sync` container that uses the NWB `TimeSeries` container. The `<stream_name>_sync` `TimeSeries` has one item entered for each `sync` key value in the stream. In each item, `exportNWB.py` logs the `monotonic` timestamps, which are required according to DataSyncGuidelines.md, and Redis timestamps at which each entry was logged. Additionally, if the stream is composed of multiple input streams, any additional `sync` labels are included in a separate column of `<stream_name>_sync`.
-
 ## Participant Metadata
 
-It is helpful to log de-identified participant information alongside data without having to manually enter it into each NWB file. To this end, a `<participant>.yaml` (i.e. named `T14.yaml`), containing de-identified participant metadata, is required to store data in an NWB file using `exportNWB.py`.
+It is helpful to log de-identified participant information alongside data without having to manually enter it into each NWB file. To this end, a `<participant>.yaml` (i.e. named `T14.yaml`), containing de-identified participant metadata, is required to store data in an NWB file using `exportNWB.py`. Atemplate for this file is included at `derivatives/exportNWB/templates/t0.yaml`.
 
 The `<participant>.yaml` file should be structured as follows, and all elements are required:
 
@@ -128,7 +133,7 @@ implants:
     ...
 ```
 
-To store electrophysiology recordings in the NWB file format, information about the devices used for recording is required. This is done by creating `device` objects along with their corresponding `electrodes`. Rather than repeating this information for each implant within the `<participant>.yaml` file, the `device` parameter in the `<participant>.yaml` file should be a name pointing to a device entry in a `devices.yaml`. This `devices.yaml` should be structured as follows:
+To store electrophysiology recordings in the NWB file format, information about the devices used for recording is required. This is done by creating `device` objects along with their corresponding `electrodes`. Rather than repeating this information for each implant within the `<participant>.yaml` file, the `device` parameter in the `<participant>.yaml` file should be a name pointing to a device entry in a `devices.yaml`. A template for this file is included at `derivatives/exportNWB/templates/devices.yaml`. This `devices.yaml` should be structured as follows:
 
 ```
 - name:           [name of device]
@@ -145,8 +150,8 @@ To store electrophysiology recordings in the NWB file format, information about 
   ...
 ```
 
-Both the `<participant>.yaml` and `<devices>.yaml` should exist in a `ParticipantMetadata` directory one level above the execution path (assumed to be `realtime_rig_dev` at the moment).
+The `<devices>.yaml` should exist in a `Data` directory one level above the execution path (assumed to be `realtime_rig_dev` at the moment). The `<participant>.yaml` should exist within the corresponding participant directory within this `Data` directory (e.g. `../Data/t0`). Templates for both files are located at `derivaties/exportNWB/templates` and can be copied to those respective folders and filled in as needed.
 
 ## File Storage
 
-Saved NWB files are currently stored in a `Sessions/Data` folder one level above the execution path (assumed to be `realtime_rig_dev` at the moment). It will automatically create a new folder within `Session/Data` for the participant called `T<num>`, a new folder for the session within that `ses-<session_number>`, and a new folder within that called `nwb`. Within this folder, a file named `T<num>_ses-<session_number>.nwb` is saved. Future versions of the save functionality will use date and block information from the session metadata to create the directory structure and file name.
+To stop a graph and save an NWB file, the `stopGraphAndSaveNWB` command must be sent to the `supervisor_ipstream` stream. Saved files are currently stored in a `../Data` folder one level above the execution path (assumed to be `realtime_rig_dev` at the moment). It will automatically create a new folder within `Session/Data` for the participant called `T<num>`, a new folder for the session within that `ses-<session_number>`, and a new folder within that called `NWB`. Within this folder, a file named `T<num>_ses-<session_number>.nwb` is saved. Future versions of the save functionality will use date and block information from the session metadata to create the directory structure and file name.
