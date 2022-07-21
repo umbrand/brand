@@ -19,22 +19,6 @@ nodes:
           data_type: int16
           duration: 300
           sample_rate: 1000
-
-    - name:         publisher
-      version:      0.0
-      nickname:     publisher
-      stage:        main
-      module:       .
-      redis_inputs:                 []
-      redis_outputs:                [publisher]
-      run_priority:                 99
-      parameters:
-          log: INFO
-          n_channels: 128
-          seq_len: 30
-          data_type: int16
-          duration: 300
-          sample_rate: 1000
           stop_graph_when_done: True
         
     - name:         subscriber
