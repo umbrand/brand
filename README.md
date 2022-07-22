@@ -302,9 +302,9 @@ bittwiste -I mypackets.pcap -O mypackets_no_headers.pcap -D 1-42
 Now `mypackets_no_headers.pcap` is a copy of our `mypackets.pcap` file with headers removed.
 
 
-### Utilities 
+# Utilities 
 
-#### Supervisor 
+## Supervisor 
 
 > Supervisor is a core process in BRAND serving the following functions - 
 1. Boots nodes
@@ -314,12 +314,143 @@ Now `mypackets_no_headers.pcap` is a copy of our `mypackets.pcap` file with head
 3. Maintain internal model of the state of the graph
     - List of nodes running and their PIDs.
     - Most recent published status of each node.
-  
-#### Execution of Supervisor
+
+## Graph/Nodes modules Directory structure
+> All internal graphs are required to follow the below mentioned directory structure
 ```
-1. $ python supervisor/supervisor.py -g <name_of_the_graph_yaml_file>
-2. Start the graph using command ```$xadd supervisor_ipstream * commands startGraph```
-3. Check the model published on the model stream using command ```$xrevrange supergraph_stream + - count 1```
-4. Check the status of the graph anytime using command ```$xrevrange graph_status + - count 1```
-5. Update of parameters on the go can be done by using command ```xadd supervisor_ipstream * commands startGraph file <path_to_file>```
-6. Stop the graph using command ```$xadd supervisor_ipstream * commands stopGraph```. 
+    |---<nodes>
+        |
+        |---<nodename>
+            |
+            |---README.md
+            |---src
+                |---<Headerfiles>
+                |---<nodename>.c
+                |---<nodename>.cpp
+                |---<nodename>.m
+                |---<nodename>.py
+            |---<nodename>.bin
+            |---<nodename>.out
+            |---Makefile 
+    |
+    |
+    |---<graphs>
+        |---module_name
+            |
+            |---<graphname.yaml>
+            |---<graphname.pptx>
+```
+
+
+## External modules Directory structure
+> All modules are required to follow the below mentioned directory structure
+
+```
+---<brand-modules>
+    |
+    |---<module-name>
+        |
+        |---<nodes>
+            |
+            |---<nodename>
+                |
+                |---README.md
+                |---src
+                    |---<Headerfiles>
+                    |---<module-name>_nodename.c
+                    |---<module-name>_nodename.cpp
+                    |---<module-name>_nodename.m
+                    |---<module-name>_nodename.py
+                |---<module-name>_nodename.bin
+                |---Makefile   
+        |
+        |---<graphs>
+            |
+            |---<graphname.yaml>
+            |---<graphname.pptx>
+```
+
+## Utilities directory structure
+> All utilities used in brand are required to follow the below mentioned directory structure
+
+```
+    |---<lib>
+    |
+    |---<nodes>
+            |
+            |---<language-utilies(c/python/m/cpp)>
+    |---<packages>
+            |
+            |---<Core packages like hiredis/json which can be used by other modules>
+    |---<supervisor_utility>
+            |
+            |---<README.md>
+            |---<requirements.txt>
+            |---<supervisor.py> 
+```
+
+
+## Execution of Supervisor
+Follow the below instructions and commands for running supervisor utility:
+
+1. Start the supervisor by running either of the following commands:
+```    
+        $ python3 supervisor/supervisor.py -g <name_of_the_graph_yaml_file>
+        $ run -g <name_of_the_graph_yaml_file> 
+```
+ >Optionally, you can also use extra arguments with the supervisor utility. Below are the extra arguments that can be used:
+ - `-g` / `--graph` : Name of the graph yaml file.
+ - `-i` / `--ip` : IP address to bind the server node to.
+ - `-p` / `--port` : Port number to bind the server node to.
+ - `-c`/ `--cfg` : Name of the config file specific to redis server.
+ - `-m` / `--machine` : Name of the machine on which the supervisor is running.
+
+
+2. Once, the supervisor has started, you can open a separate terminal and run the following commands (-h and -p flags are optional if you're running on default host and port):
+```
+$ redis-cli -h <hostname> -p <port>
+```
+3. Inside the redis-cli, run the following commands to start the graph:
+```
+    $ XADD supervisor_ipstream * commands startGraph
+```
+4. (Optional) If you want to start the graph with a specific file, run the following command:
+```
+    $ XADD supervisor_ipstream * commands startGraph file       <name_of_the_graph_yaml_file>
+```    
+5. Now that the nodes have started, you can check the status of the graph using the following command in redis-cli:
+```
+    $ XREVRANGE graph_status + - COUNT 1
+```
+
+6. To check the metadata published in form of a master dictionary, run the following command in redis-cli:
+```
+    $ XREVRANGE supergraph_stream + - COUNT 1
+```
+7. To stop the graph, run the following command in redis-cli:
+```
+    $ XADD supervisor_ipstream * commands stopGraph
+```
+8. To stop the graph and save NWB export files, run the following command in redis-cli:
+```
+    $ XADD supervisor_ipstream * commands stopGraphAndSaveNWB
+```
+
+
+## Redis streams used in supervisor
+1. `supergraph_stream` : This stream is used to publish the metadata of the graph.
+2. `graph_status` : This stream is used to publish the status of the graph.
+3. `supervisor_ipstream` : This stream is used to publish the commands to the supervisor.
+4. `<node_name>_stream` : This stream is used for checking data on the <node_name> stream, where <node_name> is the name of the node.
+5. `<node_name>_state` : This stream is used to publish the status of the node.
+
+### Graph status codes on `graph_status` stream
+> The following are the status codes that are published on `graph_status` stream:
+```
+    initialized : Graph is initialized.
+    parsing : Graph is being parsed for nodes and parameters.
+    graph_failed : Graph failed to initialize due to some error.
+    running : Graph is parsed and running.
+    published : Graph is published on supergraph_stream as a master dictionary.
+    stopped/not initialized : Graph is stopped or not initialized.
+```
