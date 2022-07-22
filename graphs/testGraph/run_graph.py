@@ -37,7 +37,7 @@ if args.from_path:
     r.xadd(
         'supervisor_ipstream', {
             'commands': 'startGraph',
-            'file': args.graph
+            'file': os.path.abspath(args.graph)
         })
 else:
     print(f'Starting graph from {args.graph} as JSON')
