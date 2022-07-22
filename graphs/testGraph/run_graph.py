@@ -7,7 +7,6 @@ import redis
 import yaml
 
 test_dir = os.path.dirname(__file__)
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-d',
                     '--duration',
@@ -16,7 +15,7 @@ parser.add_argument('-d',
                     help="time (seconds) to wait before stopping the graph")
 parser.add_argument("-g",
                     "--graph",
-                    default='testGraph.yaml',
+                    default=os.path.join(test_dir, 'testGraph.yaml'),
                     required=False,
                     help="path to graph file")
 parser.add_argument('-f',
@@ -38,7 +37,7 @@ if args.from_path:
     r.xadd(
         'supervisor_ipstream', {
             'commands': 'startGraph',
-            'file': os.path.abspath(os.path.join(test_dir, args.graph))
+            'file': args.graph
         })
 else:
     print(f'Starting graph from {args.graph} as JSON')
