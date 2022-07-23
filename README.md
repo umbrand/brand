@@ -447,10 +447,10 @@ $ redis-cli -h <hostname> -p <port>
 ### Graph status codes on `graph_status` stream
 > The following are the status codes that are published on `graph_status` stream:
 ```
-    initialized : Graph is initialized.
-    parsing : Graph is being parsed for nodes and parameters.
-    graph_failed : Graph failed to initialize due to some error.
-    running : Graph is parsed and running.
-    published : Graph is published on supergraph_stream as a master dictionary.
-    stopped/not initialized : Graph is stopped or not initialized.
+    initialized             - Graph is initialized.
+    parsing                 - Graph is being parsed for nodes and parameters.
+    graph_failed            - Graph failed to initialize due to some error.
+    running                 - Graph is parsed and running.
+    published               - Graph is published on supergraph_stream as a master dictionary.
+    stopped/not initialized - Graph is stopped or not initialized.
 ```
