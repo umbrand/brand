@@ -125,7 +125,6 @@ class BRANDNode():
         for node in model_data['nodes']:
             if model_data['nodes'][node]['nickname'] == self.NAME:
                 node_parameters = model_data['nodes'][node]['parameters']
-                print(type(model_data['nodes'][node]['parameters']))
                 break
 
         #for parameter in node_parameters:
