@@ -58,15 +58,13 @@ class FunctionGenerator(BRANDNode):
         self.x = np.sin(self.t_arr + (self.i * 0.05 * 2 * np.pi),
                         dtype=np.float64).dot(self.A.T)
 
-        self.syncDict = {'i': self.i}
+        self.syncDict['i'] = self.i
         self.syncDictJson = json.dumps(self.syncDict)
 
-        self.stream_entry = {
-            'ts': np.uint64(time.monotonic_ns()).tobytes(),
-            'sync': self.syncDictJson.encode(),
-            'samples': self.x.tobytes(),
-            'i': np.uint64(self.i).tobytes()
-        }
+        self.stream_entry['ts'] = np.uint64(time.monotonic_ns()).tobytes()
+        self.stream_entry['sync'] = self.syncDictJson.encode()
+        self.stream_entry['samples'] = self.x.tobytes()
+        self.stream_entry['i'] = np.uint64(self.i).tobytes()
 
         self.r.xadd('func_generator', self.stream_entry)
 
