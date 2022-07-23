@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 # func_generator.py
 
+import gc
+import json
 import logging
 import time
-import gc
-import numpy as np
-import json
 
+import numpy as np
 from brand import BRANDNode
+from brand.timing import clock_nanosleep
 
 
 class FunctionGenerator(BRANDNode):
@@ -31,17 +32,17 @@ class FunctionGenerator(BRANDNode):
         self.total_samples = np.floor(self.duration * self.sample_rate)
 
         # initialize output stream entry data
-        self.i = 0
+        i = 0
         self.x = np.zeros((1, self.n_features), dtype=np.float64)
 
-        self.syncDict = {'i': self.i}
+        self.syncDict = {'i': i}
         self.syncDictJson = json.dumps(self.syncDict)
 
         self.stream_entry = {
             'ts': time.monotonic(),
             'sync': self.syncDictJson.encode(),
             'samples': self.x.tobytes(),
-            'i': self.i
+            'i': i
         }
 
         logging.info('Starting function generator...')
@@ -54,21 +55,19 @@ class FunctionGenerator(BRANDNode):
         logging.info(f'Generating {self.n_features} features for '
                      f'{self.n_targets} targets')
 
-    def send_sample(self):
-        self.x = np.sin(self.t_arr + (self.i * 0.05 * 2 * np.pi),
+    def send_sample(self, i):
+        self.x = np.sin(self.t_arr + (i * 0.05 * 2 * np.pi),
                         dtype=np.float64).dot(self.A.T)
 
-        self.syncDict['i'] = self.i
+        self.syncDict['i'] = i
         self.syncDictJson = json.dumps(self.syncDict)
 
         self.stream_entry['ts'] = np.uint64(time.monotonic_ns()).tobytes()
         self.stream_entry['sync'] = self.syncDictJson.encode()
         self.stream_entry['samples'] = self.x.tobytes()
-        self.stream_entry['i'] = np.uint64(self.i).tobytes()
+        self.stream_entry['i'] = np.uint64(i).tobytes()
 
         self.r.xadd('func_generator', self.stream_entry)
-
-        self.i += 1
 
     def run(self):
 
@@ -76,16 +75,18 @@ class FunctionGenerator(BRANDNode):
 
         logging.info('Sending data...')
 
-        last_time = 0
         # send samples to Redis at the specified sampling rate
-        while self.i < self.total_samples:
-            current_time = time.perf_counter()
-            if current_time - last_time >= 1 / self.sample_rate:
-                self.send_sample()
-                last_time = current_time
+        interval = 1_000_000_000 // self.sample_rate  # nanoseconds
+        start_time = time.monotonic_ns()
+        i = 0
+        while i < self.total_samples:
+            self.send_sample(i)
+            i += 1
+            clock_nanosleep(start_time + i * interval,
+                            clock=time.CLOCK_MONOTONIC)
 
         if self.stop_graph_when_done:
-            time.sleep(1)
+            time.sleep(1)  # give the downstream nodes some time to process
             self.r.xadd('supervisor_ipstream', {'commands': 'stopGraph'})
 
 
