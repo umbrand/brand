@@ -89,7 +89,7 @@ sub_params = graph['nodes'][sub_idx]['parameters']
 
 # store the number of channels
 n_channels = pub_params['n_channels']
-pub_params['n_channels'] = n_channels
+
 # set parameters
 graph['nodes'][pub_idx]['parameters'] = pub_params
 graph['nodes'][sub_idx]['parameters'] = sub_params
@@ -148,7 +148,7 @@ axs[0].set_ylabel('Sample Interval (ms)')
 axs[0].legend(loc='upper left')
 
 # Subplot 2
-step_int = 0.5
+step_int = 0.01
 bins = np.arange(np.ceil(pub_intervals.max()) + step_int, step=step_int)
 axs[1].hist(pub_intervals, bins=bins, histtype='step', linewidth=2)
 axs[1].set_title('Sample Frequency in Publisher')
@@ -166,7 +166,7 @@ axs[2].set_ylabel('Latency (ms)')
 axs[2].legend(loc='upper left')
 
 # Subplot 4
-step_lat = 0.05
+step_lat = 0.01
 bins = np.arange(np.ceil(latencies.max()) + step_lat, step=step_lat)
 axs[3].hist(latencies, bins=bins, histtype='step', linewidth=3)
 axs[3].set_title('Latency Frequency (Pub -> Sub)')
