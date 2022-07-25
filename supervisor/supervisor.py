@@ -27,7 +27,7 @@ class Supervisor:
         self.BRAND_BASE_DIR = os.getcwd()
 
         self.save_path = self.BRAND_BASE_DIR
-        self.save_path_rdb = os.path.join(self.save_path, "RDB")
+        self.save_path_rdb = self.save_path
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
@@ -62,8 +62,10 @@ class Supervisor:
         ap.add_argument("-g", "--graph", required=False, help="path to graph file")
         ap.add_argument("-i", "--host", required=False, help="ip address to bind redis server to")
         ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
+        ap.add_argument("-s", "--socket", required=False, help="unix socket to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
+        ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -87,7 +89,12 @@ class Supervisor:
         else:
             self.port = 6379
 
+        self.unixsocket = args.socket
+        if self.unixsocket is not None:
+            self.redis_args += ['--unixsocket', self.unixsocket]
+
         self.machine = args.machine
+        self.redis_priority = args.redis_priority
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -149,6 +156,9 @@ class Supervisor:
 
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
+        if self.redis_priority:
+            chrt_args = ['chrt', '-f', f'{self.redis_priority :d}']
+            redis_command = chrt_args + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
@@ -304,7 +314,6 @@ class Supervisor:
                 self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
                 if(pid > 0):
                     try:
-                        self.read_commands_from_redis()
                         logger.info("Parent process is running and waiting for commands from redis..")
                         self.parent = os.getpid()
                         self.children.append(pid)
@@ -321,17 +330,19 @@ class Supervisor:
                     logger.info("Node Stream Name: %s" % node_stream_name)
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
-                    args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                    args = [binary, '-n',node_stream_name]
+                    args += ['-hs', host, '-p', str(port)]
+                    if self.unixsocket:
+                        args += ['-s', self.unixsocket]
                     if 'run_priority' in node_info:  # if priority is specified
-                      priority = node_info['run_priority']
-                      if priority:  # if priority is not None or empty
-                          chrt_args = ['chrt', '-f', str(int(priority))]
-                          args = chrt_args + args
+                        priority = node_info['run_priority']
+                        if priority:  # if priority is not None or empty
+                            chrt_args = ['chrt', '-f', str(int(priority))]
+                            args = chrt_args + args
                     try:
                         subprocess.run(args)
                     except subprocess.CalledProcessError as e:
                         logger.info("Something wrong",e)
-
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
@@ -392,14 +403,12 @@ class Supervisor:
         logger.info('SIGINT received, Exiting')
         sys.exit(0)
 
-
-    def parseCommands(self,command,file=None,rdb_filename=None):
+    def parseCommands(self, command, file=None, rdb_filename=None, graph=None):
         '''
         Parses the command and calls the appropriate function
         Args:
             command: command to be parsed
         '''
-
         if command == "startGraph" and file is not None:
             logger.info("Start graph command received with file")
             graph_dict = {}
@@ -410,6 +419,10 @@ class Supervisor:
                 logger.error(exc)
                 sys.exit(1)
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
+            self.start_graph()
+        elif command == "startGraph" and graph is not None:
+            logger.info("Start graph command received with graph dict")
+            self.load_graph(graph)
             self.start_graph()
         elif command == "startGraph":
             logger.info("Start graph command received")
@@ -423,31 +436,24 @@ class Supervisor:
         else:
             logger.warning("Invalid command")
 
-    def read_commands_from_redis(self):
-        '''
-        Reads the commands from redis and calls the appropriate function
-        '''
-        commands = {
-        "startGraph": "",
-        "stopGraph": "",
-        "file": "",
-        }
-        if(self.r.ping()):
-            self.r.xadd("supervisor_ipstream",commands)
-
-
 
 def main():
     supervisor = Supervisor()
+    last_id = '$'
     while(True):
-        cmd = supervisor.r.xread({"supervisor_ipstream":"$"},count=1,block=50000)
+        cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
+                                 count=1,
+                                 block=50000)
         if cmd:
             key,messages = cmd[0]
             last_id,data = messages[0]
             cmd = (data[b'commands']).decode("utf-8")
-            if(len(data) == 2):
+            if b'file' in data:
                 file = data[b'file'].decode("utf-8")
-                supervisor.parseCommands(cmd,file)
+                supervisor.parseCommands(cmd, file=file)
+            elif b'graph' in data:
+                graph = json.loads(data[b'graph'])
+                supervisor.parseCommands(cmd, graph=graph)
             else:
                 supervisor.parseCommands(cmd)
 
