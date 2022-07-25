@@ -83,21 +83,21 @@ r.xadd('supervisor_ipstream', {
 )
 
 #Create Dataframe from streams
-replies1 = r.xrange(b'func_generator')
+# replies1 = r.xrange(b'func_generator')
 
-entries1 = []
-for i, reply in enumerate(replies1):
-    entry_id, entry_dict = reply
-    entry = {
-        'samples': np.frombuffer(entry_dict[b'samples'], dtype=np.float64),
-        'ts': float(entry_dict[b'ts']),
-        'sync': entry_dict[b'sync'],
-        'i': int(entry_dict[b'i'])
-    }
-    entries1.append(entry)
+# entries1 = []
+# for i, reply in enumerate(replies1):
+#     entry_id, entry_dict = reply
+#     entry = {
+#         'samples': np.frombuffer(entry_dict[b'samples'], dtype=np.float64),
+#         'ts': float(entry_dict[b'ts']),
+#         'sync': entry_dict[b'sync'],
+#         'i': int(entry_dict[b'i'])
+#     }
+#     entries1.append(entry)
 
-func_gen_df = pd.DataFrame(entries1)
-func_gen_df.set_index('i', inplace=True)
+# func_gen_df = pd.DataFrame(entries1)
+# func_gen_df.set_index('i', inplace=True)
 
 # Plot total latencies between nodes
 replies2 = r.xrange(b'rnn_decoder')
@@ -106,9 +106,9 @@ for i, reply in enumerate(replies2):
     entry_id, entry_dict = reply
     entry = {
         'preds': np.frombuffer(entry_dict[b'y'], dtype=np.float32),
-        'ts_gen': float(entry_dict[b'ts_gen']),
-        'ts': float(entry_dict[b'ts']),
-        'read_time': float(entry_dict[b'read_time']),
+        'ts_in': float(entry_dict[b'ts_gen']),
+        'ts_add': float(entry_dict[b'ts']),
+        'ts_read': float(entry_dict[b'read_time']),
         'before_pred': float(entry_dict[b'before_pred']),
         'i': int(entry_dict[b'i'])
     }
@@ -124,6 +124,5 @@ r.memory_purge()
 
 # save dataframe
 date_str = datetime.now().strftime(r'%y%m%dT%H%M')
-with open(f'dataframes/{date_str}_data.pkl', 'wb') as f:
-    pickle.dump(func_gen_df, f)
+with open(f'dataframes/{date_str}_RNNdata.pkl', 'wb') as f:
     pickle.dump(rnn_data, f)

@@ -80,6 +80,7 @@ class Decoder(BRANDNode):
             'y': np.zeros(self.n_targets).tobytes(),
             'n_features': self.n_features,
             'n_targets': self.n_targets,
+            'ts_read': float()
         }
 
         stream_dict = {b'func_generator': self.data_id}
@@ -87,6 +88,7 @@ class Decoder(BRANDNode):
         while True:
             # read from the function generator stream
             streams = self.r.xread(stream_dict, block=0, count=1)
+            ts_read = time.monotonic()
             stream_name, stream_entries = streams[0]
             self.data_id, entry_dict = stream_entries[0]
             stream_dict[b'func_generator'] = self.data_id
@@ -96,10 +98,11 @@ class Decoder(BRANDNode):
             y = self.predict(x)
 
             # write results to Redis
-            decoder_entry['ts'] = time.monotonic()
             decoder_entry['ts_gen'] = float(entry_dict[b'ts'])
             decoder_entry['i'] = int(entry_dict[b'i'])
             decoder_entry['y'] = y.tobytes()
+            decoder_entry['ts_read'] = ts_read
+            decoder_entry['ts'] = time.monotonic()
             self.r.xadd('decoder', decoder_entry)
 
     def terminate(self, sig, frame):
