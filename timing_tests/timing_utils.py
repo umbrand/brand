@@ -101,8 +101,8 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
 
         elif type in ['OLE', 'RNN', 'NDT']:
             compare_fg_latency = np.diff(compare_data['ts_in'] * 1000, n=1)
-            compare_redis_latency = (compare_data['ts_before'] - compare_data['ts_in']) * 1000
-            compare_decoder_latency = (compare_data['ts_after'] - compare_data['ts_before']) * 1000
+            compare_redis_latency = (compare_data['ts_read'] - compare_data['ts_in']) * 1000
+            compare_decoder_latency = (compare_data['ts_add'] - compare_data['ts_read']) * 1000
             compare = [compare_fg_latency, compare_redis_latency, compare_decoder_latency]
 
         baseline_patch = mpatches.Patch(color='blue', label='Baseline')
