@@ -15,7 +15,7 @@ sys.path.append('..')
   
 from timing_utils import plot_decoder_timing, log_hardware
 
-test_time=5, 
+test_time=5
 compare=True
 
 # Connect to redis server
@@ -38,7 +38,7 @@ graph = {
             'module': '.',
             'redis_inputs': [],
             'redis_outputs': ['func_generator'],
-            'run_priority': 99,
+            # 'run_priority': 99,
             'parameters': {
                 'sample_rate': 200,
                 'n_features': 142,
@@ -54,7 +54,7 @@ graph = {
             'module': '.',
             'redis_inputs': ['func_generator'],
             'redis_outputs': ['ndt'],
-            'run_priority': 99,
+            # 'run_priority': 99,
             'parameters': {
                 'n_features': 142,
                 'cfg_path': 'nodes/ndt/src/config.yaml',
@@ -118,6 +118,7 @@ plot_decoder_timing(ndt_df, 'NDT', test_time=test_time)
 
 #clear redis
 r.delete('ndt')
+r.delete('func_generator')
 r.memory_purge()
 
 # # save dataframe
