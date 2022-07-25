@@ -7,11 +7,17 @@ import matplotlib.pyplot as plt
 import pickle
 import json
 import time
+import sys
+sys.path.append('..')
 
+from timing_utils import log_hardware, plot_decoder_timing
 from datetime import datetime
 
 # Connect to redis server
 r = redis.Redis(host='localhost', port=6379)
+
+test_time = 5
+compare = False
 
 # Define Graph
 graph = {
@@ -29,7 +35,7 @@ graph = {
             'module': '.',
             'redis_inputs': [],
             'redis_outputs': ['func_generator'],
-            #'run_priority': 99,
+            'run_priority': 99,
             'parameters': {
                 'sample_rate': 200,
                 'n_features': 130,
@@ -45,7 +51,7 @@ graph = {
             'module': '../brand-modules/brand-emory',
             'redis_inputs': ['func_generator'],
             'redis_outputs': ['rnn_decoder'],
-            #'run_priority': 99,
+            'run_priority': 99,
             'parameters': {
                 'n_features': 130,
                 'n_targets': 2,
@@ -64,40 +70,24 @@ r.xadd('supervisor_ipstream', {
         }   
 )
 
-# Let graph run for 5 minutes
-timer = time.time()
-last_min = 10
-print('Starting Timer...')
-while int(time.time() - timer) < 300:
-    current_time = int(time.time() - timer)
-    min = current_time // 60
-    if min != last_min:
-        print(f'Minutes Passed: {min}')
-        last_min = min
+# Let graph run for test_time minutes (Default is 5)
+print(f'Running graph for {test_time} min...')
+total_secs = 5 * test_time
+
+while total_secs:
+    mins, secs = divmod(total_secs, 60)
+    timer = ' Time remaining: {:02d}:{:02d}'.format(mins, secs)
+    print(timer, end="\r")
+    time.sleep(1)
+    total_secs -= 1
+
+print('Stopping graph...          ')
 
 # Stop the Graph
-print('Stopping graph...')
 r.xadd('supervisor_ipstream', {
         'commands': 'stopGraph'
         }   
 )
-
-#Create Dataframe from streams
-# replies1 = r.xrange(b'func_generator')
-
-# entries1 = []
-# for i, reply in enumerate(replies1):
-#     entry_id, entry_dict = reply
-#     entry = {
-#         'samples': np.frombuffer(entry_dict[b'samples'], dtype=np.float64),
-#         'ts': float(entry_dict[b'ts']),
-#         'sync': entry_dict[b'sync'],
-#         'i': int(entry_dict[b'i'])
-#     }
-#     entries1.append(entry)
-
-# func_gen_df = pd.DataFrame(entries1)
-# func_gen_df.set_index('i', inplace=True)
 
 # Plot total latencies between nodes
 replies2 = r.xrange(b'rnn_decoder')
@@ -117,6 +107,9 @@ for i, reply in enumerate(replies2):
 rnn_data = pd.DataFrame(entries2)
 rnn_data.set_index('i', inplace=True)
 
+# Plot timing results
+plot_decoder_timing(rnn_data, 'RNN', test_time=test_time)
+
 #clear redis
 r.delete('func_generator')
 r.delete('rnn_decoder')
@@ -126,3 +119,6 @@ r.memory_purge()
 date_str = datetime.now().strftime(r'%y%m%dT%H%M')
 with open(f'dataframes/{date_str}_RNNdata.pkl', 'wb') as f:
     pickle.dump(rnn_data, f)
+
+# log hardware used
+log_hardware(f'RNN_{date_str}')

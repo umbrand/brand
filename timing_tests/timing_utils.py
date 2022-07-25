@@ -42,7 +42,7 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
     if type == 'PUB_SUB':
         title = f'Publisher Subscriber Latency Analysis ({test_time} min)' if (
             compare_data is None
-        ) else f'Publisher Subscriber Latency Comparison vs Basline ({test_time} min)'
+        ) else f'Publisher Subscriber Latency Comparison vs Baseline ({test_time} min)'
 
         # publisher latency
         axs[0].set_title('Intersample Latency for publisher (1000hz, ???????????????????ch)')
@@ -54,7 +54,7 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
 
         # subscriber latency
         axs[2].set_title(f'{type} Intersample Latency for subscriber')
-        sub_latency = (time_data['ts_sub'] - time_data['ts_before']) * 1000
+        sub_latency = np.diff(time_data['ts_sub'] * 1000, n=1)
 
         # Data array for easy looping
         data = [pub_latency, redis_latency, sub_latency]
@@ -72,11 +72,11 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
 
         # redis latency
         axs[1].set_title('Redis Transmission Latency')
-        redis_latency = (time_data['ts_before'] - time_data['ts_in']) * 1000
+        redis_latency = (time_data['ts_read'] - time_data['ts_in']) * 1000
 
         # ndt node latency
         axs[2].set_title(f'{type} Node Latency')
-        decoder_latency = (time_data['ts_after'] - time_data['ts_before']) * 1000
+        decoder_latency = (time_data['ts_add'] - time_data['ts_read']) * 1000
 
         # Data array for easy looping
         data = [fg_latency, redis_latency, decoder_latency]
@@ -111,7 +111,7 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
 
 
     # Divide data into 5 ticks on x axis 
-    data_div = int(len(time_data['ts_before'])/5)
+    data_div = int(len(time_data['ts_read'])/5)
 
     # Loop through plots, plot latency, update axis info, and print stats
     for idx, ax in enumerate(axs):

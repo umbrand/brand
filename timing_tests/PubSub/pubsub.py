@@ -185,5 +185,5 @@ r.delete('subscriber')
 r.memory_purge()
 
 #save df
-with open(f'dfs/{date_str}_pubsub_data.pkl', 'wb') as f:
+with open(f'dataframes/{date_str}_pubsub_data.pkl', 'wb') as f:
     pickle.dump(pubsub_df, f)
