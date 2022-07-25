@@ -105,9 +105,9 @@ for i, reply in enumerate(replies2):
     entry_id, entry_dict = reply
     entry = {
         'preds': np.frombuffer(entry_dict[b'y'], dtype=np.float32),
-        'ts_gen': float(entry_dict[b'ts_gen']),
-        'ts': float(entry_dict[b'ts']),
-        'read_time': float(entry_dict[b'read_time']),
+        'ts_in': float(entry_dict[b'ts_gen']),
+        'ts_add': float(entry_dict[b'ts']),
+        'ts_read': float(entry_dict[b'ts_read']),
         'i': int(entry_dict[b'i'])
     }
     entries2.append(entry)
