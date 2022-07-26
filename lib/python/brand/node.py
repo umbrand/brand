@@ -16,7 +16,7 @@ class BRANDNode():
         # parse input arguments
         argp = argparse.ArgumentParser()
         argp.add_argument('-n', '--nickname', type=str, required=True, default='node')
-        argp.add_argument('-hs', '--redis_host', type=str, required=True, default='localhost')
+        argp.add_argument('-i', '--redis_host', type=str, required=True, default='localhost')
         argp.add_argument('-p', '--redis_port', type=int, required=True, default=6379)
         args = argp.parse_args()
         

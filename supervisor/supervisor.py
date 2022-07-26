@@ -321,7 +321,7 @@ class Supervisor:
                     logger.info("Node Stream Name: %s" % node_stream_name)
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
-                    args = [binary, '-n',node_stream_name,'-hs', host, '-p', str(port)]
+                    args = [binary, '-n',node_stream_name,'-i', host, '-p', str(port)]
                     if 'run_priority' in node_info:  # if priority is specified
                       priority = node_info['run_priority']
                       if priority:  # if priority is not None or empty

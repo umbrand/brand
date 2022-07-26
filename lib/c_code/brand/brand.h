@@ -1,7 +1,20 @@
 /* Utilities for working with BRAND in Redis */
 
+#include  <stdbool.h>
 #include  <hiredis.h>
 #include  "nxjson.h"
+
+//--------------------------------------------------------------
+// Parse command line arguments
+//--------------------------------------------------------------
+
+typedef struct command_line_args_t {
+    int redis_port;
+    char redis_host[20];
+    char node_stream_name[20];
+} command_line_args_t;
+
+void parse_command_line_args(int argc, char **argv, command_line_args_t *p);
 
 //--------------------------------------------------------------
 // Connect to Redis from commandline flags
@@ -22,9 +35,9 @@ void increment_redis_id(char *);
 // Tools for working with nxson
 //--------------------------------------------------------------
 
-char** get_parameter_string(const nx_json *json, const char *node, const char *parameter, char **output);
+char* get_parameter_string(const nx_json *json, const char *node, const char *parameter);
 char*** get_parameter_list_string(const nx_json *json, const char *node, const char *parameter, char ***output,int *n);
-void get_parameter_int(const nx_json *json, const char *node, const char *parameter, int *output);
+int get_parameter_int(const nx_json *json, const char *node, const char *parameter);
 void get_parameter_float(const nx_json *json, const char *node, const char *parameter, float *output);
 void get_parameter_bool(const nx_json *json, const char *node, const char *parameter, bool *output);
 const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *supergraph_id);

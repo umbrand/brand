@@ -3,7 +3,6 @@
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h>
-#include <stdbool.h>
 #include <unistd.h>
 #include <signal.h>
 #include "brand.h"
@@ -23,23 +22,31 @@
 // #define REDIS_REPLY_BIGNUM 13
 // #define REDIS_REPLY_VERB 14
 
-char * getNicknameFromCommandLine(int argc, char **argv) { 
+void parse_command_line_args(int argc, char **argv, command_line_args_t *p) { 
 
     int opt;
-    char *node_stream_name;
+    int redis_port;
+    char redis_host[20];
+    char node_stream_name[20];
 
-    while ((opt = getopt(argc, argv, "n:")) != -1) {
+    printf("parsing command line args\n");
 
+    while ((opt = getopt(argc, argv, "n:i:p:")) != -1) {
         switch (opt) { 
-            case 'n': node_stream_name = optarg;break;
+            case 'n': strcpy(node_stream_name, optarg); break;
+            case 'i': strcpy(redis_host, optarg); break;
+            case 'p': redis_port = atoi(optarg); break;
         }
     }
 
-    return node_stream_name; 
-}
+    p->redis_port = redis_port;
+    strcpy(p->redis_host, redis_host);
+    strcpy(p->node_stream_name, node_stream_name);
 
-void free_redis_id(char *id) {
-    free(id);
+    printf("redis host: %s\n", p->redis_host);
+    printf("redis port: %d\n", p->redis_port);
+    printf("node nickname: %s\n", p->node_stream_name); 
+
 }
 
 //---------------------------------------------------------------------------
@@ -55,15 +62,20 @@ redisContext *connect_to_redis_from_commandline_flags(int argc, char **argv) {
     char *redis_host;
     char *node_stream_name;
 
+    printf("parsing command line args\n");
+
     while ((opt = getopt(argc, argv, "n:hs:p:")) != -1) {
 
         switch (opt) { 
             case 'n': node_stream_name = optarg;break;
-            case 'hs' : redis_host = optarg; break;
-            case 'p' : redis_port = atoi(optarg); break;
+            case 'hs': redis_host = optarg; break;
+            case 'p': redis_port = atoi(optarg); break;
         }
     }
 
+    printf("redis host: %s\n", redis_host);
+    printf("redis port: %d\n", redis_port);
+    printf("node nickname: %s\n", node_stream_name);
 
     return redisConnect(redis_host, redis_port); 
 }
@@ -101,7 +113,7 @@ void assert_object(const nx_json *json, nx_json_type json_type) {
         printf("Json structure returned null.\n");
         exit(1);
     } else if (json->type != json_type) {
-        printf("The key %s has type %d and you are trying to assert it has type %d\n", json->key, json->type, json_type);
+        printf("The key \"%s\" has type %d and you are trying to assert it has type %d\n", json->key, json->type, json_type);
         exit(1);
     }
 }
@@ -135,30 +147,42 @@ void print_type(nx_json_type json_type)
 // Get the JSON object corresponding to a particular node's parameter.
 const nx_json *get_parameter_object(const nx_json *json, const char *node, const char *parameter)
 {
+    printf("Loading param %s\n", parameter);
     // The JSON object of the nodes in the supergraph
     const nx_json *object_nodes = nx_json_get(json, "nodes");
     assert_object(object_nodes, NX_JSON_OBJECT);
     //search for the node in the nodes object
-     if( strcmp(nx_json_get(object_nodes, node)->key, node) == 0)
-     {
+    if( strcmp(nx_json_get(object_nodes, node)->key, node) == 0)
+    {
         printf("Found node %s\n", node);
         // The JSON object of the parameters of the node
         const nx_json *node_parameters = nx_json_get(nx_json_get(object_nodes, node),"parameters");
-        assert_object(node_parameters, NX_JSON_ARRAY);
+        printf("# parameters %d\n", node_parameters->children.length);
+        //assert_object(node_parameters, NX_JSON_ARRAY);
         //search for the parameter in the parameters array
+        
+        const nx_json *this_parameter = nx_json_get(node_parameters, parameter);
+        if (this_parameter == NULL) {
+            printf("parameter %s returned null.\n", parameter);
+            exit(1);
+        }
+        return this_parameter;
+        /*
         for(int i=0;i<node_parameters->children.length;i++)
         {
             const nx_json *this_parameter = nx_json_item(node_parameters, i);
             const nx_json *this_parameter_name = nx_json_get(this_parameter, "name");
             assert_object(this_parameter_name, NX_JSON_STRING);
             // Is this the parameter we're looking for?
+            printf("Found parameters %s\n", this_parameter_name->text_value);
             if (strcmp(this_parameter_name->text_value, parameter) == 0) 
             {
                 //printf("Found parameter %s\n", parameter);
                 return this_parameter;
             }
         }
-     }
+        */
+    }
 
     printf("Node %s not found in the supergraph\n", node);
     exit(1);
@@ -169,24 +193,27 @@ const nx_json *get_parameter_object(const nx_json *json, const char *node, const
 //-------------------------------------------------------------------
 
 // TODO: This function should allocate memory, rather than depending on the user to allocate memory
-char** get_parameter_string(const nx_json *json, const char *node, const char *parameter, char **output) 
+char* get_parameter_string(const nx_json *json, const char *node, const char *parameter) 
 {
-    *output =(char*)malloc(sizeof(char) * 512);
+    //output =(char*)malloc(sizeof(char) * 512);
+    //char output[100] = {0};
+
     const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
-    assert_object(parameter_type, NX_JSON_STRING);
-    if (strcmp(parameter_type->text_value, "string") == 0) 
+    //const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
+    //assert_object(parameter_type, NX_JSON_STRING);
+    if (parameter_object->type == NX_JSON_STRING) 
     {
         printf("Found parameter %s\n", parameter);
-        const nx_json *parameter_value = nx_json_get(parameter_object, "value");
-        strcpy(*output, parameter_value->text_value);
+        //const nx_json *parameter_value = nx_json_get(parameter_object, "value");
+        //strcpy(*output, parameter_object->text_value)
+        return(parameter_object->text_value);
     } 
     else 
     {
         printf("Parameter %s does not have the type string\n", parameter);
         exit(1);
     }
-    return(output);
+    //return(output);
 }
 
 
@@ -199,7 +226,7 @@ char** get_parameter_string(const nx_json *json, const char *node, const char *p
 
 char*** get_parameter_list_string(const nx_json *json, const char *node, const char *parameter, char ***output, int *n)
 {
-     const nx_json *parameter_object = get_parameter_object(json, node, parameter);
+    const nx_json *parameter_object = get_parameter_object(json, node, parameter);
     const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
     assert_object(parameter_type, NX_JSON_STRING);
     if (strcmp(parameter_type->text_value, "string") == 0) 
@@ -230,17 +257,16 @@ char*** get_parameter_list_string(const nx_json *json, const char *node, const c
 //-------------------------------------------------------------------
 //-- Get a parameter INT
 //-------------------------------------------------------------------
-void get_parameter_int(const nx_json *json, const char *node, const char *parameter, int *output)
+int get_parameter_int(const nx_json *json, const char *node, const char *parameter)
 {
     const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
-    assert_object(parameter_type, NX_JSON_STRING);
-    if (strcmp(parameter_type->text_value, "int") == 0) 
+    // assert integer type
+    if (parameter_object->type == NX_JSON_INTEGER) 
     {
         printf("Found parameter %s\n", parameter);
-        const nx_json *parameter_value = nx_json_get(parameter_object, "value");
-        assert_object(parameter_value, NX_JSON_INTEGER);
-        *output = parameter_value->num.u_value;
+        //const nx_json *parameter_value = nx_json_get(parameter_object, "value");
+        //assert_object(parameter_value, NX_JSON_INTEGER);
+        return (int)parameter_object->num.u_value;
     } 
     else 
     {
@@ -298,24 +324,17 @@ void get_parameter_bool(const nx_json *json, const char *node, const char *param
 
 const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *supergraph_id) {
 
-    printf("PRE REPLY\n");
+    //printf("PRE REPLY\n");
     char buffer[512];
-    printf("Supergraph_id: %s\n",supergraph_id);
+    //printf("Supergraph_id: %s\n",supergraph_id);
     sprintf(buffer, "XREVRANGE supergraph_stream + %s COUNT 1", supergraph_id);
-    printf("%s\n", buffer);
-    //redisAppendCommand(c, buffer);
-    //redisGetReply(c, (void **) &reply);
+    //printf("%s\n", buffer);
+
     reply = redisCommand(c,buffer);
     if (reply->type == REDIS_REPLY_ERROR) {
         printf("Error: %s\n", reply->str);
         exit(1);
     }
-
-    // printf("AA: %s\n", reply->str);
-    // printf("AA: %zu\n", reply->elements);
-    // printf("A: %s\n", reply->element[0]->str);
-    // printf("B: %zu\n", reply->element[0]->element[1]->element[1]->len);
-    // printf("C: %s\n", reply->element[0]->element[1]->element[1]->str);
 
     // This is a valid response, means there's nothing new to see, so we short circuit
     if (reply->type == REDIS_REPLY_NIL || reply->elements == 0)  
@@ -324,7 +343,7 @@ const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *sup
     // Now we get the stream data in string format (should be valid JSON, produced by supervisor.py)
     char *data = reply->element[0]->element[1]->element[1]->str;
     // Get the ID corresponding to the SUPERGRAPH and then increment it
-    strcpy(supergraph_id, reply->element[0]->element[0]->str);
+    //strcpy(supergraph_id, reply->element[0]->element[0]->str);
     // Now we parse this into JSON, and ensure that it's valid
     const nx_json *json = nx_json_parse_utf8(data);
     assert_object(json, NX_JSON_OBJECT);
