@@ -1,11 +1,11 @@
-# Branded Real-time Asynchronous Neural Data System (BRANDS)
-## Architecture
-BRANDS is built using a graph architecture with small, individual nodes that can be flexibly interconnected. Each node is a separate process, so as to allow for parallelization and re-prioritization of each node. Interprocess communication and data storage is all built around the [Redis](redis.io) in-memory database and caching system.
+# BRAND Real-time Asynchronous Neural Data System (BRAND)
 
-The layout of each graph is defined in its associated .yaml settings file. Graph settings files are organized by experimental site to allow easy sharing of graphs between experimental sites while allowing customization per-site. BRANDS is set up to make creation of new graphs and development of new nodes easy and consistent.
+## Overview
+BRAND is built using a graph architecture with small, individual nodes that can be flexibly interconnected. Each node is a separate process, so as to allow for parallelization and re-prioritization of each node. Interprocess communication and data storage is all built around the [Redis](redis.io) in-memory database and caching system.
 
+The layout of each graph is defined in its associated .yaml configuration file. Graph configuration files are organized by experimental site within modules, to allow easy sharing of graphs between experimental sites while allowing per-site customization. BRAND is set up to make creation of new graphs and development of new nodes easy and consistent.
 
-## Building
+## Install
 ### Requirements
 * Host Machine Running Ubuntu 18.04
 * Validated on PREEMPT_RT kernel version 5.4.40-rt24
@@ -14,7 +14,7 @@ The layout of each graph is defined in its associated .yaml settings file. Graph
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
 ### Environment Setup and Make
-`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/),  [hiredis](https://github.com/redis/hiredis), and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries, including submodule dependencies, and output them to `bin/`. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
+`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/),  [hiredis](https://github.com/redis/hiredis), and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries including submodule dependencies. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
 
 ```
 ./boostrap.sh
@@ -22,9 +22,10 @@ conda activate rt
 make
 ```
 
+Of note: if any of the source code is updated (for example, when developing a new node), `make` needs to be re-run for those changes to be reflected in the binaries that are run by BRAND. 
 
 
-# Session workflow
+## Session workflow
 
 Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
 
