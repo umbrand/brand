@@ -5,7 +5,8 @@ BRAND is built using a graph architecture with small, individual nodes that can 
 
 The layout of each graph is defined in its associated .yaml configuration file. Graph configuration files are organized by experimental site within modules, to allow easy sharing of graphs between experimental sites while allowing per-site customization. BRAND is set up to make creation of new graphs and development of new nodes easy and consistent.
 
-## Install
+## Installation
+
 ### Requirements
 * Host Machine Running Ubuntu 18.04
 * Validated on PREEMPT_RT kernel version 5.4.40-rt24
@@ -24,97 +25,115 @@ make
 
 Of note: if any of the source code is updated (for example, when developing a new node), `make` needs to be re-run for those changes to be reflected in the binaries that are run by BRAND. 
 
+## Directory Structure
 
-## Session workflow
-
-Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
-
-```
-source setup.sh
-setSite <site name>
-run <graph name>
-```
-
-### setup.sh
-`source` tells the shell to run all of the commands inside of the .sh file in the current terminal.
-
-`setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment, in case you forgot. 
-
-
-
-
-# Directory Structure
-
-The primary directory organization within the core BRAND directory is:
+BRAND follows the following directory structure (where `brand` corresponds to the main folder for this repository):
 
 ```
-nodes/
-libs/c/
-libs/python/
-packages/
-supervisor/
-brand-modules/<module-name>/nodes/
-brand-modules/<module-name>/graphs/
+|---brand
+    |---nodes
+    |---graphs
+    |---lib
+        |---c
+        |---python
+        |---<packages>
+    |---supervisor
+|---brand-modules
+    |---<module-name>
+        |---nodes
+        |---graphs
 ```
-where `module-name` is the name of the site you are working on.
-and it can be (davis.emory-public,emory-private,northwestern etc.)
+where `<module-name>` is the name of the name of an external code module that extends the core BRAND code through its own nodes and graphs (details on this below). 
 
 ### nodes/
->`nodes/` contains all of the code for the different nodes, each separated into a subdirectory. Within each node subdirectory, there should be the original code and a g compatible Makefile if the code is meant to be compiled. The compiled executable should be kept in the same directory and have a .bin extension. Ensure that you follow the below directory structure for each node.
+The `nodes` folder contains the code for different nodes that implement specific modular functions, each separated into its own subdirectory. Within each node subdirectory, there should be the node's source code (can be optionally organized within a `src` directory), a gnu-compatible Makefile for compiling the source code and generating the node's binary executable, and a README. Running `make` from the main BRAND directory, goes thorugh all of the node subdirectories and runs the respective Makefile, which should generate the compiled executable within the same directory and have a `.bin` extension. Ensure that you follow the below directory structure for each node:
 
 ```
-|---<nodes>
-    |
-    |---<nodename>
-        |
-        |---README.md
-        |---src
-            |---<Headerfiles>
-            |---<nodename>.c
-            |---<nodename>.cpp
-            |---<nodename>.m
-            |---<nodename>.py
-        |---<nodename>.bin
+|---nodes
+    |---<node_name>
+        |---<src_code>
         |---Makefile 
+        |---README.md
+        |---<node_name>.bin (built after running make)
 ```
+
 ### graphs/
->`graphs` contains the YAML settings files for the graphs. The directory organization is:
+The `graphs` folder contains the YAML configuration files for the graphs. This directory's organization is:
 
 ```
-    |---<graphs>
-        |---<graphname>
-            |
-            |---<graphname.yaml>
-            |---<graphname.pptx>
+|---graphs
+    |---<graph_name>
+        |---<graph_name.yaml>
 ```
 
+### lib/
 
-### libs/
-
->libs/ contains a series of libraries or helper functions needed to make the system work in c/python. For example:
+The `lib` folder contains libraries and helper functions required for the system to work. This includes BRAND specific C or Python libraries (c and python folders) and external packages (e.g. redis and hiredis). This directory's organization is:
 
 ```
-libs/c/<package-name>
-lib/python/<package-name>
+|---lib
+    |---c
+    |---python
+    |---redis
+    |---hiredis
+    |---<package_name>
 ```
-
-
-### packages/
->This contains core packages like hiredis/json which can be used by other modules.
 
 ### supervisor/
 
+This folder contains the code for the `supervisor` process, which is a core process in BRAND serving the following functions:
+1. Start a Redis server
+2. Load a graph and start nodes (upon receiving a "start" command)
+3. Maintain an internal model with the state of the graph
+    - List of nodes running and their PIDs
+    - Most recent published status of each node
+4. Stop graph and nodes (upon receiving a "stop" command)
 
-> Supervisor is a core process in BRAND serving the following functions - 
-1. Boots nodes
-    - Boots up a single graph with all the nodes and supervisor maintains PIDs of each independently running nodes.
-2. Kills nodes
-    - Receives command to stop all nodes.
-3. Maintain internal model of the state of the graph
-    - List of nodes running and their PIDs.
-    - Most recent published status of each node.
+### brand-modules/
 
-### Execution of Supervisor
+The core BRAND directory can be extended to run additional graphs and nodes from external modules. From the core BRAND directory, external modules must be installed to a `module-name` folder at the following path relative the to main BRAND directory:  
+
+```
+../brand-modules/<module-name>/
+```
+
+Within each module, the directory structure is the following: 
+
+```
+|---<module-name>
+    |---nodes
+    |---graphs
+```
+
+Where `nodes/` and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also go through the node Makefiles and rebuild the binary executables within all external module directories.  
+
+## Graph YAML files
+
+The configuration for a graph, that is, which nodes to run and using which parameters, is specified thorugh a graph YAML file. At a minimum, a graph YAML file should include a list of all nodes to run with their names, (unique) nicknames, relative path from core BRAND directory to module directory, and parameter list. Optionally, the graph YAML can also include the run priority for nodes and ID of the machine on which to run the node.
+```
+nodes:
+  - name: <node1_name>
+    nickname: <unique_nickname>
+    module: <path_to_module>
+    run_priority (optional): <run_priority>
+    machine: <machine_id>   
+    parameters:
+      <parameter1_name>: <parameter1_value>
+      <parameter2_name>: <parameter2_value>
+      ...
+  - name: <node2_name>
+    nickname: <unique_nickname>
+    module: <path_to_module>
+    run_priority: <run_priority>
+    machine: <machine_id>   
+    parameters:
+      <parameter1_name>: <parameter1_value>
+      <parameter2_name>: <parameter2_value>
+      ...
+  ...
+```
+
+## Execution of Supervisor
 Follow the below instructions and commands for running supervisor utility:
 
 1. Start the supervisor by running either of the following commands:
@@ -180,66 +199,24 @@ Follow the below instructions and commands for running supervisor utility:
 ```
 
 
-### brand-modules/
 
->The core BRAND directory can be extended to run additional graphs and nodes from an external module. From the core BRAND directory, external modules must be installed in the following relative path:  
 
-```
-../brand-modules/<module-name>/
-```
+## Session workflow
 
-And within each module, the primary organization is the following: 
+Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
 
 ```
-|---<nodes>
-    |
-    |---<nodename>
-        |
-        |---README.md
-        |---src
-            |---<Headerfiles>
-            |---<nodename>.c
-            |---<nodename>.cpp
-            |---<nodename>.m
-            |---<nodename>.py
-        |---<nodename>.bin
-        |---Makefile 
-|
-|
-|---<graphs>
-    |---<graph-name>
-        |
-        |---<graphname.yaml>
-        |---<graphname.pptx>
+source setup.sh
+setSite <site name>
+run <graph name>
 ```
 
-Where `nodes/` and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also rebuild all nodes within the external module directories.  
+### setup.sh
+`source` tells the shell to run all of the commands inside of the .sh file in the current terminal.
+
+`setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment, in case you forgot. 
 
 
-## YAML files
-
-### graphs
-
-
-YAML files used for configuring graphs at minimum should contain information on a list of all nodes to run with their names, version number, execution stage, relative path from core BRAND directory to module, Redis I/O streams, and parameters:
-```
-metadata:
-    participant-id: <participant id>
-    graph_name: <graph name>
-    description: <description>
-    participant_file: <participant file>
-nodes:
-    - name: <node name>
-      nickname: <nickname>
-      module: <module name>
-      redis_inputs: <redis input stream> in form of [stream name, stream name, ...]
-      redis_outputs: <redis output stream> in form of [stream name, stream name, ...]
-      run_priority: <run priority>
-      machine: <machine name>   
-      parameters:
-          - name: <parameter name>
-            value: <parameter value>
-```
 
 
 
