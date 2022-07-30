@@ -14,7 +14,7 @@ The layout of each graph is defined in its associated .yaml configuration file. 
 * CUDA 10.0
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
-### Environment Setup and Make
+### Environment setup and Make
 `bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/),  [hiredis](https://github.com/redis/hiredis), and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries including submodule dependencies. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
 
 ```
@@ -25,7 +25,7 @@ make
 
 Of note: if any of the source code is updated (for example, when developing a new node), `make` needs to be re-run for those changes to be reflected in the binaries that are run by BRAND. 
 
-## Directory Structure
+## Directory structure
 
 BRAND follows the following directory structure (where `brand` corresponds to the main folder for this repository):
 
@@ -133,21 +133,35 @@ nodes:
   ...
 ```
 
-## Execution of Supervisor
-Follow the below instructions and commands for running supervisor utility:
+## Session workflow
 
-1. Start the supervisor by running either of the following commands:
-```    
-    $ supervisor
-    $ python3 supervisor/supervisor.py -g <name_of_the_graph_yaml_file>
+After having installed and compiled the node executables, the following commands must be run to start the BRAND system:
+
 ```
- >Optionally, you can also use extra arguments with the supervisor utility. Below are the extra arguments that can be used:
- - `-g` / `--graph` : Name of the graph yaml file.
- - `-i` / `--ip` : IP address to bind the server node to.
- - `-p` / `--port` : Port number to bind the server node to.
- - `-c`/ `--cfg` : Name of the config file specific to redis server.
- - `-m` / `--machine` : Name of the machine on which the supervisor is running.
+$ source setup.sh
+$ supervisor [args]
+```
 
+ - `setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment. 
+ - `supervisor` is the core process controlling the BRAND system
+
+### Execution of the `supervisor`
+
+1. Start the `supervisor` process by running either of the following commands:
+```    
+$ supervisor [args]
+```
+Optionally, you can include extra arguments when running the `supervisor` to override its defaults. Below are the extra arguments that can be used:
+ 
+ - `-i` / `--ip`: IP address to bind the server node to (default: 127.0.0.1)
+ - `-p` / `--port`: Port number to bind the server node to (default: 6379)
+ - `-c`/ `--cfg`: Path to the Redis config file used to start the server (default: `supervisor/redis.supervisor.conf`)
+ - `-m` / `--machine`: ID of the machine on which the supervisor is running (default: none)
+ - `-g` / `--graph`: Name of the graph YAML file to pre-load (default: none)
+Example usage:
+```    
+$ supervisor -i 192.168.0.101 --port 6380
+```
 
 2. Once, the supervisor has started, you can open a separate terminal and run the following commands (-h and -p flags are optional if you're running on default host and port):
 ```
@@ -200,21 +214,6 @@ Follow the below instructions and commands for running supervisor utility:
 
 
 
-
-## Session workflow
-
-Having installed and compiled the code, there are some simple steps needed to run a session. We'll outline the series of instructions needed for running a session, and then describe what each stage is doing.
-
-```
-source setup.sh
-setSite <site name>
-run <graph name>
-```
-
-### setup.sh
-`source` tells the shell to run all of the commands inside of the .sh file in the current terminal.
-
-`setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment, in case you forgot. 
 
 
 
