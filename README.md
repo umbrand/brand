@@ -10,8 +10,6 @@ The layout of each graph is defined in its associated .yaml configuration file. 
 ### Requirements
 * Host Machine Running Ubuntu 18.04
 * Validated on PREEMPT_RT kernel version 5.4.40-rt24
-* Nvidia GPU with Compute Capabilities > ?
-* CUDA 10.0
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
 ### Environment setup and Make
