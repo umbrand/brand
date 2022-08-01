@@ -32,7 +32,7 @@ class RNN(pl.LightningModule):
         if train == True:
             train_yaml = 'src/train_RNN.yaml'
         else:
-            train_yaml = '../brand-modules/brand-emory/nodes/RNN_decoder/src/train_RNN.yaml'
+            train_yaml = './nodes/RNN_decoder/src/train_RNN.yaml'
         
         # Load hyperparameters from YAML file
         with open(train_yaml, 'r') as file:

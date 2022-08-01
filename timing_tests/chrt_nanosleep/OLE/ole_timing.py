@@ -38,7 +38,7 @@ graph = {
             'run_priority': 99,
             'parameters': {
                 'sample_rate': 200,
-                'n_features': 142,
+                'n_features': 256,
                 'n_targets': 2,
                 'log': 'INFO'
             }
@@ -53,7 +53,7 @@ graph = {
             'redis_outputs': ['decoder'],
             'run_priority': 99,
             'parameters': {
-                'n_features': 142,
+                'n_features': 256,
                 'n_targets': 2,
                 'decoder_type': 'linear',
                 'log': 'INFO',
@@ -72,7 +72,7 @@ r.xadd('supervisor_ipstream', {
 
 # Let graph run for test_time minutes (Default is 5)
 print(f'Running graph for {test_time} min...')
-total_secs = 5 * test_time
+total_secs = 60 * test_time
 
 while total_secs:
     mins, secs = divmod(total_secs, 60)

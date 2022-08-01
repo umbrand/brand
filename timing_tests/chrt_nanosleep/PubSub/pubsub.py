@@ -68,10 +68,10 @@ default_graph = {
             'run_priority': 99,
             'parameters': {
                 'log': 'INFO',
-                'n_channels': 128,
+                'n_channels': 256,
                 'seq_len': 30,
                 'data_type': 'int16',
-                'duration': 10,
+                'duration': 300,
                 'sample_rate': 1000,
                 'stop_graph_when_done': True
             }

@@ -67,7 +67,7 @@ def plot_decoder_timing(time_data, type, compare_data=None, test_time=5, y_start
         ) else f'{type} Decoder Latency Comparison vs Basline ({test_time} min)'
 
         # func_generator latency
-        axs[0].set_title('Intersample Latency for func_generator (200hz, 142ch)')
+        axs[0].set_title('Intersample Latency for func_generator (200hz, 256ch)')
         fg_latency = np.diff(time_data['ts_in'] * 1000, n=1)
 
         # redis latency

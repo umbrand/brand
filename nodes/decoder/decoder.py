@@ -95,10 +95,10 @@ class Decoder(BRANDNode):
             stream_dict[b'func_generator'] = self.data_id
 
             if self.loop == 'nanosleep':
-                decoder_entry['ts_gen'] = np.frombuffer(self.input_entry[b'ts'], dtype=np.uint64) / 1000000000
+                decoder_entry['ts_gen'] = float(np.frombuffer(entry_dict[b'ts'], dtype=np.uint64) / 1000000000)
                 decoder_entry['i'] = int(np.frombuffer(entry_dict[b'i'], dtype=np.uint64))
             elif self.loop == 'while_1':
-                decoder_entry['ts_gen'] = self.input_entry[b'ts']
+                decoder_entry['ts_gen'] = float(entry_dict[b'ts'])
                 decoder_entry['i'] = int(entry_dict[b'i'])
 
             # load the input and generate a prediction
