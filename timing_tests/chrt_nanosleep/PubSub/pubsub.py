@@ -2,7 +2,7 @@
 # imports
 import json
 import subprocess
-
+import os
 import redis
 import numpy as np
 import pandas as pd
@@ -185,5 +185,8 @@ r.delete('subscriber_sleep')
 r.memory_purge()
 
 #save df
+if not os.path.exists('dataframes'):
+    os.mkdir('dataframes/')
+
 with open(f'dataframes/{date_str}_pubsub_data.pkl', 'wb') as f:
     pickle.dump(pubsub_df, f)

@@ -8,6 +8,7 @@ import pickle
 import json
 import time
 import sys
+import os
 sys.path.append('..')
 
 from timing_utils import log_hardware, plot_decoder_timing
@@ -72,7 +73,7 @@ r.xadd('supervisor_ipstream', {
 
 # Let graph run for test_time minutes (Default is 5)
 print(f'Running graph for {test_time} min...')
-total_secs = 60 * test_time
+total_secs = 2 * test_time
 
 while total_secs:
     mins, secs = divmod(total_secs, 60)
@@ -116,6 +117,9 @@ r.delete('rnn_decoder')
 r.memory_purge()
 
 # save dataframe
+if not os.path.exists('dataframes'):
+    os.mkdir('dataframes/')
+
 date_str = datetime.now().strftime(r'%y%m%dT%H%M')
 with open(f'dataframes/{date_str}_RNNdata.pkl', 'wb') as f:
     pickle.dump(rnn_data, f)

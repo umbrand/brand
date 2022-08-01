@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import matplotlib.pyplot as plt
+import os
 
 from datetime import datetime
 
@@ -185,5 +186,8 @@ r.delete('subscriber')
 r.memory_purge()
 
 #save df
+if not os.path.exists('dataframes'):
+    os.mkdir('dataframes/')
+    
 with open(f'dataframes/{date_str}_pubsub_data.pkl', 'wb') as f:
     pickle.dump(pubsub_df, f)

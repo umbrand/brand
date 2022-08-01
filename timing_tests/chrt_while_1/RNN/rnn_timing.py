@@ -8,6 +8,7 @@ import pickle
 import json
 import time
 import sys
+import os
 sys.path.append('..')
 
 from timing_utils import log_hardware, plot_decoder_timing
@@ -116,6 +117,9 @@ r.delete('rnn_decoder')
 r.memory_purge()
 
 # save dataframe
+if not os.path.exists('dataframes'):
+    os.mkdir('dataframes/')
+
 date_str = datetime.now().strftime(r'%y%m%dT%H%M')
 with open(f'dataframes/{date_str}_RNNdata.pkl', 'wb') as f:
     pickle.dump(rnn_data, f)

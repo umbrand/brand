@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pickle
 import json
 import time
+import os
 from tqdm.autonotebook import tqdm
 from datetime import datetime
 
@@ -122,6 +123,9 @@ r.delete('func_generator')
 r.memory_purge()
 
 # # save dataframe
+if not os.path.exists('dataframes'):
+    os.mkdir('dataframes/')
+
 date_str = datetime.now().strftime(r'%m%d%y_%H%M')
 with open(f'dataframes/{date_str}_ndt.pkl', 'wb') as f:
     pickle.dump(ndt_df, f)
