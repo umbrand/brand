@@ -145,7 +145,7 @@ $ supervisor [args]
  - `setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment. 
  - `supervisor` is the core process controlling the BRAND system
 
-### Execution of the `supervisor`
+### Using the `supervisor`
 
 1. Start the `supervisor` process by running either of the following commands:
 ```    
@@ -160,69 +160,67 @@ Optionally, you can include extra arguments when running the `supervisor` to ove
  - `-g` / `--graph`: Name of the graph YAML file to pre-load (default: none)
 Example usage:
 ```    
-$ supervisor -i 192.168.0.101 --port 6380
+$ supervisor -i 192.168.0.101 --port 6379
 ```
 
-2. Once, the supervisor has started, you can open a separate terminal and run the following commands (-h and -p flags are optional if you're running on default host and port):
+2. Once the `supervisor` is running, it must receive a `startGraph` command through Redis to its `supervisor_ipstream` to start a graph. An example way to do this (which we suggest for testing) is to use `redis-cli`. You would have to open a separate terminal and first run the following command to open `redis-cli` (-h and -p flags are optional if you're running on default host/IP and port):
 ```
-    $ redis-cli -h <hostname> -p <port>
+    $ redis-cli -h <host> -p <port>
 ```
-3. Inside the redis-cli, run the following commands to start the graph:
+And you can then send the `startGraph`, providing the path to the graph YAML file to run: 
 ```
-    $ XADD supervisor_ipstream * commands startGraph
+    $ XADD supervisor_ipstream * commands startGraph file <path_to_the_graph_yaml_file>
 ```
-4. (Optional) If you want to start the graph with a specific file, run the following command:
+The `supervisor` will log a series of outputs following this command as it goes thorugh the graph YAML file, checks for node executable binaries and starts the nodes. All nodes from the graph YAML will be running after this.
+
+3. To stop the graph, use the following Redis command (using `redis-cli` or other Redis interface):
 ```
-    $ XADD supervisor_ipstream * commands startGraph file       <name_of_the_graph_yaml_file>
-```    
-5. Now that the nodes have started, you can check the status of the graph using the following command in redis-cli:
+    $ XADD supervisor_ipstream * commands stopGraph
+```
+Alternatively to stop the graph and save NWB export files, use the following Redis command (using `redis-cli` or other Redis interface). Note that this will require having your graph and nodes set up to support the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md).
+```
+    $ XADD supervisor_ipstream * commands stopGraphAndSaveNWB 
+```
+
+### Supported `supervisor` commands
+
+Commands can be sent to the `supervisor` through Redis using the following syntax: `XADD supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]`. The following commands are currently implemented:
+
+* `startGraph` [file <path_to_file>]: Start graph from YAML file path.
+* `stopGraph`: Stop graph, by stopping the processes for each running node.
+* `stopGraphAndSaveNWB`: Stop graph, save `rdb` file, generate NWB file, and flush the Redis database. Requires following the following guidelines: [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md). Suggested for running independent session blocks.
+
+### Redis streams used with the `supervisor`
+
+* `supervisor_ipstream`: This stream is used to publish commands for the supervisor.
+* `graph_status`: This stream is used to publish the status of the current graph.
+* `supergraph_stream`: This stream is used to publish the metadata of the graph.
+* `<node_name>_state`: This set of streams are used to publish the status of nodes.
+* `<data_stream>`: These are arbitrary data streams through which nodes publish their data to Redis. There are currently no rules as to how many data streams a node can publish to or naming conventions for these streams. 
+
+The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, `XREAD`). For example, to check the current graph published in the form of a master dictionary, you can use the following Redis command (using `redis-cli` or other Redis interface):
+```
+    $ XREVRANGE supergraph_stream + - COUNT 1
+```
+
+### Graph status codes on `graph_status` stream
+
+The following are the status codes that are published on the `graph_status` stream:
+* `initialized`: Graph is initialized.
+* `parsing`: Graph is being parsed for nodes and parameters.
+* `graph failed`: Graph failed to initialize due to some error.
+* `running`: Graph is parsed and running.
+* `published`: Graph is published on supergraph_stream as a master dictionary.
+* `stopped/not initialized`: Graph is stopped or not initialized.
+
+You can check the status of the graph using the following Redis command (using `redis-cli` or other Redis interface):
 ```
     $ XREVRANGE graph_status + - COUNT 1
 ```
 
-6. To check the metadata published in form of a master dictionary, run the following command in redis-cli:
-```
-    $ XREVRANGE supergraph_stream + - COUNT 1
-```
-7. To stop the graph, run the following command in redis-cli:
-```
-    $ XADD supervisor_ipstream * commands stopGraph
-```
-8. To stop the graph and save NWB export files, run the following command in redis-cli:
-```
-    $ XADD supervisor_ipstream * commands stopGraphAndSaveNWB
-```
-
-
-### Redis streams used in supervisor
-1. `supergraph_stream` : This stream is used to publish the metadata of the graph.
-2. `graph_status` : This stream is used to publish the status of the graph.
-3. `supervisor_ipstream` : This stream is used to publish the commands to the supervisor.
-4. `<node_name>_stream` : This stream is used for checking data on the <node_name> stream, where <node_name> is the name of the node.
-5. `<node_name>_state` : This stream is used to publish the status of the node.
-
-### Graph status codes on `graph_status` stream
-> The following are the status codes that are published on `graph_status` stream:
-```
-    initialized             - Graph is initialized.
-    parsing                 - Graph is being parsed for nodes and parameters.
-    graph_failed            - Graph failed to initialize due to some error.
-    running                 - Graph is parsed and running.
-    published               - Graph is published on supergraph_stream as a master dictionary.
-    stopped/not initialized - Graph is stopped or not initialized.
-```
-
-
-
-
-
-
-
-
-
 ## Redis as a mechanism for IPC
 
-The primary mode of inter-process communication with RANDS is using Redis, focusing on [Redis streams](https://redis.io/topics/streams-intro). Briefly, Redis is an in-memory cache key-based database entry. It solves the problem of having to rapidly create, manipulate, and distribute data in memory very quickly and efficiently. 
+The primary mode of inter-process communication with BRAND is using Redis, focusing on [Redis streams](https://redis.io/topics/streams-intro). Briefly, Redis is an in-memory cache key-based database entry. It solves the problem of having to rapidly create, manipulate, and distribute data in memory very quickly and efficiently. 
 
 A stream within redis has the following organization:
 
@@ -240,18 +238,28 @@ When a node wants to share data with others, it does so using a stream. There ar
 3. It makes it easy to have a pub/sub approach to IPC, since nodes can simply call the `xread` command 
 4. It makes it easy to query previously collected data using the `xrange` or `xrevrange` command. Reading new data from either the head or the tail of the stream is computationally cheap.
 
-# Creating a new node
+## Creating a new node
 
 Nodes can be written in any language. Nodes are launched, and stopped, in the `run.sh` script. Conceptually, a node should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Nodes are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 nodes running.
 
 At a minimum, a node should have the following characteristics:
 
-1. Catch SIGINT to close gracefully
-2. Have a `.yaml` configuration file
+1. Be associated with a binary executable that parses the following command-line flags in order for a successful execution from the `supervisor`:
+    * `s`: Redis socket to bind node to.
+    * `n`: Nickname of the node.
+    * `i`: Redis server host name or IP address to bind node to .
+    * `p`: Redis server port to bind node to.
 
-Since it's inpredictable how nodes will be stopped during a session, it's important to have graceful process termination in the event of a SIGINT being sent to the process. This is especially important because if processes are initiated using `run.sh`, the SIGINT sent to the bash script will be propagated to the node.
+A node will prioritize the socket flag over the host/port flags. Execution of a node should fail is neither `i`/`p` or `s` flags are provided.
 
-# Performance Optimization
+2. Load its parameters by reading from a well-known stream that contains a master JSON of the graph (`supergraph_stream`).
+3. Have a concept of "state", which is communicated through Redis (`<node_name>_state` stream).
+4. Catch SIGINT to close gracefully.
+
+If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above. 
+
+## Performance Optimization
+
 CPUs will scale their operating frequency according to load, which makes it difficult to get predictable timing. To get around this, we'll use `cpufrequtils`:
 ```
 sudo apt install cpufrequtils
@@ -271,7 +279,7 @@ sudo cpufreq-set -g powersave
 
 This was tested on Intel CPUs. The commands may be difference for CPUs from other manufacturers.
 
-# Gotchas
+## Gotchas
 
 ### PREEMPT_RT kernel bash fork error.
 
@@ -283,7 +291,7 @@ Second, *do not write a node that sets `SCHED_FIFO` that is launched from python
 
 ### Saving data in Redis with minimal latency
 
-By default, Redis is configured to periodically [save](https://redis.io/topics/persistence). Given that RANDS can be processing a great deal of information quickly, the background save procedures will result in significant latencies in real-time decoding.
+By default, Redis is configured to periodically [save](https://redis.io/topics/persistence). Given that BRAND can be processing a great deal of information quickly, the background save procedures will result in significant latencies in real-time decoding.
 
 One option is to simply remove the `save` configuration parameters in the `.conf` file. However, if Redis is terminated using SIGTERM or SIGINT, then the [default behavior of writing to disk](https://redis.io/topics/signals) does not occur. To get around this, write something like `save NNN 1` in the configuration file, where NNN is a number much bigger than how long you ever expect to run your session. This way, Redis will gracefully exit and save your data to disk.
 
@@ -294,18 +302,6 @@ One option is to simply remove the `save` configuration parameters in the `.conf
 ### Alarms and reading from file
 
 If a process is reading from a file descriptor and an alarm goes off, there can be unforunate consequence. For instance, if SIGALRM goes off while python is reading a file, reading will be interrupted and downstream processes can crash. If a process is setting an alarm, be sure to start it right before entering its main loop (and after the handlers have been installed), after all of the relevant configuration has been set.
-
-### Permission denied for a scripts
-```
-$ load cerebrusTest
-bash: ./session/cerebrusTest/load.sh: Permission denied
-```
-If you see this error, run `chmod +x ./session/cerebrusTest/load.sh` to make the script executable.
-
-
-### `run` command does not execute the `run.sh` script corresponding to the loaded session
-This can happen if a `run/` folder already exists prior to running `load mysession`. The `load.sh` script in each session is usually designed to not overwrite an existing `run/` folder. If a run folder exists already you will need to move it before a new session can be loaded.
-
 
 ### Running a script with sudo privileges within the current conda environment
 ```
