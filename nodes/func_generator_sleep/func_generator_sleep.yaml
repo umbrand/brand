@@ -41,7 +41,7 @@ RedisStreams:
         enable_nwb:           True
         type_nwb:             TimeSeries
         samples:
-          chan_per_stream:    96
+          chan_per_stream:    256
           samp_per_stream:    1
           sample_type:        float64
           nwb:
