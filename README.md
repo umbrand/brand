@@ -212,12 +212,51 @@ $ supervisor -i 192.168.0.101 --port 6380
     stopped/not initialized - Graph is stopped or not initialized.
 ```
 
+### Multi-machine graphs
+BRAND is capable of running nodes on several machines using the same graph. To run multi-machine graphs, you must start a `supervisor` process on the host machine that will contain your `redis-server` and a `booter` process on every client machine that will be involved in node execution.
 
+Use the `--machine` (or `-m`) flag to specify the name of the host machine when starting `supervisor`. When `--machine` is given, `supervisor` only runs the nodes that specify the same `machine` in the graph YAML. For compatibility with single-machine graphs, when `--machine` is not provided, `supervisor` runs all nodes that do not provide a `machine` name.
 
+Here's an example YAML entry for a node that will run on a machine named "brand":
+```yaml
+nodes:
+    - name:         func_generator
+      version:      0.0
+      nickname:     func_generator
+      stage:        main
+      module:       .
+      machine:      brand  # this node will run on the machine named 'brand'
+      run_priority:                 99
+      parameters:
+                sample_rate:        1000
+                n_features:         96
+                n_targets:          2
+                log:                INFO 
+```
 
-
-
-
+How to run a multi-machine graph (e.g. [testBooter.yaml](./graphs/testGraph/testBooter.yaml)):
+1. Run `source setup.sh` to load the new `supervisor` and `booter` aliases
+2. Start `supervisor`. In this example, the host machine's local IP address is `192.168.1.101`.
+```bash
+supervisor -m brand -i 192.168.1.101
+```
+3. Then, log into each client machine, and start a `booter` process, using a unique name for each machine. We will use one client machine called "gpc":
+```bash
+booter -m gpc -i 192.168.1.101  # name this machine 'gpc'
+```
+4. Enter the `redis-cli`:
+```
+redis-cli -h 192.168.1.101
+```
+5. Start a graph (in the `redis-cli`):
+```
+XADD supervisor_ipstream * commands startGraph file graphs/testGraph/testBooter.yaml
+```
+6. Stop the graph (in the `redis-cli`):
+```
+XADD supervisor_ipstream * commands stopGraph
+```
+If everything is working correctly, you should see that the `func_generator` node ran on the "brand" machine, and the `decoder` node ran on the "gpc" machine.
 
 
 ## Redis as a mechanism for IPC
