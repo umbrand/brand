@@ -48,7 +48,7 @@ graph = {
             'version': 0.0,
             'nickname': 'RNN',
             'stage': 'main',
-            'module': '../brand-modules/brand-emory',
+            'module': '.',
             'redis_inputs': ['func_generator'],
             'redis_outputs': ['rnn_decoder'],
             'run_priority': 99,
@@ -57,7 +57,8 @@ graph = {
                 'n_targets': 2,
                 'seq_len': 30,
                 'model_pth': '../brand-modules/brand-emory/nodes/RNN_decoder/src/train_RNN.yaml',
-                'log': 'INFO'
+                'log': 'INFO',
+                'loop': 'nanosleep'
             }
         }
     ]

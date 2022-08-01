@@ -56,7 +56,8 @@ graph = {
                 'n_features': 142,
                 'n_targets': 2,
                 'decoder_type': 'linear',
-                'log': 'INFO'
+                'log': 'INFO',
+                'loop': 'while_1'
             }
         }
     ]

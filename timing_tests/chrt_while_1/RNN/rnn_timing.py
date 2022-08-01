@@ -48,7 +48,7 @@ graph = {
             'version': 0.0,
             'nickname': 'RNN',
             'stage': 'main',
-            'module': '../brand-modules/brand-emory',
+            'module': '.',
             'redis_inputs': ['func_generator'],
             'redis_outputs': ['rnn_decoder'],
             'run_priority': 99,
@@ -57,7 +57,8 @@ graph = {
                 'n_targets': 2,
                 'seq_len': 30,
                 'model_pth': '../brand-modules/brand-emory/nodes/RNN_decoder/src/train_RNN.yaml',
-                'log': 'INFO'
+                'log': 'INFO',
+                'loop': 'while_1'
             }
         }
     ]
@@ -72,7 +73,7 @@ r.xadd('supervisor_ipstream', {
 
 # Let graph run for test_time minutes (Default is 5)
 print(f'Running graph for {test_time} min...')
-total_secs = 5 * test_time
+total_secs = 2 * test_time
 
 while total_secs:
     mins, secs = divmod(total_secs, 60)

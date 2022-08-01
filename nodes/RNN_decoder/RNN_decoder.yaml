@@ -1,0 +1,65 @@
+
+metadata:
+  description: Decode target from features
+  author: n/a
+
+parameters:
+  - type: int
+    name: n_features
+    label: number of units in the input layer
+    default: 256
+    static: True
+    mustExist: True
+    min: 1
+    max: 1024
+  - type: int
+    name: n_targets
+    label: number of units in the output layer or targets to predict
+    default: 2
+    static: True
+    mustExist: True
+    min: 1
+    max: 1000
+  - type: int
+    name: seq_len
+    label: length of sequences in the chopped data
+    default: 15
+    static: True
+    mustExist: True
+    min: 1
+    max: 500
+  - type: string
+    name: model_pth
+    label: Path to YAML file with specific model weights
+    default: ../brand-modules/brand-emory/nodes/RNN_decoder/src/train_RNN.yaml
+    static: True
+    mustExist: True
+  - type: string
+    name: log
+    label: Logging info
+    static: True
+    mustExist: True
+  - type: string
+    name: loop
+    label: Input running using nanosleep or while(1)
+    static: True
+    mustExist: True
+
+
+RedisStreams:
+  description: input and output streams of the node
+  value:
+    Inputs:
+        ### what should be put in here?
+    Outputs:
+      rnn_decoder:
+        sync:                 [i]
+        enable_nwb:           True
+        type_nwb:             TimeSeries
+        y:
+          chan_per_stream:    2
+          samp_per_stream:    1
+          sample_type:        float32
+          nwb:
+            unit: n/a
+            description: arbitrary RNN predictions
