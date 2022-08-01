@@ -71,7 +71,7 @@ default_graph = {
                 'n_channels': 128,
                 'seq_len': 30,
                 'data_type': 'int16',
-                'duration': 300,
+                'duration': 10,
                 'sample_rate': 1000,
                 'stop_graph_when_done': True
             }

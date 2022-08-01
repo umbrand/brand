@@ -93,15 +93,17 @@ class Decoder(BRANDNode):
             self.data_id, entry_dict = stream_entries[0]
             stream_dict[b'func_generator'] = self.data_id
 
-            ts_gen = np.frombuffer(entry_dict[b'ts'], dtype=np.uint64) / 1000000000
-            
+            # ts_gen = float(np.frombuffer(entry_dict[b'ts'], dtype=np.uint64) / 1000000000)
+            decoder_entry['ts_gen'] = float(entry_dict[b'ts'])
+
+            # decoder_entry['i'] = int(np.frombuffer(entry_dict[b'i'], dtype=np.uint64))
+            decoder_entry['i'] = int(entry_dict[b'i'])
+
             # load the input and generate a prediction
             x = np.frombuffer(entry_dict[b'samples'], dtype=np.float64)
             y = self.predict(x)
 
             # write results to Redis
-            decoder_entry['ts_gen'] = float(ts_gen)
-            decoder_entry['i'] = int(np.frombuffer(entry_dict[b'i'], dtype=np.uint64))
             decoder_entry['y'] = y.tobytes()
             decoder_entry['ts_read'] = ts_read
             decoder_entry['ts'] = time.monotonic()
