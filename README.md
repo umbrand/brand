@@ -213,7 +213,20 @@ $ supervisor -i 192.168.0.101 --port 6380
 ### Multi-machine graphs
 BRAND is capable of running nodes on several machines using the same graph. To run multi-machine graphs, you must start a `supervisor` process on the host machine that will contain your `redis-server` and a `booter` process on every client machine that will be involved in node execution.
 
-Use the `--machine` (or `-m`) flag to specify the name of the host machine when starting `supervisor`. When `--machine` is given, `supervisor` only runs the nodes that specify the same `machine` in the graph YAML. For compatibility with single-machine graphs, when `--machine` is not provided, `supervisor` runs all nodes that do not provide a `machine` name.
+`booter` is similar to `supervisor` except it does not start its own `redis-server`. Here are its command-line arguments:
+```
+usage: booter [-h] -m MACHINE [-i HOST] [-p PORT] [-l LOG_LEVEL]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -m MACHINE, --machine MACHINE
+                        machine on which this booter is running
+  -i HOST, --host HOST  ip address of the redis server (default: 127.0.0.1)
+  -p PORT, --port PORT  port of the redis server (default: 6379)
+  -l LOG_LEVEL, --log-level LOG_LEVEL
+                        Configure the logging level
+```
+To support multi-machine graphs, use the `--machine` (or `-m`) flag to assign a name for each machine when starting `supervisor` or `booter`. When `--machine` is given, `supervisor` only runs the nodes that specify the same `machine` in the graph YAML. For compatibility with single-machine graphs, `supervisor` also runs all nodes that do not provide a `machine` name in the graph YAML.
 
 Here's an example YAML entry for a node that will run on a machine named "brand":
 ```yaml
