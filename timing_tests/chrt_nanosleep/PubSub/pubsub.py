@@ -48,12 +48,12 @@ default_graph = {
             'nickname': 'subscriber_sleep',
             'stage': 'main',
             'module': '.',
-            'redis_inputs': ['publisher'],
-            'redis_outputs': ['subscriber'],
+            'redis_inputs': ['publisher_sleep'],
+            'redis_outputs': ['subscriber_sleep'],
             'run_priority': 99,
             'parameters': {
                 'log': 'INFO',
-                'in_stream': 'publisher',
+                'in_stream': 'publisher_sleep',
                 'write_data': False
             }
         },
@@ -64,14 +64,14 @@ default_graph = {
             'stage': 'main',
             'module': '.',
             'redis_inputs': [],
-            'redis_outputs': ['publisher'],
+            'redis_outputs': ['publisher_sleep'],
             'run_priority': 99,
             'parameters': {
                 'log': 'INFO',
                 'n_channels': 128,
                 'seq_len': 30,
                 'data_type': 'int16',
-                'duration': 300,
+                'duration': 10,
                 'sample_rate': 1000,
                 'stop_graph_when_done': True
             }
@@ -111,11 +111,11 @@ while not done:
         done = True
 
 # load stream data into a dataframe
-pub_entries = r.xrange('publisher')
+pub_entries = r.xrange('publisher_sleep')
 pub_df = stream_to_df(pub_entries, ['i', 't'], ['uint64', 'uint64'])
 pub_df = pub_df.set_index('i', drop=False)
 
-sub_entries = r.xrange('subscriber')
+sub_entries = r.xrange('subscriber_sleep')
 sub_df = stream_to_df(sub_entries, ['i', 't'], ['uint64', 'uint64'])
 sub_df = sub_df.set_index('i', drop=False)
 
@@ -180,8 +180,8 @@ date_str = datetime.now().strftime(r'%y%m%dT%H%M')
 fig.savefig(f'plots/{date_str}_pubsub_timing.png', facecolor='white', transparent=False)
 
 # delete publisher and subscriber streams
-r.delete('publisher')
-r.delete('subscriber')
+r.delete('publisher_sleep')
+r.delete('subscriber_sleep')
 r.memory_purge()
 
 #save df
