@@ -57,8 +57,7 @@ graph = {
                 'n_targets': 2,
                 'seq_len': 30,
                 'model_pth': './nodes/RNN_decoder/src/train_RNN.yaml',
-                'log': 'INFO',
-                'loop': 'while_1'
+                'log': 'INFO'
             }
         }
     ]

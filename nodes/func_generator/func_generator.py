@@ -51,10 +51,10 @@ class FunctionGenerator(BRANDNode):
         self.syncDictJson = json.dumps(self.syncDict)
 
         self.stream_entry = {
-            'ts': time.monotonic(), 
+            'ts': np.uint64(time.monotonic_ns()).tobytes(), 
             'sync': self.syncDictJson.encode(),
             'samples': self.x.tobytes(),
-            'i': self.i    
+            'i': np.uint64(self.i).tobytes()   
         }
 
         self.r.xadd('func_generator', self.stream_entry)

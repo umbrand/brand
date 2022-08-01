@@ -29,11 +29,6 @@ parameters:
     label: Logging info
     static: True
     mustExist: True
-  - type: string
-    name: loop
-    label: Input running using nanosleep or while(1)
-    static: True
-    mustExist: True
 
 inputs:
   - stream: func_generator

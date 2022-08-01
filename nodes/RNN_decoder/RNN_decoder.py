@@ -39,7 +39,6 @@ class runRNN(BRANDNode):
         self.n_features = self.parameters['n_features']
         self.n_targets = self.parameters['n_targets']
         self.seq_len = self.parameters['seq_len']
-        self.loop = self.parameters['loop']
 
         # Load model and scalars
         self.build()
@@ -188,12 +187,7 @@ class runRNN(BRANDNode):
             self.data_id, self.input_entry = stream_entries[0]
             self.stream_dict[b'func_generator'] = self.data_id
 
-
-            if self.loop == 'nanosleep':
-                ts_gen = np.frombuffer(self.input_entry[b'ts'], dtype=np.uint64) / 1000000000
-            elif self.loop == 'while_1':
-                ts_gen = self.input_entry[b'ts']
-
+            ts_gen = np.frombuffer(self.input_entry[b'ts'], dtype=np.uint64) / 1000000000
 
             # load the input and generate a prediction
             x = np.frombuffer(self.input_entry[b'samples'], dtype=np.float64)
