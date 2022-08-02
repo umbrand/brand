@@ -13,10 +13,16 @@ This Folder contains timing tests used to measure latencies of graphs using the 
 * Function Generator to RNN Decoder
 * Function Generator to Neural Data Transformer (NDT) Decoder
 
-#### Each graph produces a plot (found in the `plots` folder of the respective test) measuring 3 different latencies:
-* The Intersample Latency of the Publisher nodes (How frequently samples are produced)
+#### Each Decoder graph produces a plot (found in the `plots` folder of the respective test) measuring 3 different latencies:
+* The Intersample Latency of the Function Generator node (How frequently samples are produced)
 * The transmission/redis latency between the two nodes
 * The Decoder/Subscriber node latency
+
+#### The Vanilla Pub/Sub graph produces a plot showing 2 different latencies:
+* The Intersample Latency of the Publisher node (How frequently samples are produced)
+* The transmission/redis latency between the Publisher and Subscriber nodes
+
+**Each of these latencies is shown vs time and as a histogram**
 
 The dataframe used to produce these plots is saved as a pickle file found in the `dataframes` folder that is created after running the respective graph.
 
