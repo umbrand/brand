@@ -18,7 +18,7 @@ This Folder contains timing tests used to measure latencies of graphs using the 
 * The transmission/redis latency between the two nodes
 * The Decoder/Subscriber node latency
 
-The dataframe used to produce these plots is saved as a pickle file found in the `dataframes` folder of the respective graph.
+The dataframe used to produce these plots is saved as a pickle file found in the `dataframes` folder that is created after running the respective graph.
 
 **NOTE: We have included Baseline test plots that can be found in each test's `plots` folder.**
 
@@ -38,3 +38,5 @@ Say we want to run a timing test using the OLE decoder and nanosleep loop, you w
 
     and run the timing test script:
 >`./ole_timing.py`
+
+**Note: To change the number of channels used for graphs including the RNN or NDT nodes, you must change the graph parameters in the timing scripts AND the decoder parameter yaml file of the node. The RNN config can be found at `nodes/RNN_decoder/src/train_RNN.yaml` and the NDT config can be found at `nodes/ndt/src/config.yaml`.**
