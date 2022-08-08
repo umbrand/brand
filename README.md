@@ -203,7 +203,7 @@ The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, 
     $ XREVRANGE supergraph_stream + - COUNT 1
 ```
 
-### Graph status codes on `graph_status` stream
+### Checking a graph's status
 
 The following are the status codes that are published on the `graph_status` stream:
 * `initialized`: Graph is initialized.
