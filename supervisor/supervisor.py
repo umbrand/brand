@@ -125,6 +125,28 @@ class Supervisor:
         return yaml_file
 
 
+    def kill_redis_server(self):
+        '''
+        Kills the redis server
+        '''
+        logger.info("Killing the redis server")
+        try:
+            #get the pid of the redis server
+            args = ['pidof', 'redis-server']
+            pid = subprocess.check_output(args).decode('utf-8').strip()
+            logger.info("PID of the redis server: %s" % pid)
+            if pid is not None:
+                os.kill(int(pid), signal.SIGTERM)
+                logger.info("Redis server killed")
+                sys.exit(1)
+            else:
+                logger.info("No redis server found")
+        except Exception as e:
+            logger.error("Error in killing the redis server"+str(e))
+            sys.exit(1)
+
+
+
     def search_node_bin_file(self,module,name)->str:
         ''' Search the node bin/exec file and return the bin/exec file path 
         Args:
@@ -264,11 +286,17 @@ class Supervisor:
             bin_f = self.search_node_bin_file(n["module"],n["name"])
             if(os.path.exists(bin_f)):
                 logger.info("Yaml and bin files exist in the path")
-                logger.info("%s is a valid node...." % n["nickname"])
+                try:
+                    logger.info("%s is a valid node...." % n["nickname"])
+                except KeyError:
+                    logger.info("Nickname not found in node")
+                    logger.info("Edit the graph yaml file and add nickname")
+                    self.kill_redis_server()
             else:
                 logger.info("Bin files / executables do not exist in the path")
-                logger.error("%s is not a valid node...." % n["nickname"])
-                sys.exit(1)
+                logger.info("Try sourcing the setup sript and  then run make in the root directory....")
+                logger.error("%s is not a valid node...." % n["name"])
+                self.kill_redis_server()
 
             # Loading the nodes and graph into self.model dict
             self.model["nodes"][n["nickname"]] = {}
