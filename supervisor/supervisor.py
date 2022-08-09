@@ -154,12 +154,22 @@ class Supervisor:
             name : node name
         '''
         directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
+        bin_f = None
         for dir in directory:
             for file in os.listdir(dir):
-                if file.endswith(".bin") or file.endswith(".out"):
-                    bin_file = os.path.join(dir, file)
-                    logger.info("bin/exec file path: %s" % bin_file)
-        return bin_file
+                    if file.endswith(".bin") or file.endswith(".out"):
+                        bin_file = os.path.join(dir, file)
+                        logger.info("bin/exec file path: %s" % bin_file)
+                        bin_f = bin_file
+        if(bin_f is None):
+            logger.info("%s is not a valid node....." % name)
+            logger.info("Bin files / executables do not exist in the path")
+            logger.info("Try sourcing the setup sript and  then run make in the root directory....")
+            self.r.flushdb()
+            self.kill_redis_server()
+            sys.exit(1)      
+        return bin_f
+
 
 
     def get_graph_status(self,state)->str:
@@ -282,34 +292,30 @@ class Supervisor:
         # Load node information
         self.model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
-        for n in nodes:
-            bin_f = self.search_node_bin_file(n["module"],n["name"])
-            if(os.path.exists(bin_f)):
-                logger.info("Yaml and bin files exist in the path")
-                try:
-                    logger.info("%s is a valid node...." % n["nickname"])
-                except KeyError:
-                    logger.info("Nickname not found in node")
-                    logger.info("Edit the graph yaml file and add nickname")
-                    self.kill_redis_server()
-            else:
-                logger.info("Bin files / executables do not exist in the path")
-                logger.info("Try sourcing the setup sript and  then run make in the root directory....")
-                logger.error("%s is not a valid node...." % n["name"])
-                self.kill_redis_server()
+        # catch key errors for nodes that are not in the graph
+        try:
+            for n in nodes:
+                bin_f = self.search_node_bin_file(n["module"],n["name"])
+                logger.info("%s is a valid node...." % n["nickname"])
 
-            # Loading the nodes and graph into self.model dict
-            self.model["nodes"][n["nickname"]] = {}
-            self.model["nodes"][n["nickname"]].update(n)
-            self.model["nodes"][n["nickname"]]["binary"] = bin_f
+                # Loading the nodes and graph into self.model dict
+                self.model["nodes"][n["nickname"]] = {}
+                self.model["nodes"][n["nickname"]].update(n)
+                self.model["nodes"][n["nickname"]]["binary"] = bin_f
 
-        if "derivatives" in graph_dict:
-            self.model["derivatives"] = {}
-            derivatives = graph_dict['derivatives']
-            for a in derivatives:
-                a_name = list(a.keys())[0]
-                a_values = a[a_name]
-                self.model["derivatives"][a_name] = a_values
+            if "derivatives" in graph_dict:
+                self.model["derivatives"] = {}
+                derivatives = graph_dict['derivatives']
+                for a in derivatives:
+                    a_name = list(a.keys())[0]
+                    a_values = a[a_name]
+                    self.model["derivatives"][a_name] = a_values
+
+        except KeyError as e:
+            logger.error("KeyError: %s" % e)
+            self.r.flushdb()
+            self.kill_redis_server()
+            sys.exit(1)
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
