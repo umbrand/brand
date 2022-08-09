@@ -6,7 +6,6 @@ import signal
 import subprocess
 import sys
 from datetime import datetime
-
 import coloredlogs
 import yaml
 from redis import Redis
@@ -324,25 +323,35 @@ class Supervisor:
                     logger.critical("Unable to create a child process")
                     sys.exit(1)
                 else:
-                    logger.info("Child process created with pid: %s" % os.getpid())
-                    binary = node_info["binary"]
-                    logger.info("Binary for %s is %s" % (node,binary))
-                    logger.info("Node Stream Name: %s" % node_stream_name)
-                    logger.info("Parent Running on: %d" % os.getppid())
-                    self.children.append(os.getpid())
-                    args = [binary, '-n',node_stream_name]
-                    args += ['-hs', host, '-p', str(port)]
-                    if self.unixsocket:
-                        args += ['-s', self.unixsocket]
-                    if 'run_priority' in node_info:  # if priority is specified
-                        priority = node_info['run_priority']
-                        if priority:  # if priority is not None or empty
-                            chrt_args = ['chrt', '-f', str(int(priority))]
-                            args = chrt_args + args
+                    pidfile = os.path.join("/tmp/", node_stream_name + '.pid')
+                    if os.path.isfile(pidfile):
+                        logger.info("Pid file exists")
+                        break
+                    #write the pid to the pid file
+                    with open(pidfile, 'w') as f:
+                        f.write(str(pid))
                     try:
-                        subprocess.run(args)
-                    except subprocess.CalledProcessError as e:
-                        logger.info("Something wrong",e)
+                        logger.info("Child process created with pid: %s" % os.getpid())
+                        binary = node_info["binary"]
+                        logger.info("Binary for %s is %s" % (node,binary))
+                        logger.info("Node Stream Name: %s" % node_stream_name)
+                        logger.info("Parent Running on: %d" % os.getppid())
+                        self.children.append(os.getpid())
+                        args = [binary, '-n',node_stream_name]
+                        args += ['-hs', host, '-p', str(port)]
+                        if self.unixsocket:
+                            args += ['-s', self.unixsocket]
+                        if 'run_priority' in node_info:  # if priority is specified
+                            priority = node_info['run_priority']
+                            if priority:  # if priority is not None or empty
+                                chrt_args = ['chrt', '-f', str(int(priority))]
+                                args = chrt_args + args
+                        try:
+                            subprocess.run(args)
+                        except subprocess.CalledProcessError as e:
+                            logger.info("Something wrong",e)
+                    finally:
+                        os.unlink(pidfile)
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
