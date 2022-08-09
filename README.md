@@ -3,7 +3,7 @@
 ## Overview
 BRAND is built using a graph architecture with small, individual nodes that can be flexibly interconnected. Each node is a separate process, so as to allow for parallelization and re-prioritization of each node. Interprocess communication and data storage is all built around the [Redis](redis.io) in-memory database and caching system.
 
-The layout of each graph is defined in its associated .yaml configuration file. Graph configuration files are organized by experimental site within modules, to allow easy sharing of graphs between experimental sites while allowing per-site customization. BRAND is set up to make creation of new graphs and development of new nodes easy and consistent.
+The layout of each graph is defined in its associated .yaml configuration file. Graph configuration files are organized by experimental site within modules to allow easy sharing of graphs between experimental sites while allowing per-site customization. BRAND is set up to make creation of new graphs and development of new nodes easy and consistent.
 
 ## Installation
 
@@ -13,9 +13,9 @@ The layout of each graph is defined in its associated .yaml configuration file. 
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
 ### Environment setup and Make
-`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [LPCNet](https://github.com/mozilla/LPCNet/),  [hiredis](https://github.com/redis/hiredis), and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries including submodule dependencies. Be sure to activate the conda env before running make as Makefiles dependent on cython require it.
+`bootstrap.sh` is provided to automate the environment setup. It installs debian pkg dependencies using `apt-get` and creates the real-time conda environment (rt), which is defined by `environment.yaml`. [hiredis](https://github.com/redis/hiredis) and [redis](https://github.com/antirez/redis/) have been included as submodules, which also get initialized by `bootstrap.sh`. After running bootstrap you simply need to run `make` at the project root. This will build all the project binaries including submodule dependencies. Be sure to activate the conda env before running make for Makefiles dependent on cython.
 
-```
+```bash
 ./boostrap.sh
 conda activate rt
 make
@@ -29,33 +29,28 @@ BRAND follows the following directory structure (where `brand` corresponds to th
 
 ```
 |---brand
-    |---nodes
+    |---derivatives
     |---graphs
     |---lib
+    |---nodes
         |---c
         |---python
         |---<packages>
     |---supervisor
 |---brand-modules
     |---<module-name>
-        |---nodes
+        |---derivatives
         |---graphs
+        |---nodes
 ```
-where `<module-name>` is the name of the name of an external code module that extends the core BRAND code through its own nodes and graphs (details on this below). 
+where `<module-name>` is the name of an external code module that extends the core BRAND code through its own nodes, graphs, and derivatives (details on this below). 
 
-### nodes/
-The `nodes` folder contains the code for different nodes that implement specific modular functions, each separated into its own subdirectory. Within each node subdirectory, there should be the node's source code (can be optionally organized within a `src` directory), a gnu-compatible Makefile for compiling the source code and generating the node's binary executable, and a README. Running `make` from the main BRAND directory, goes thorugh all of the node subdirectories and runs the respective Makefile, which should generate the compiled executable within the same directory and have a `.bin` extension. Ensure that you follow the below directory structure for each node:
+### `derivatives/`
 
-```
-|---nodes
-    |---<node_name>
-        |---<src_code>
-        |---Makefile 
-        |---README.md
-        |---<node_name>.bin (built after running make)
-```
+The `derivatives` folder contains any derivative scripts. Derivatives are code that are run offline using data stored in an `.rdb` file. Consider derivatives to be analysis code. Derivatives are a new feature to BRAND, so check back in the future for more documentation and functionality.
 
-### graphs/
+### `graphs/`
+
 The `graphs` folder contains the YAML configuration files for the graphs. This directory's organization is:
 
 ```
@@ -64,9 +59,9 @@ The `graphs` folder contains the YAML configuration files for the graphs. This d
         |---<graph_name.yaml>
 ```
 
-### lib/
+### `lib/`
 
-The `lib` folder contains libraries and helper functions required for the system to work. This includes BRAND specific C or Python libraries (c and python folders) and external packages (e.g. redis and hiredis). This directory's organization is:
+The `lib` folder contains libraries and helper functions required for the system to work. This includes BRAND specific C or Python libraries (`c` and `python` folders) and external packages (e.g. `redis` and `hiredis`). This directory's organization is:
 
 ```
 |---lib
@@ -77,7 +72,20 @@ The `lib` folder contains libraries and helper functions required for the system
     |---<package_name>
 ```
 
-### supervisor/
+### `nodes/`
+
+The `nodes` folder contains the code for different nodes that implement specific modular functions, each separated into its own subdirectory. Within each node subdirectory, there should be the node's source code (can be optionally organized within a `src` directory), a gnu-compatible Makefile for compiling the source code and generating the node's binary executable, and a README. Running `make` from the main BRAND directory goes thorugh all of the node subdirectories and runs the respective Makefile, which should generate the compiled executable within the same directory and have a `.bin` extension. Ensure that you follow the below directory structure for each node:
+
+```
+|---nodes
+    |---<node_name>
+        |---<src_code>
+        |---Makefile 
+        |---README.md
+        |---<node_name>.bin (built after running make)
+```
+
+### `supervisor/`
 
 This folder contains the code for the `supervisor` process, which is a core process in BRAND serving the following functions:
 1. Start a Redis server
@@ -87,9 +95,9 @@ This folder contains the code for the `supervisor` process, which is a core proc
     - Most recent published status of each node
 4. Stop graph and nodes (upon receiving a "stop" command)
 
-### brand-modules/
+### `brand-modules/`
 
-The core BRAND directory can be extended to run additional graphs and nodes from external modules. From the core BRAND directory, external modules must be installed to a `module-name` folder at the following path relative the to main BRAND directory:  
+The core BRAND directory can be extended to run additional graphs and nodes from external modules. From the core BRAND directory, external modules must be installed to a `<module-name>` folder at the following path relative to the main BRAND directory:  
 
 ```
 ../brand-modules/<module-name>/
@@ -99,31 +107,32 @@ Within each module, the directory structure is the following:
 
 ```
 |---<module-name>
+    |---derivatives
     |---nodes
     |---graphs
 ```
 
-Where `nodes/` and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also go through the node Makefiles and rebuild the binary executables within all external module directories.  
+where `derivatives/`, `nodes/`, and `graphs/` follow the same guidelines as the core BRAND directory. Of note: running `make` within the core directory will also go through the node Makefiles and rebuild the binary executables within all external module directories.  
 
 ## Graph YAML files
 
 The configuration for a graph, that is, which nodes to run and using which parameters, is specified thorugh a graph YAML file. At a minimum, a graph YAML file should include a list of all nodes to run with their names, (unique) nicknames, relative path from core BRAND directory to module directory, and parameter list. Optionally, the graph YAML can also include the run priority for nodes and ID of the machine on which to run the node.
-```
+```yaml
 nodes:
-  - name: <node1_name>
-    nickname: <unique_nickname>
-    module: <path_to_module>
-    run_priority (optional): <run_priority>
-    machine: <machine_id>   
+  - name:         <node1_name>
+    nickname:     <unique_nickname>
+    module:       <path_to_module>
+    run_priority: <run_priority>            # optional
+    machine:      <machine_id>              # optional
     parameters:
       <parameter1_name>: <parameter1_value>
       <parameter2_name>: <parameter2_value>
       ...
-  - name: <node2_name>
-    nickname: <unique_nickname>
-    module: <path_to_module>
-    run_priority: <run_priority>
-    machine: <machine_id>   
+  - name:         <node2_name>
+    nickname:     <unique_nickname>
+    module:       <path_to_module>
+    run_priority: <run_priority>            # optional
+    machine:      <machine_id>              # optional
     parameters:
       <parameter1_name>: <parameter1_value>
       <parameter2_name>: <parameter2_value>
@@ -135,50 +144,50 @@ nodes:
 
 After having installed and compiled the node executables, the following commands must be run to start the BRAND system:
 
+```bash
+source setup.sh
+supervisor [args]
 ```
-$ source setup.sh
-$ supervisor [args]
-```
-
  - `setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment. 
  - `supervisor` is the core process controlling the BRAND system
 
+Optionally, you can include arguments when running the `supervisor` to override its defaults. Below are the extra arguments that can be used:
+
+- `-i` / `--ip`: IP address to bind the server node to (default: `127.0.0.1`)
+- `-p` / `--port`: Port number to bind the server node to (default: `6379`)
+- `-c`/ `--cfg`: Path to the Redis config file used to start the server (default: `supervisor/redis.supervisor.conf`)
+- `-m` / `--machine`: ID of the machine on which the supervisor is running (default: none)
+- `-g` / `--graph`: Name of the graph YAML file to pre-load (default: none)
+
 ### Using the `supervisor`
 
-1. Start the `supervisor` process by running either of the following commands:
-```    
-$ supervisor [args]
-```
-Optionally, you can include extra arguments when running the `supervisor` to override its defaults. Below are the extra arguments that can be used:
- 
- - `-i` / `--ip`: IP address to bind the server node to (default: 127.0.0.1)
- - `-p` / `--port`: Port number to bind the server node to (default: 6379)
- - `-c`/ `--cfg`: Path to the Redis config file used to start the server (default: `supervisor/redis.supervisor.conf`)
- - `-m` / `--machine`: ID of the machine on which the supervisor is running (default: none)
- - `-g` / `--graph`: Name of the graph YAML file to pre-load (default: none)
-Example usage:
-```    
-$ supervisor -i 192.168.0.101 --port 6379
-```
+1. Start the `supervisor` process by running the following command:
+    ```bash
+    supervisor [args]
+    ```
+    Example usage:
+    ```bash
+    supervisor -i 192.168.0.101 --port 6379
+    ```
 
 2. Once the `supervisor` is running, it must receive a `startGraph` command through Redis to its `supervisor_ipstream` to start a graph. An example way to do this (which we suggest for testing) is to use `redis-cli`. You would have to open a separate terminal and first run the following command to open `redis-cli` (-h and -p flags are optional if you're running on default host/IP and port):
-```
-    $ redis-cli -h <host> -p <port>
-```
-And you can then send the `startGraph`, providing the path to the graph YAML file to run: 
-```
-    $ XADD supervisor_ipstream * commands startGraph file <path_to_the_graph_yaml_file>
-```
-The `supervisor` will log a series of outputs following this command as it goes thorugh the graph YAML file, checks for node executable binaries and starts the nodes. All nodes from the graph YAML will be running after this.
+    ```bash
+    redis-cli -h <host> -p <port>
+    ```
+    And you can then send the `startGraph`, providing the path to the graph YAML file to run: 
+    ```bash
+    XADD supervisor_ipstream * commands startGraph file <path_to_the_graph_yaml_file>
+    ```
+    The `supervisor` will log a series of outputs following this command as it goes thorugh the graph YAML file, checks for node executable binaries, and starts the nodes. All nodes from the graph YAML will be running after this.
 
 3. To stop the graph, use the following Redis command (using `redis-cli` or other Redis interface):
-```
-    $ XADD supervisor_ipstream * commands stopGraph
-```
-Alternatively to stop the graph and save NWB export files, use the following Redis command (using `redis-cli` or other Redis interface). Note that this will require having your graph and nodes set up to support the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md).
-```
-    $ XADD supervisor_ipstream * commands stopGraphAndSaveNWB 
-```
+    ```bash
+    XADD supervisor_ipstream * commands stopGraph
+    ```
+    Alternatively to stop the graph and save NWB export files, use the following Redis command (using `redis-cli` or other Redis interface). Note that this will require having your graph and nodes set up to support the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md).
+    ```bash
+    XADD supervisor_ipstream * commands stopGraphAndSaveNWB 
+    ```
 
 ### Supported `supervisor` commands
 
@@ -186,17 +195,40 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 
 * `startGraph` [file <path_to_file>]: Start graph from YAML file path.
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
-* `stopGraphAndSaveNWB`: Stop graph, save `rdb` file, generate NWB file, and flush the Redis database. Requires following the following guidelines: [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md). Suggested for running independent session blocks.
+* `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
 
 ### Redis streams used with the `supervisor`
-### Multi-machine graphs
-BRAND is capable of running nodes on several machines using the same graph. To run multi-machine graphs, you must start a `supervisor` process on the host machine that will contain your `redis-server` and a `booter` process on every client machine that will be involved in node execution.
 
 * `supervisor_ipstream`: This stream is used to publish commands for the supervisor.
 * `graph_status`: This stream is used to publish the status of the current graph.
 * `supergraph_stream`: This stream is used to publish the metadata of the graph.
-* `<node_name>_state`: This set of streams are used to publish the status of nodes.
-* `<data_stream>`: These are arbitrary data streams through which nodes publish their data to Redis. There are currently no rules as to how many data streams a node can publish to or naming conventions for these streams. 
+* `<node_nickname>_state`: This set of streams are used to publish the status of nodes.
+* `<data_stream>`: These are arbitrary data streams through which nodes publish their data to Redis. There are currently no naming conventions for these streams nor any rules as to how many data streams a node can publish. 
+
+The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, `XREAD`). For example, to check the current graph published in the form of a master dictionary, you can use the following Redis command (using `redis-cli` or other Redis interface):
+```bash
+XREVRANGE supergraph_stream + - COUNT 1
+```
+
+### Checking a graph's status
+
+The following are the status codes that are published on the `graph_status` stream:
+* `initialized`: Graph is initialized.
+* `parsing`: Graph is being parsed for nodes and parameters.
+* `graph failed`: Graph failed to initialize due to some error.
+* `running`: Graph is parsed and running.
+* `published`: Graph is published on `supergraph_stream` as a master dictionary.
+* `stopped/not initialized`: Graph is stopped or not initialized.
+
+You can check the status of the graph using the following Redis command (using `redis-cli` or other Redis interface):
+```bash
+XREVRANGE graph_status + - COUNT 1
+```
+
+## Multi-machine graphs
+
+BRAND is capable of running nodes on several machines using the same graph. To run multi-machine graphs, you must start a `supervisor` process on the host machine that will contain your `redis-server` and a `booter` process on every client machine that will be involved in node execution.
+
 `booter` is similar to `supervisor` except it does not start its own `redis-server`. Here are its command-line arguments:
 ```
 usage: booter [-h] -m MACHINE [-i HOST] [-p PORT] [-l LOG_LEVEL]
@@ -211,62 +243,51 @@ optional arguments:
                         Configure the logging level
 ```
 To support multi-machine graphs, use the `--machine` (or `-m`) flag to assign a name for each machine when starting `supervisor` or `booter`. When `--machine` is given, `supervisor` only runs the nodes that specify the same `machine` in the graph YAML. For compatibility with single-machine graphs, `supervisor` also runs all nodes that do not provide a `machine` name in the graph YAML.
-The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, `XREAD`). For example, to check the current graph published in the form of a master dictionary, you can use the following Redis command (using `redis-cli` or other Redis interface):
-```
-    $ XREVRANGE supergraph_stream + - COUNT 1
-```
 
-### Checking a graph's status
 Here's an example YAML entry for a node that will run on a machine named "brand":
+
 ```yaml
 nodes:
-    - name:         func_generator
-      version:      0.0
-      nickname:     func_generator
-      stage:        main
-      module:       .
-      machine:      brand  # this node will run on the machine named 'brand'
-      run_priority:                 99
-      parameters:
-                sample_rate:        1000
-                n_features:         96
-                n_targets:          2
-                log:                INFO 
-```The following are the status codes that are published on the `graph_status` stream:
-* `initialized`: Graph is initialized.
-* `parsing`: Graph is being parsed for nodes and parameters.
-* `graph failed`: Graph failed to initialize due to some error.
-* `running`: Graph is parsed and running.
-* `published`: Graph is published on supergraph_stream as a master dictionary.
-* `stopped/not initialized`: Graph is stopped or not initialized.
-
-You can check the status of the graph using the following Redis command (using `redis-cli` or other Redis interface):
+  - name:         func_generator
+    version:      0.0
+    nickname:     func_generator
+    stage:        main
+    module:       .
+    machine:      brand  # this node will run on the machine named 'brand'
+    run_priority:                 99
+    parameters:
+      sample_rate:        1000
+      n_features:         96
+      n_targets:          2
+      log:                INFO 
 ```
-    $ XREVRANGE graph_status + - COUNT 1
-```How to run a multi-machine graph (e.g. [testBooter.yaml](./graphs/testGraph/testBooter.yaml)):
-1. Run `source setup.sh` to load the new `supervisor` and `booter` aliases
+
+How to run a multi-machine graph (e.g. [testBooter.yaml](./graphs/testGraph/testBooter.yaml)):
+1. Load the new `supervisor` and `booter` aliases.
+    ```bash
+    source setup.sh
+    ```
 2. Start `supervisor`. In this example, the host machine's local IP address is `192.168.1.101`.
-```bash
-supervisor -m brand -i 192.168.1.101
-```
+    ```bash
+    supervisor -m brand -i 192.168.1.101
+    ```
 3. Then, log into each client machine, and start a `booter` process, using a unique name for each machine. We will use one client machine called "gpc":
-```bash
-booter -m gpc -i 192.168.1.101  # name this machine 'gpc'
-```
+    ```bash
+    booter -m gpc -i 192.168.1.101  # name this machine 'gpc'
+    ```
 4. Enter the `redis-cli`:
-```
-redis-cli -h 192.168.1.101
-```
+    ```bash
+    redis-cli -h 192.168.1.101
+    ```
 5. Start a graph (in the `redis-cli`):
-```
-XADD supervisor_ipstream * commands startGraph file graphs/testGraph/testBooter.yaml
-```
+    ```bash
+    XADD supervisor_ipstream * commands startGraph file graphs/testGraph/testBooter.yaml
+    ```
 6. Stop the graph (in the `redis-cli`):
-```
-XADD supervisor_ipstream * commands stopGraph
-```
+    ```bash
+    XADD supervisor_ipstream * commands stopGraph
+    ```
 If everything is working correctly, you should see that the `func_generator` node ran on the "brand" machine, and the `decoder` node ran on the "gpc" machine.
-
 
 ## Redis as a mechanism for IPC
 
@@ -274,10 +295,9 @@ The primary mode of inter-process communication with BRAND is using Redis, focus
 
 A stream within redis has the following organization:
 
-```
+```bash
 stream_key ID key value key value ...
 ```
-
 
 The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at N and increments for every simultaneously created entry within the same millisecond.
 
@@ -292,19 +312,29 @@ When a node wants to share data with others, it does so using a stream. There ar
 
 Nodes can be written in any language. Nodes are launched, and stopped, in the `run.sh` script. Conceptually, a node should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Nodes are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 nodes running.
 
-At a minimum, a node should have the following characteristics:
+At a minimum, a node must:
 
-1. Be associated with a binary executable that parses the following command-line flags in order for a successful execution from the `supervisor`:
-    * `s`: Redis socket to bind node to.
-    * `n`: Nickname of the node.
-    * `i`: Redis server host name or IP address to bind node to .
-    * `p`: Redis server port to bind node to.
+1. Have a binary executable.
+2. Parse the following command-line flags from the `supervisor`:
+    * `-s`: Redis socket to bind node to.
+    * `-n`: Nickname of the node.
+    * `-i`: Redis server host name or IP address to bind node to.
+    * `-p`: Redis server port to bind node to.
+    
+    A node will prioritize the socket flag over the host/port flags. Execution of a node should fail if neither `i`/`p` nor `s` flags are provided. If the node cannot connect to a Redis instance, then it should fail.
+3. Load its parameters by reading from the `supergraph_stream` that contains a master JSON of the graph.
+4. Have a concept of "state", which is communicated through the `<node_nickname>_state` stream in Redis. States are published to the `status` key with one of the following values.
 
-A node will prioritize the socket flag over the host/port flags. Execution of a node should fail is neither `i`/`p` or `s` flags are provided.
+    Nodes are required to support the following states:
+    * `NODE_STARTED`: the node has been initialized.
+    * `NODE_READY`: the node is in a ready state for publishing data.
+    * `NODE_SHUTDOWN`: the node has shutdown.
+    * `NODE_FATAL_ERROR`: the node has shutdown due to any fatal error.
 
-2. Load its parameters by reading from a well-known stream that contains a master JSON of the graph (`supergraph_stream`).
-3. Have a concept of "state", which is communicated through Redis (`<node_name>_state` stream).
-4. Catch SIGINT to close gracefully.
+    Nodes can optionally support the following states:
+    * `NODE_WARNING`: the node has encountered a warning that may not cause shutdown, but could potentially produce errors during node execution or publishing data.
+    * `NODE_INFO`: the node has information to share.
+5. Catch `SIGINT` to publish a `NODE_SHUTDOWN` status to the `<node_nickname>_state` stream, then close gracefully.
 
 If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above. 
 
