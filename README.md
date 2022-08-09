@@ -249,12 +249,10 @@ Here's an example YAML entry for a node that will run on a machine named "brand"
 ```yaml
 nodes:
   - name:         func_generator
-    version:      0.0
     nickname:     func_generator
-    stage:        main
     module:       .
+    run_priority: 99
     machine:      brand  # this node will run on the machine named 'brand'
-    run_priority:                 99
     parameters:
       sample_rate:        1000
       n_features:         96
@@ -310,7 +308,7 @@ When a node wants to share data with others, it does so using a stream. There ar
 
 ## Creating a new node
 
-Nodes can be written in any language. Nodes are launched, and stopped, in the `run.sh` script. Conceptually, a node should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Nodes are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 nodes running.
+Nodes can be written in any language. Nodes are launched and stopped by the supervisor. Conceptually, a node should [do one thing and do it well](https://en.wikipedia.org/wiki/Unix_philosophy). Nodes are designed to be chained together in sequence. It should not be surprising if an experimental session applying real-time decoding to neural data would have on the order of 6-12 nodes running.
 
 At a minimum, a node must:
 
@@ -360,14 +358,6 @@ sudo cpufreq-set -g powersave
 This was tested on Intel CPUs. The commands may be difference for CPUs from other manufacturers.
 
 ## Gotchas
-
-### PREEMPT_RT kernel bash fork error.
-
-It turns out that with Ubuntu 18.04 running PREEMPT_RT kernel version 5.4.40-rt24, there are some surprising conditions under which the terminal will crash, resulting in a `bash: fork: error` being displayed in the terminal, requiring one to restart their connection.
-
-First, *do not write a node that both sets a `SCHED_FIFO` prioritization and interacts with Redis*. The way around this is to have a process do one or the other. If a process needs to run a timer, then have the process `pause()` until if gets a signal from a different node (scheduled with SCHED_FIFO) indicating that it's time to run.
-
-Second, *do not write a node that sets `SCHED_FIFO` that is launched from python*. The way to do this is to lanch the processes using the `run.sh` script. 
 
 ### Saving data in Redis with minimal latency
 
