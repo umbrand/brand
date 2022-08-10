@@ -1,14 +1,10 @@
 #!/usr/bin/env python
-from turtle import position
 import redis
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import pickle
 import json
 import time
 import os
-from tqdm.autonotebook import tqdm
 from datetime import datetime
 
 import sys

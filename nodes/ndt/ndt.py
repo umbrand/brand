@@ -2,12 +2,10 @@
 # -*- coding: utf-8 -*-
 # ndt.py
 
-import os
 import gc
 import sys
 import time
 import yaml
-import json
 import signal
 import logging
 import numpy as np
