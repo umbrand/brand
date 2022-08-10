@@ -8,8 +8,8 @@ The layout of each graph is defined in its associated .yaml configuration file. 
 ## Installation
 
 ### Requirements
-* Host Machine Running Ubuntu 18.04
-* Validated on PREEMPT_RT kernel version 5.4.40-rt24
+* Host Machine Running Ubuntu 20.04
+* Validated on PREEMPT_RT kernel version 5.15.43-rt45 [[install instructions](./doc/preempt_rt.md)]
 * [Anaconda3](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) for Linux
 
 ### Environment setup and Make
@@ -184,7 +184,7 @@ Optionally, you can include arguments when running the `supervisor` to override 
     ```bash
     XADD supervisor_ipstream * commands stopGraph
     ```
-    Alternatively to stop the graph and save NWB export files, use the following Redis command (using `redis-cli` or other Redis interface). Note that this will require having your graph and nodes set up to support the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md).
+    Alternatively to stop the graph and save NWB export files, use the following Redis command (using `redis-cli` or other Redis interface). Note that this will require having your graph and nodes set up to support the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md).
     ```bash
     XADD supervisor_ipstream * commands stopGraphAndSaveNWB 
     ```
@@ -195,7 +195,7 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 
 * `startGraph` [file <path_to_file>]: Start graph from YAML file path.
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
-* `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
+* `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
 
 ### Redis streams used with the `supervisor`
 
