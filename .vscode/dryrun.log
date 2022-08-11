@@ -1,0 +1,227 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev'
+ 
+dirname: missing operand
+Try 'dirname --help' for more information.
+
+dirname: missing operand
+Try 'dirname --help' for more information.
+
+dirname: missing operand
+Try 'dirname --help' for more information.
+
+dirname: missing operand
+Try 'dirname --help' for more information.
+
+dirname: missing operand
+Try 'dirname --help' for more information.
+dirname: missing operand
+Try 'dirname --help' for more information.
+
+make -C /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis redis-server redis-cli
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis'
+cd src && make Makefile
+make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
+    [34mCC[0m [33mMakefile.dep[0m
+
+make[2]: Nothing to be done for 'Makefile'.
+make[2]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
+cd src && make redis-server
+ 
+make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
+    [34mCC[0m [33mMakefile.dep[0m
+
+touch .make-prerequisites
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"adlist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o adlist.o -c adlist.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"quicklist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o quicklist.o -c quicklist.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ae.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ae.o -c ae.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"anet.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o anet.o -c anet.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"dict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o dict.o -c dict.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"server.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o server.o -c server.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sds.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sds.o -c sds.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zmalloc.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zmalloc.o -c zmalloc.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lzf_c.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lzf_c.o -c lzf_c.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lzf_d.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lzf_d.o -c lzf_d.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"pqsort.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o pqsort.o -c pqsort.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zipmap.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zipmap.o -c zipmap.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sha1.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sha1.o -c sha1.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ziplist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ziplist.o -c ziplist.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"release.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o release.o -c release.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"networking.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o networking.o -c networking.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"util.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o util.o -c util.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"object.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o object.o -c object.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"db.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o db.o -c db.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"replication.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o replication.o -c replication.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rdb.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rdb.o -c rdb.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_string.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_string.o -c t_string.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_list.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_list.o -c t_list.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_set.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_set.o -c t_set.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_zset.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_zset.o -c t_zset.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_hash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_hash.o -c t_hash.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"config.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o config.o -c config.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"aof.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o aof.o -c aof.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"pubsub.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o pubsub.o -c pubsub.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"multi.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o multi.o -c multi.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"debug.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o debug.o -c debug.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sort.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sort.o -c sort.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"intset.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o intset.o -c intset.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"syncio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o syncio.o -c syncio.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"cluster.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o cluster.o -c cluster.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc16.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc16.o -c crc16.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"endianconv.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o endianconv.o -c endianconv.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"slowlog.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o slowlog.o -c slowlog.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"eval.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o eval.o -c eval.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"bio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o bio.o -c bio.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rio.o -c rio.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rand.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rand.o -c rand.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"memtest.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o memtest.o -c memtest.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"syscheck.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o syscheck.o -c syscheck.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crcspeed.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crcspeed.o -c crcspeed.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc64.o -c crc64.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"bitops.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o bitops.o -c bitops.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sentinel.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sentinel.o -c sentinel.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"notify.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o notify.o -c notify.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"setproctitle.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o setproctitle.o -c setproctitle.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"blocked.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o blocked.o -c blocked.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"hyperloglog.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o hyperloglog.o -c hyperloglog.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"latency.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o latency.o -c latency.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sparkline.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sparkline.o -c sparkline.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-check-rdb.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-check-rdb.o -c redis-check-rdb.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-check-aof.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-check-aof.o -c redis-check-aof.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geo.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geo.o -c geo.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lazyfree.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lazyfree.o -c lazyfree.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"module.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o module.o -c module.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"evict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o evict.o -c evict.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"expire.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o expire.o -c expire.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geohash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geohash.o -c geohash.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geohash_helper.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geohash_helper.o -c geohash_helper.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"childinfo.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o childinfo.o -c childinfo.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"defrag.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o defrag.o -c defrag.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"siphash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o siphash.o -c siphash.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rax.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rax.o -c rax.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_stream.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_stream.o -c t_stream.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"listpack.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o listpack.o -c listpack.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"localtime.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o localtime.o -c localtime.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut.o -c lolwut.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut5.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut5.o -c lolwut5.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut6.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut6.o -c lolwut6.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"acl.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o acl.o -c acl.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"tracking.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o tracking.o -c tracking.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"connection.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o connection.o -c connection.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"tls.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o tls.o -c tls.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sha256.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sha256.o -c sha256.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"timeout.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o timeout.o -c timeout.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"setcpuaffinity.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o setcpuaffinity.o -c setcpuaffinity.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"monotonic.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o monotonic.o -c monotonic.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"mt19937-64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o mt19937-64.o -c mt19937-64.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"resp_parser.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o resp_parser.o -c resp_parser.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"call_reply.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o call_reply.o -c call_reply.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"script_lua.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o script_lua.o -c script_lua.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"script.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o script.o -c script.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"functions.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o functions.o -c functions.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"function_lua.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o function_lua.o -c function_lua.c
+ 
+printf '    %b %b\n' "\033[34m"GEN"\033[0m" "\033[33m"commands.c"\033[0m" 1>&2;/home/neuro/anaconda3/bin/python3 ../utils/generate-command-code.py
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"commands.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o commands.o -c commands.c
+printf '    %b %b\n' "\033[34;1m"LINK"\033[0m" "\033[37;1m"redis-server"\033[0m" 1>&2;cc   -g -ggdb -rdynamic -o redis-server adlist.o quicklist.o ae.o anet.o dict.o server.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o cluster.o crc16.o endianconv.o slowlog.o eval.o bio.o rio.o rand.o memtest.o syscheck.o crcspeed.o crc64.o bitops.o sentinel.o notify.o setproctitle.o blocked.o hyperloglog.o latency.o sparkline.o redis-check-rdb.o redis-check-aof.o geo.o lazyfree.o module.o evict.o expire.o geohash.o geohash_helper.o childinfo.o defrag.o siphash.o rax.o t_stream.o listpack.o localtime.o lolwut.o lolwut5.o lolwut6.o acl.o tracking.o connection.o tls.o sha256.o timeout.o setcpuaffinity.o monotonic.o mt19937-64.o resp_parser.o call_reply.o script_lua.o script.o functions.o function_lua.o commands.o ../deps/hiredis/libhiredis.a ../deps/lua/src/liblua.a ../deps/hdr_histogram/libhdrhistogram.a ../deps/jemalloc/lib/libjemalloc.a -lm -ldl -pthread -lrt
+make[2]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
+cd src && make redis-cli
+ 
+make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
+    [34mCC[0m [33mMakefile.dep[0m
+
+touch .make-prerequisites
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"anet.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o anet.o -c anet.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"adlist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o adlist.o -c adlist.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"dict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o dict.o -c dict.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-cli.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-cli.o -c redis-cli.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zmalloc.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zmalloc.o -c zmalloc.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"release.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o release.o -c release.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ae.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ae.o -c ae.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redisassert.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redisassert.o -c redisassert.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crcspeed.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crcspeed.o -c crcspeed.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc64.o -c crc64.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"siphash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o siphash.o -c siphash.c
+ 
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc16.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc16.o -c crc16.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"monotonic.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o monotonic.o -c monotonic.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"cli_common.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o cli_common.o -c cli_common.c
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"mt19937-64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o mt19937-64.o -c mt19937-64.c
+printf '    %b %b\n' "\033[34;1m"LINK"\033[0m" "\033[37;1m"redis-cli"\033[0m" 1>&2;cc   -g -ggdb -rdynamic -o redis-cli anet.o adlist.o dict.o redis-cli.o zmalloc.o release.o ae.o redisassert.o crcspeed.o crc64.o siphash.o crc16.o monotonic.o cli_common.o mt19937-64.o ../deps/hiredis/libhiredis.a ../deps/linenoise/linenoise.o ../deps/jemalloc/lib/libjemalloc.a -lm -ldl -pthread -lrt
+make[2]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis'
+mv /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src/redis-server /home/neuro/Documents/work_ws/realtime_rig_dev/bin
+mv /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src/redis-cli /home/neuro/Documents/work_ws/realtime_rig_dev/bin
+ 
+make -C /home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis'
+ 
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb net.c
+ 
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb hiredis.c
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb sds.c
+ 
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb async.c
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb read.c
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb sockcompat.c
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb alloc.c
+ 
+cc -shared -Wl,-soname,libhiredis.so.0.15 -o libhiredis.so net.o hiredis.o sds.o async.o read.o sockcompat.o alloc.o 
+ 
+ar rcs libhiredis.a net.o hiredis.o sds.o async.o read.o sockcompat.o alloc.o
+cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb test.c
+cc -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb -o hiredis-test test.o libhiredis.a 
+ 
+echo "Generating hiredis.pc for pkgconfig..."
+echo prefix=/usr/local > hiredis.pc
+echo exec_prefix=\${prefix} >> hiredis.pc
+ 
+echo libdir=/usr/local/lib >> hiredis.pc
+echo includedir=/usr/local/include/hiredis >> hiredis.pc
+echo >> hiredis.pc
+echo Name: hiredis >> hiredis.pc
+echo Description: Minimalistic C client library for Redis. >> hiredis.pc
+echo Version: 0.15.0 >> hiredis.pc
+echo Libs: -L\${libdir} -lhiredis >> hiredis.pc
+echo Cflags: -I\${includedir} -D_FILE_OFFSET_BITS=64 >> hiredis.pc
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis'
+ 
+ldconfig -C /tmp/cache /home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis
+rm -f /tmp/cache
+ 
+make -C /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet'
+ 
+CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing aclocal-1.16 -I m4
+ 
+make[1]: *** [Makefile:493: aclocal.m4] Interrupt
+
+make: *** [Makefile:49: lpcnet] Interrupt
+

@@ -33,6 +33,7 @@ class Supervisor:
                       "published", "stopped/not initialized")
 
         self.graph_file = None
+        self.redis_pid = None
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -131,12 +132,9 @@ class Supervisor:
         '''
         logger.info("Killing the redis server")
         try:
-            #get the pid of the redis server
-            args = ['pidof', 'redis-server']
-            pid = subprocess.check_output(args).decode('utf-8').strip()
-            logger.info("PID of the redis server: %s" % pid)
-            if pid is not None:
-                os.kill(int(pid), signal.SIGTERM)
+            logger.info("PID of the redis server: %s" % self.redis_pid)
+            if self.redis_pid is not None:
+                os.kill(int(self.redis_pid), signal.SIGTERM)
                 logger.info("Redis server killed")
                 sys.exit(1)
             else:
@@ -157,18 +155,20 @@ class Supervisor:
         bin_f = None
         for dir in directory:
             for file in os.listdir(dir):
-                    if file.endswith(".bin") or file.endswith(".out"):
+                    if file.startswith(name) and (file.endswith(".bin") or file.endswith(".out")):
                         bin_file = os.path.join(dir, file)
                         logger.info("bin/exec file path: %s" % bin_file)
                         bin_f = bin_file
+                        return bin_f
         if(bin_f is None):
+            logger.error("No bin/exec file found for the node")
             logger.info("%s is not a valid node....." % name)
             logger.info("Bin files / executables do not exist in the path")
             logger.info("Try sourcing the setup sript and  then run make in the root directory....")
             self.r.flushdb()
-            self.kill_redis_server()
-            sys.exit(1)      
-        return bin_f
+            logger.info("Redis flushed")
+            logger.info("Stopping the graph")
+
 
 
 
@@ -194,6 +194,7 @@ class Supervisor:
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
             logger.debug(out.decode())
@@ -296,12 +297,12 @@ class Supervisor:
         try:
             for n in nodes:
                 bin_f = self.search_node_bin_file(n["module"],n["name"])
-                logger.info("%s is a valid node...." % n["nickname"])
-
-                # Loading the nodes and graph into self.model dict
-                self.model["nodes"][n["nickname"]] = {}
-                self.model["nodes"][n["nickname"]].update(n)
-                self.model["nodes"][n["nickname"]]["binary"] = bin_f
+                if bin_f is not None:
+                    logger.info("%s is a valid node...." % n["nickname"])
+                    # Loading the nodes and graph into self.model dict
+                    self.model["nodes"][n["nickname"]] = {}
+                    self.model["nodes"][n["nickname"]].update(n)
+                    self.model["nodes"][n["nickname"]]["binary"] = bin_f
 
             if "derivatives" in graph_dict:
                 self.model["derivatives"] = {}
@@ -365,7 +366,7 @@ class Supervisor:
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
                     args = [binary, '-n',node_stream_name]
-                    args += ['-hs', host, '-p', str(port)]
+                    args += ['-i', host, '-p', str(port)]
                     if self.unixsocket:
                         args += ['-s', self.unixsocket]
                     if 'run_priority' in node_info:  # if priority is specified
@@ -396,6 +397,8 @@ class Supervisor:
                 os.kill(self.children[i], signal.SIGINT)
                 logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
+        else:
+            logger.info("No child processes to kill")
 
 
     def stop_graph_and_save_nwb(self):
