@@ -32,10 +32,10 @@ BRAND follows the following directory structure (where `brand` corresponds to th
     |---derivatives
     |---graphs
     |---lib
-    |---nodes
         |---c
         |---python
         |---<packages>
+    |---nodes
     |---supervisor
 |---brand-modules
     |---<module-name>
