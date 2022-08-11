@@ -3,22 +3,19 @@ make: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev'
  
 dirname: missing operand
 Try 'dirname --help' for more information.
-
 dirname: missing operand
 Try 'dirname --help' for more information.
-
 dirname: missing operand
 Try 'dirname --help' for more information.
-
 dirname: missing operand
 Try 'dirname --help' for more information.
-
 dirname: missing operand
 Try 'dirname --help' for more information.
 dirname: missing operand
 Try 'dirname --help' for more information.
 
 make -C /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis redis-server redis-cli
+ 
 make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis'
 cd src && make Makefile
 make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
@@ -40,12 +37,11 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"adlist.o"\033[0m" 1>&2;cc -
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"quicklist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o quicklist.o -c quicklist.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ae.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ae.o -c ae.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"anet.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o anet.o -c anet.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"dict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o dict.o -c dict.c
  
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"server.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o server.o -c server.c
-printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sds.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sds.o -c sds.c
  
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sds.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sds.o -c sds.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zmalloc.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zmalloc.o -c zmalloc.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lzf_c.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lzf_c.o -c lzf_c.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lzf_d.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lzf_d.o -c lzf_d.c
@@ -53,14 +49,13 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"pqsort.o"\033[0m" 1>&2;cc -
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zipmap.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zipmap.o -c zipmap.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sha1.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sha1.o -c sha1.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ziplist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ziplist.o -c ziplist.c
+ 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"release.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o release.o -c release.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"networking.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o networking.o -c networking.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"util.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o util.o -c util.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"object.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o object.o -c object.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"db.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o db.o -c db.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"replication.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o replication.o -c replication.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rdb.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rdb.o -c rdb.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_string.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_string.o -c t_string.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_list.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_list.o -c t_list.c
@@ -68,22 +63,20 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_set.o"\033[0m" 1>&2;cc -p
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_zset.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_zset.o -c t_zset.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_hash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_hash.o -c t_hash.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"config.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o config.o -c config.c
-printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"aof.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o aof.o -c aof.c
  
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"aof.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o aof.o -c aof.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"pubsub.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o pubsub.o -c pubsub.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"multi.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o multi.o -c multi.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"debug.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o debug.o -c debug.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sort.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sort.o -c sort.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"intset.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o intset.o -c intset.c
+ 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"syncio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o syncio.o -c syncio.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"cluster.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o cluster.o -c cluster.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc16.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc16.o -c crc16.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"endianconv.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o endianconv.o -c endianconv.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"slowlog.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o slowlog.o -c slowlog.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"eval.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o eval.o -c eval.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"bio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o bio.o -c bio.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rio.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rio.o -c rio.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rand.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o rand.o -c rand.c
@@ -93,6 +86,7 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crcspeed.o"\033[0m" 1>&2;cc
  
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc64.o -c crc64.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"bitops.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o bitops.o -c bitops.c
+ 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sentinel.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sentinel.o -c sentinel.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"notify.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o notify.o -c notify.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"setproctitle.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o setproctitle.o -c setproctitle.c
@@ -104,10 +98,10 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-check-rdb.o"\033[0m" 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-check-aof.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-check-aof.o -c redis-check-aof.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geo.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geo.o -c geo.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lazyfree.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lazyfree.o -c lazyfree.c
+ 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"module.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o module.o -c module.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"evict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o evict.o -c evict.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"expire.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o expire.o -c expire.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geohash.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geohash.o -c geohash.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"geohash_helper.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o geohash_helper.o -c geohash_helper.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"childinfo.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o childinfo.o -c childinfo.c
@@ -117,27 +111,23 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"rax.o"\033[0m" 1>&2;cc -ped
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"t_stream.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o t_stream.o -c t_stream.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"listpack.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o listpack.o -c listpack.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"localtime.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o localtime.o -c localtime.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut.o -c lolwut.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut5.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut5.o -c lolwut5.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"lolwut6.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o lolwut6.o -c lolwut6.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"acl.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o acl.o -c acl.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"tracking.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o tracking.o -c tracking.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"connection.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o connection.o -c connection.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"tls.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o tls.o -c tls.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"sha256.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o sha256.o -c sha256.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"timeout.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o timeout.o -c timeout.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"setcpuaffinity.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o setcpuaffinity.o -c setcpuaffinity.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"monotonic.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o monotonic.o -c monotonic.c
- 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"mt19937-64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o mt19937-64.o -c mt19937-64.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"resp_parser.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o resp_parser.o -c resp_parser.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"call_reply.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o call_reply.o -c call_reply.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"script_lua.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o script_lua.o -c script_lua.c
-printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"script.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o script.o -c script.c
  
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"script.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o script.o -c script.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"functions.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o functions.o -c functions.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"function_lua.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o function_lua.o -c function_lua.c
  
@@ -154,15 +144,16 @@ make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/
     [34mCC[0m [33mMakefile.dep[0m
 
 touch .make-prerequisites
-printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"anet.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o anet.o -c anet.c
  
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"anet.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o anet.o -c anet.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"adlist.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o adlist.o -c adlist.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"dict.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o dict.o -c dict.c
-printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-cli.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-cli.o -c redis-cli.c
  
+printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redis-cli.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redis-cli.o -c redis-cli.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"zmalloc.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o zmalloc.o -c zmalloc.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"release.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o release.o -c release.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"ae.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o ae.o -c ae.c
+ 
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"redisassert.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o redisassert.o -c redisassert.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crcspeed.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crcspeed.o -c crcspeed.c
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"crc64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o crc64.o -c crc64.c
@@ -174,6 +165,7 @@ printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"cli_common.o"\033[0m" 1>&2;
 printf '    %b %b\n' "\033[34m"CC"\033[0m" "\033[33m"mt19937-64.o"\033[0m" 1>&2;cc -pedantic -DREDIS_STATIC= -std=c11 -Wall -W -Wno-missing-field-initializers -O2 -g -ggdb   -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src -I../deps/hdr_histogram -DUSE_JEMALLOC -I../deps/jemalloc/include -MMD -o mt19937-64.o -c mt19937-64.c
 printf '    %b %b\n' "\033[34;1m"LINK"\033[0m" "\033[37;1m"redis-cli"\033[0m" 1>&2;cc   -g -ggdb -rdynamic -o redis-cli anet.o adlist.o dict.o redis-cli.o zmalloc.o release.o ae.o redisassert.o crcspeed.o crc64.o siphash.o crc16.o monotonic.o cli_common.o mt19937-64.o ../deps/hiredis/libhiredis.a ../deps/linenoise/linenoise.o ../deps/jemalloc/lib/libjemalloc.a -lm -ldl -pthread -lrt
 make[2]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src'
+ 
 make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis'
 mv /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src/redis-server /home/neuro/Documents/work_ws/realtime_rig_dev/bin
 mv /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redis/src/redis-cli /home/neuro/Documents/work_ws/realtime_rig_dev/bin
@@ -193,7 +185,6 @@ cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-string
 cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb alloc.c
  
 cc -shared -Wl,-soname,libhiredis.so.0.15 -o libhiredis.so net.o hiredis.o sds.o async.o read.o sockcompat.o alloc.o 
- 
 ar rcs libhiredis.a net.o hiredis.o sds.o async.o read.o sockcompat.o alloc.o
 cc -std=c99 -pedantic -c -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb test.c
 cc -O3 -fPIC   -Wall -W -Wstrict-prototypes -Wwrite-strings -Wno-missing-field-initializers -g -ggdb -o hiredis-test test.o libhiredis.a 
@@ -221,7 +212,829 @@ make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/
  
 CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing aclocal-1.16 -I m4
  
-make[1]: *** [Makefile:493: aclocal.m4] Interrupt
+ cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing automake-1.16 --foreign
+ 
+CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing autoconf
+ 
+/bin/bash ./config.status --recheck
+ 
+running CONFIG_SHELL=/bin/bash /bin/bash ./configure CFLAGS=-O3 -g -mavx2 -mfma --no-create --no-recursion
+ 
+checking for gcc...  
+gcc
+ 
+checking whether the C compiler works...  
+yes
+ 
+checking for C compiler default output file name... a.out
+ 
+checking for suffix of executables...  
 
-make: *** [Makefile:49: lpcnet] Interrupt
+ 
+checking whether we are cross compiling...  
+no
+ 
+checking for suffix of object files...  
+o
+ 
+checking whether we are using the GNU C compiler...  
+yes
+ 
+checking whether gcc accepts -g...  
+yes
+ 
+checking for gcc option to accept ISO C89...  
+none needed
+ 
+checking whether gcc understands -c and -o together...  
+yes
+ 
+checking how to run the C preprocessor...  
+gcc -E
+ 
+checking for grep that handles long lines and -e...  
+/usr/bin/grep
+ 
+checking for egrep...  
+/usr/bin/grep -E
+ 
+checking for ANSI C header files...  
+yes
+ 
+checking for sys/types.h...  
+yes
+ 
+checking for sys/stat.h...  
+yes
+ 
+checking for stdlib.h...  
+yes
+ 
+checking for string.h...  
+yes
+ 
+checking for memory.h...  
+yes
+ 
+checking for strings.h...  
+yes
+ 
+checking for inttypes.h...  
+yes
+ 
+checking for stdint.h...  
+yes
+ 
+checking for unistd.h...  
+yes
+ 
+checking minix/config.h usability...  
+no
+ 
+checking minix/config.h presence...  
+no
+ 
+checking for minix/config.h...  
+no
+ 
+checking whether it is safe to define __EXTENSIONS__...  
+yes
+ 
+checking for special C compiler options needed for large files... no
+checking for _FILE_OFFSET_BITS value needed for large files...  
+no
+ 
+checking for a BSD-compatible install...  
+/usr/bin/install -c
+ 
+checking whether build environment is sane...  
+yes
+ 
+checking for a thread-safe mkdir -p...  
+/usr/bin/mkdir -p
+ 
+checking for gawk...  
+no
+ 
+checking for mawk...  
+mawk
+checking whether make sets $(MAKE)...  
+yes
+ 
+checking whether make supports the include directive...  
+yes (GNU style)
+ 
+checking whether make supports nested variables...  
+yes
+ 
+checking dependency style of gcc...  
+gcc3
+ 
+checking whether to enable maintainer-specific portions of Makefiles...  
+yes
+ 
+checking for inline...  
+inline
+ 
+checking build system type...  
+x86_64-pc-linux-gnu
+ 
+checking host system type... x86_64-pc-linux-gnu
+ 
+checking how to print strings...  
+printf
+checking for a sed that does not truncate output...  
+/usr/bin/sed
+ 
+checking for fgrep...  
+/usr/bin/grep -F
+ 
+checking for ld used by gcc...  
+/usr/bin/ld
+ 
+checking if the linker (/usr/bin/ld) is GNU ld...  
+yes
+ 
+checking for BSD- or MS-compatible name lister (nm)...  
+/usr/bin/nm -B
+ 
+checking the name lister (/usr/bin/nm -B) interface...  
+BSD nm
+ 
+checking whether ln -s works...  
+yes
+checking the maximum length of command line arguments...  
+1572864
+ 
+checking how to convert x86_64-pc-linux-gnu file names to x86_64-pc-linux-gnu format...  
+func_convert_file_noop
+checking how to convert x86_64-pc-linux-gnu file names to toolchain format...  
+func_convert_file_noop
+checking for /usr/bin/ld option to reload object files...  
+-r
+ 
+checking for objdump...  
+objdump
+checking how to recognize dependent libraries...  
+pass_all
+ 
+checking for dlltool...  
+no
+checking how to associate runtime and link libraries...  
+printf %s\n
+ 
+checking for ar...  
+ar
+checking for archiver @FILE support...  
+@
+ 
+checking for strip...  
+strip
+ 
+checking for ranlib...  
+ranlib
+ 
+checking command to parse /usr/bin/nm -B output from gcc object...  
+ok
+ 
+checking for sysroot...  
+no
+checking for a working dd...  
+/usr/bin/dd
+ 
+checking how to truncate binary pipes...  
+/usr/bin/dd bs=4096 count=1
+ 
+checking for mt...  
+mt
+checking if mt is a manifest tool...  
+no
+ 
+checking for dlfcn.h...  
+yes
+ 
+checking for objdir...  
+.libs
+ 
+checking if gcc supports -fno-rtti -fno-exceptions...  
+no
+ 
+checking for gcc option to produce PIC... -fPIC -DPIC
+checking if gcc PIC flag -fPIC -DPIC works...  
+yes
+ 
+checking if gcc static flag -static works...  
+yes
+ 
+checking if gcc supports -c -o file.o...  
+yes
+ 
+checking if gcc supports -c -o file.o... (cached) yes
+ 
+checking whether the gcc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries...  
+yes
+ 
+checking whether -lc should be explicitly linked in...  
+no
+ 
+checking dynamic linker characteristics...  
+GNU/Linux ld.so
+ 
+checking how to hardcode library paths into programs...  
+immediate
+checking whether stripping libraries is possible...  
+yes
+ 
+checking if libtool supports shared libraries...  
+yes
+checking whether to build shared libraries...  
+yes
+checking whether to build static libraries...  
+yes
+ 
+checking whether make supports nested variables...  
+(cached)  
+yes
+ 
+checking if gcc supports -pedantic flag...  
+yes
+ 
+checking if gcc supports -Wall flag...  
+yes
+ 
+checking if gcc supports -Wextra flag...  
+yes
+ 
+checking if gcc supports -Wno-sign-compare flag...  
+yes
+ 
+checking if gcc supports -Wno-parentheses flag...  
+yes
+ 
+checking if gcc supports -Wno-long-long flag...  
+yes
+ 
+checking for cos in -lm...  
+yes
+ 
+checking for gcc way to treat warnings as errors...  
+-Werror
+checking if gcc supports __attribute__(( visibility("default") ))...  
+yes
+ 
+checking if gcc supports -fvisibility=hidden...  
+yes
+ 
+checking for doxygen...  
+no
+checking for dot...  
+no
+ 
+checking that generated files are newer than configure...  
+done
+ 
+configure: creating ./config.status
+ 
+configure:
+------------------------------------------------------------------------
+  lpcnet 0.1-5-g3a7ef33: Automatic configuration OK.
 
+    Assertions ................... no
+
+    Hidden visibility ............ yes
+
+    API documentation ............ yes
+------------------------------------------------------------------------
+
+ 
+ /bin/bash ./config.status
+ 
+config.status: creating Makefile
+ 
+config.status: creating lpcnet.pc
+ 
+config.status: creating lpcnet-uninstalled.pc
+ 
+config.status: creating doc/Doxyfile
+ 
+config.status: creating config.h
+ 
+config.status: config.h is unchanged
+ 
+config.status: executing depfiles commands
+ 
+config.status: executing libtool commands
+ 
+(CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing autoheader)
+rm -f stamp-h1
+touch config.h.in
+ 
+rm -f stamp-h1
+cd . && /bin/bash ./config.status config.h
+test -f config.h || rm -f stamp-h1
+test -f config.h || make  stamp-h1
+ 
+make  all-am
+ 
+make[2]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet'
+ 
+CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing aclocal-1.16 -I m4
+ 
+ cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing automake-1.16 --foreign
+ 
+CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing autoconf
+ 
+/bin/bash ./config.status --recheck
+ 
+running CONFIG_SHELL=/bin/bash /bin/bash ./configure CFLAGS=-O3 -g -mavx2 -mfma --no-create --no-recursion
+ 
+checking for gcc...  
+gcc
+ 
+checking whether the C compiler works...  
+yes
+checking for C compiler default output file name...  
+a.out
+ 
+checking for suffix of executables...  
+
+ 
+checking whether we are cross compiling...  
+no
+ 
+checking for suffix of object files...  
+o
+ 
+checking whether we are using the GNU C compiler...  
+yes
+ 
+checking whether gcc accepts -g...  
+yes
+ 
+checking for gcc option to accept ISO C89...  
+none needed
+ 
+checking whether gcc understands -c and -o together...  
+yes
+ 
+checking how to run the C preprocessor...  
+gcc -E
+ 
+checking for grep that handles long lines and -e...  
+/usr/bin/grep
+ 
+checking for egrep...  
+/usr/bin/grep -E
+ 
+checking for ANSI C header files...  
+yes
+ 
+checking for sys/types.h...  
+yes
+ 
+checking for sys/stat.h...  
+yes
+ 
+checking for stdlib.h...  
+yes
+ 
+checking for string.h...  
+yes
+ 
+checking for memory.h...  
+yes
+ 
+checking for strings.h...  
+yes
+ 
+checking for inttypes.h...  
+yes
+ 
+checking for stdint.h...  
+yes
+ 
+checking for unistd.h...  
+yes
+ 
+checking minix/config.h usability...  
+no
+ 
+checking minix/config.h presence...  
+no
+ 
+checking for minix/config.h...  
+no
+ 
+checking whether it is safe to define __EXTENSIONS__...  
+yes
+ 
+checking for special C compiler options needed for large files... no
+checking for _FILE_OFFSET_BITS value needed for large files...  
+no
+ 
+checking for a BSD-compatible install...  
+/usr/bin/install -c
+ 
+checking whether build environment is sane...  
+yes
+ 
+checking for a thread-safe mkdir -p...  
+/usr/bin/mkdir -p
+ 
+checking for gawk...  
+no
+checking for mawk...  
+mawk
+checking whether make sets $(MAKE)...  
+yes
+ 
+checking whether make supports the include directive...  
+yes (GNU style)
+ 
+checking whether make supports nested variables...  
+yes
+ 
+checking dependency style of gcc...  
+gcc3
+ 
+checking whether to enable maintainer-specific portions of Makefiles...  
+yes
+checking for inline...  
+inline
+ 
+checking build system type...  
+x86_64-pc-linux-gnu
+ 
+checking host system type... x86_64-pc-linux-gnu
+ 
+checking how to print strings...  
+printf
+ 
+checking for a sed that does not truncate output...  
+/usr/bin/sed
+ 
+checking for fgrep...  
+/usr/bin/grep -F
+ 
+checking for ld used by gcc...  
+/usr/bin/ld
+ 
+checking if the linker (/usr/bin/ld) is GNU ld...  
+yes
+ 
+checking for BSD- or MS-compatible name lister (nm)...  
+/usr/bin/nm -B
+ 
+checking the name lister (/usr/bin/nm -B) interface...  
+BSD nm
+ 
+checking whether ln -s works... yes
+ 
+checking the maximum length of command line arguments...  
+1572864
+ 
+checking how to convert x86_64-pc-linux-gnu file names to x86_64-pc-linux-gnu format...  
+func_convert_file_noop
+checking how to convert x86_64-pc-linux-gnu file names to toolchain format...  
+func_convert_file_noop
+checking for /usr/bin/ld option to reload object files... -r
+ 
+checking for objdump...  
+objdump
+checking how to recognize dependent libraries...  
+pass_all
+ 
+checking for dlltool... no
+ 
+checking how to associate runtime and link libraries...  
+printf %s\n
+checking for ar...  
+ar
+checking for archiver @FILE support...  
+@
+ 
+checking for strip...  
+strip
+ 
+checking for ranlib... ranlib
+checking command to parse /usr/bin/nm -B output from gcc object...  
+ok
+ 
+checking for sysroot...  
+no
+checking for a working dd...  
+/usr/bin/dd
+ 
+checking how to truncate binary pipes...  
+/usr/bin/dd bs=4096 count=1
+ 
+checking for mt...  
+mt
+ 
+checking if mt is a manifest tool...  
+no
+ 
+checking for dlfcn.h...  
+yes
+ 
+checking for objdir...  
+.libs
+ 
+checking if gcc supports -fno-rtti -fno-exceptions...  
+no
+ 
+checking for gcc option to produce PIC... -fPIC -DPIC
+ 
+checking if gcc PIC flag -fPIC -DPIC works...  
+yes
+ 
+checking if gcc static flag -static works...  
+yes
+ 
+checking if gcc supports -c -o file.o...  
+yes
+ 
+checking if gcc supports -c -o file.o... (cached) yes
+ 
+checking whether the gcc linker (/usr/bin/ld -m elf_x86_64) supports shared libraries...  
+yes
+ 
+checking whether -lc should be explicitly linked in...  
+no
+ 
+checking dynamic linker characteristics...  
+GNU/Linux ld.so
+ 
+checking how to hardcode library paths into programs...  
+immediate
+checking whether stripping libraries is possible...  
+yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... yes
+checking whether to build static libraries... yes
+ 
+checking whether make supports nested variables... (cached) yes
+ 
+checking if gcc supports -pedantic flag...  
+yes
+ 
+checking if gcc supports -Wall flag...  
+yes
+ 
+checking if gcc supports -Wextra flag...  
+yes
+ 
+checking if gcc supports -Wno-sign-compare flag...  
+yes
+ 
+checking if gcc supports -Wno-parentheses flag...  
+yes
+ 
+checking if gcc supports -Wno-long-long flag...  
+yes
+ 
+checking for cos in -lm...  
+yes
+ 
+checking for gcc way to treat warnings as errors...  
+-Werror
+ 
+checking if gcc supports __attribute__(( visibility("default") ))...  
+yes
+ 
+checking if gcc supports -fvisibility=hidden...  
+yes
+ 
+checking for doxygen...  
+no
+checking for dot... no
+ 
+checking that generated files are newer than configure...  
+done
+ 
+configure: creating ./config.status
+ 
+configure:
+------------------------------------------------------------------------
+  lpcnet 0.1-5-g3a7ef33: Automatic configuration OK.
+
+    Assertions ................... no
+
+    Hidden visibility ............ yes
+
+    API documentation ............ yes
+------------------------------------------------------------------------
+
+ 
+ /bin/bash ./config.status
+ 
+config.status: creating Makefile
+ 
+config.status: creating lpcnet.pc
+ 
+config.status: creating lpcnet-uninstalled.pc
+ 
+config.status: creating doc/Doxyfile
+ 
+config.status: creating config.h
+ 
+config.status: config.h is unchanged
+ 
+config.status: executing depfiles commands
+ 
+config.status: executing libtool commands
+ 
+/usr/bin/mkdir -p src
+: > src/.dirstamp
+ 
+/usr/bin/mkdir -p src/.deps
+: > src/.deps/.dirstamp
+echo "  CC      " src/lpcnet_demo.o;depbase=`echo src/lpcnet_demo.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/lpcnet_demo.o -MD -MP -MF $depbase.Tpo -c -o src/lpcnet_demo.o src/lpcnet_demo.c &&\
+mv -f $depbase.Tpo $depbase.Po
+echo "  CC      " src/common.lo;depbase=`echo src/common.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/common.lo -MD -MP -MF $depbase.Tpo -c -o src/common.lo src/common.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/lpcnet.lo;depbase=`echo src/lpcnet.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/lpcnet.lo -MD -MP -MF $depbase.Tpo -c -o src/lpcnet.lo src/lpcnet.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+ 
+echo "  CC      " src/lpcnet_dec.lo;depbase=`echo src/lpcnet_dec.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/lpcnet_dec.lo -MD -MP -MF $depbase.Tpo -c -o src/lpcnet_dec.lo src/lpcnet_dec.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/lpcnet_enc.lo;depbase=`echo src/lpcnet_enc.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/lpcnet_enc.lo -MD -MP -MF $depbase.Tpo -c -o src/lpcnet_enc.lo src/lpcnet_enc.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/nnet.lo;depbase=`echo src/nnet.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/nnet.lo -MD -MP -MF $depbase.Tpo -c -o src/nnet.lo src/nnet.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/nnet_data.lo;depbase=`echo src/nnet_data.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/nnet_data.lo -MD -MP -MF $depbase.Tpo -c -o src/nnet_data.lo src/nnet_data.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/ceps_codebooks.lo;depbase=`echo src/ceps_codebooks.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/ceps_codebooks.lo -MD -MP -MF $depbase.Tpo -c -o src/ceps_codebooks.lo src/ceps_codebooks.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/pitch.lo;depbase=`echo src/pitch.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/pitch.lo -MD -MP -MF $depbase.Tpo -c -o src/pitch.lo src/pitch.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+ 
+echo "  CC      " src/freq.lo;depbase=`echo src/freq.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/freq.lo -MD -MP -MF $depbase.Tpo -c -o src/freq.lo src/freq.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/kiss_fft.lo;depbase=`echo src/kiss_fft.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/kiss_fft.lo -MD -MP -MF $depbase.Tpo -c -o src/kiss_fft.lo src/kiss_fft.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CC      " src/celt_lpc.lo;depbase=`echo src/celt_lpc.lo | sed 's|[^/]*$|.deps/&|;s|\.lo$||'`;\
+/bin/bash ./libtool --silent --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/celt_lpc.lo -MD -MP -MF $depbase.Tpo -c -o src/celt_lpc.lo src/celt_lpc.c &&\
+mv -f $depbase.Tpo $depbase.Plo
+echo "  CCLD    " liblpcnet.la;/bin/bash ./libtool --silent --tag=CC   --mode=link gcc -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -no-undefined -version-info 0:0:0  -o liblpcnet.la -rpath /usr/local/lib src/common.lo src/lpcnet.lo src/lpcnet_dec.lo src/lpcnet_enc.lo src/nnet.lo src/nnet_data.lo src/ceps_codebooks.lo src/pitch.lo src/freq.lo src/kiss_fft.lo src/celt_lpc.lo   -lm 
+rm -f lpcnet_demo
+echo "  CCLD    " lpcnet_demo;/bin/bash ./libtool --silent --tag=CC   --mode=link gcc -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden   -o lpcnet_demo src/lpcnet_demo.o liblpcnet.la 
+echo "  CC      " src/dump_data-common.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-common.o -MD -MP -MF src/.deps/dump_data-common.Tpo -c -o src/dump_data-common.o `test -f 'src/common.c' || echo './'`src/common.c
+mv -f src/.deps/dump_data-common.Tpo src/.deps/dump_data-common.Po
+ 
+echo "  CC      " src/dump_data-dump_data.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-dump_data.o -MD -MP -MF src/.deps/dump_data-dump_data.Tpo -c -o src/dump_data-dump_data.o `test -f 'src/dump_data.c' || echo './'`src/dump_data.c
+mv -f src/.deps/dump_data-dump_data.Tpo src/.deps/dump_data-dump_data.Po
+echo "  CC      " src/dump_data-freq.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-freq.o -MD -MP -MF src/.deps/dump_data-freq.Tpo -c -o src/dump_data-freq.o `test -f 'src/freq.c' || echo './'`src/freq.c
+mv -f src/.deps/dump_data-freq.Tpo src/.deps/dump_data-freq.Po
+echo "  CC      " src/dump_data-kiss_fft.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-kiss_fft.o -MD -MP -MF src/.deps/dump_data-kiss_fft.Tpo -c -o src/dump_data-kiss_fft.o `test -f 'src/kiss_fft.c' || echo './'`src/kiss_fft.c
+mv -f src/.deps/dump_data-kiss_fft.Tpo src/.deps/dump_data-kiss_fft.Po
+echo "  CC      " src/dump_data-pitch.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-pitch.o -MD -MP -MF src/.deps/dump_data-pitch.Tpo -c -o src/dump_data-pitch.o `test -f 'src/pitch.c' || echo './'`src/pitch.c
+mv -f src/.deps/dump_data-pitch.Tpo src/.deps/dump_data-pitch.Po
+echo "  CC      " src/dump_data-celt_lpc.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-celt_lpc.o -MD -MP -MF src/.deps/dump_data-celt_lpc.Tpo -c -o src/dump_data-celt_lpc.o `test -f 'src/celt_lpc.c' || echo './'`src/celt_lpc.c
+mv -f src/.deps/dump_data-celt_lpc.Tpo src/.deps/dump_data-celt_lpc.Po
+echo "  CC      " src/dump_data-lpcnet_dec.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-lpcnet_dec.o -MD -MP -MF src/.deps/dump_data-lpcnet_dec.Tpo -c -o src/dump_data-lpcnet_dec.o `test -f 'src/lpcnet_dec.c' || echo './'`src/lpcnet_dec.c
+mv -f src/.deps/dump_data-lpcnet_dec.Tpo src/.deps/dump_data-lpcnet_dec.Po
+echo "  CC      " src/dump_data-lpcnet_enc.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-lpcnet_enc.o -MD -MP -MF src/.deps/dump_data-lpcnet_enc.Tpo -c -o src/dump_data-lpcnet_enc.o `test -f 'src/lpcnet_enc.c' || echo './'`src/lpcnet_enc.c
+mv -f src/.deps/dump_data-lpcnet_enc.Tpo src/.deps/dump_data-lpcnet_enc.Po
+echo "  CC      " src/dump_data-ceps_codebooks.o;gcc -DHAVE_CONFIG_H -I.    -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden -MT src/dump_data-ceps_codebooks.o -MD -MP -MF src/.deps/dump_data-ceps_codebooks.Tpo -c -o src/dump_data-ceps_codebooks.o `test -f 'src/ceps_codebooks.c' || echo './'`src/ceps_codebooks.c
+mv -f src/.deps/dump_data-ceps_codebooks.Tpo src/.deps/dump_data-ceps_codebooks.Po
+rm -f dump_data
+echo "  CCLD    " dump_data;/bin/bash ./libtool --silent --tag=CC   --mode=link gcc -I./include  -O3 -g -mavx2 -mfma -pedantic -Wall -Wextra -Wno-sign-compare -Wno-parentheses -Wno-long-long -fvisibility=hidden   -o dump_data src/dump_data-common.o src/dump_data-dump_data.o src/dump_data-freq.o src/dump_data-kiss_fft.o src/dump_data-pitch.o src/dump_data-celt_lpc.o src/dump_data-lpcnet_dec.o src/dump_data-lpcnet_enc.o src/dump_data-ceps_codebooks.o -lm 
+cd . && /bin/bash ./config.status lpcnet.pc
+ 
+(CDPATH="${ZSH_VERSION+.}:" && cd . && /bin/bash /home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet/missing autoheader)
+rm -f stamp-h1
+touch config.h.in
+rm -f stamp-h1
+cd . && /bin/bash ./config.status config.h
+test -f config.h || rm -f stamp-h1
+test -f config.h || make  stamp-h1
+ 
+make[2]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/lib/LPCNet'
+ 
+make -C nodes/thresholdExtraction
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/thresholdExtraction'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/thresholdExtraction'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: thresholdExtraction] Error 2
+
+make -C nodes/wiener_trainer
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/wiener_trainer'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/wiener_trainer'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: wiener_trainer] Error 2
+
+make -C nodes/cerebusAdapter
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/cerebusAdapter'
+ 
+gcc -g -O2 -Wall  -I/home/neuro/Documents/work_ws/realtime_rig_dev/lib/c_code/brands/ -I/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis -L/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis cerebusAdapter.c /home/neuro/Documents/work_ws/realtime_rig_dev/lib/c_code/brands/tools_CParser.c -Wl,-rpath=/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis -o cerebusAdapter.bin -lhiredis
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/cerebusAdapter'
+ 
+make -C nodes/subscriber
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/subscriber'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/subscriber'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: subscriber] Error 2
+
+make -C nodes/udp_send
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/udp_send'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/udp_send'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: udp_send] Error 2
+
+make -C nodes/redis_replay
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/redis_replay'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/redis_replay'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: redis_replay] Error 2
+
+make -C nodes/cursorTargetDisplay
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/cursorTargetDisplay'
+ 
+gcc -O2 -Wall  -I/home/neuro/Documents/work_ws/realtime_rig_dev/lib/redisTools/ -I/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis -L/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis cursorTargetDisplay.c -pthread /home/neuro/Documents/work_ws/realtime_rig_dev/lib/redisTools/redisTools.c -Wl,-rpath=/home/neuro/Documents/work_ws/realtime_rig_dev/lib/hiredis -o cursorTargetDisplay.bin -lhiredis -D_REENTRANT -I/usr/include/SDL2 -lSDL2 -lSDL2_image
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/cursorTargetDisplay'
+ 
+make -C nodes/plotter
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/plotter'
+ 
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/plotter'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: plotter] Error 2
+
+make -C nodes/publisher
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/publisher'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/publisher'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: publisher] Error 2
+
+make -C nodes/wiener_run
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/wiener_run'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/wiener_run'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: wiener_run] Error 2
+
+make -C nodes/decoder
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/decoder'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/decoder'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: decoder] Error 2
+
+make -C nodes/ffn_decoder
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/ffn_decoder'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/ffn_decoder'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: ffn_decoder] Error 2
+
+make -C nodes/behaviorFSM
+ 
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/behaviorFSM'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/behaviorFSM'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+
+make -C nodes/func_generator
+ 
+make: *** [Makefile:27: behaviorFSM] Error 2
+
+make[1]: Entering directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/func_generator'
+make[1]: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev/nodes/func_generator'
+ 
+Makefile:4: *** real-time conda env (rt) not active.  Stop.
+make: *** [Makefile:27: func_generator] Error 2
+
+make: Leaving directory '/home/neuro/Documents/work_ws/realtime_rig_dev'
+ 
