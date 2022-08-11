@@ -38,11 +38,22 @@ The dataframe used to produce these plots is saved as a pickle file found in the
 #### Here's an example: <br>
 Say we want to run a timing test using the OLE decoder and nanosleep loop, you would do the folowing things:
 1. Start a supervisor instance, specifying the appropriate parameters (**the parameters below show the supervisor parameters used for the baseline tests**)
->`supervisor -r 99 -s /var/run/redis.sock -a 0-3`
+```
+supervisor -r 99 -s /var/run/redis.sock -a 0-3
+```
 2. In a seperate terminal, travel to the following directory
->`realtime_rig_dev/timing_tests/chrt_nanosleep/OLE` <br>
+```
+realtime_rig_dev/timing_tests/chrt_nanosleep/OLE
+```
 
-    and run the timing test script:
->`./ole_timing.py`
+3. Run the timing test script:
+```
+python ole_timing_test.py
+```
+
+To run all tests at once (OLE, RNN, NDT, PubSub) use the bash script from either the `chrt_nanosleep` or the `chrt_while_1` folder:
+```
+bash run_analyses.sh
+```
 
 **Note: To change the number of channels used for graphs including the RNN or NDT nodes, you must change the graph parameters in the timing scripts AND the decoder parameter yaml file of the node. The RNN config can be found at `nodes/RNN_decoder/src/train_RNN.yaml` and the NDT config can be found at `nodes/ndt/src/config.yaml`.**
