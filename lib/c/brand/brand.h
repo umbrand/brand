@@ -12,6 +12,7 @@ typedef struct command_line_args_t {
     int redis_port;
     char redis_host[20];
     char node_stream_name[20];
+    char redis_socket[40];
 } command_line_args_t;
 
 void parse_command_line_args(int argc, char **argv, command_line_args_t *p);

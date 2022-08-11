@@ -35,18 +35,70 @@ void parse_command_line_args(int argc, char **argv, command_line_args_t *p) {
     int redis_port;
     char redis_host[20];
     char node_stream_name[20];
+    char redis_socket[40];
 
-    //printf("parsing command line args\n");
+    int nflg = 0, sflg = 0, iflg = 0, pflg = 0, errflg = 0;
 
-    while ((opt = getopt(argc, argv, "n:i:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "n:s:i:p:")) != -1) {
         switch (opt) { 
-            case 'n': strcpy(node_stream_name, optarg); break;
-            case 'i': strcpy(redis_host, optarg); break;
-            case 'p': redis_port = atoi(optarg); break;
+            case 'n': 
+                // missing str check on optarg
+                strcpy(node_stream_name, optarg); 
+                nflg++;
+                break;
+            case 's': 
+                // missing str check on optarg
+                strcpy(redis_socket, optarg); 
+                sflg++;
+                break;
+            case 'i': 
+                // missing str check on optarg
+                strcpy(redis_host, optarg);
+                iflg++; 
+                break;
+            case 'p': 
+                // missing int check on optarg
+                redis_port = atoi(optarg); 
+                pflg++;
+                break;
         }
     }
 
+    // must specify -n
+    if (nflg == 0)
+    {
+        printf("ERROR: -n (nickname) argument not provided. Exiting node process.");
+		exit(1);
+    }
+
+    if (sflg > 0)
+    {
+        // if -s is specified, ignore -i, and print warning if -i is also specified (that it is being ignored)
+        if (iflg > 0)
+        {
+           printf("WARNING: Both -s (Redis socket) and -i (host IP) provided, so -i is being ignored."); 
+        }
+        // initialize redis here with socket
+    }
+    else if (iflg > 0)
+    {
+        // if -i is specified without -s, must also specify -p
+        if (pflg == 0)
+        {
+           printf("ERROR: -p (port) argument not provided with -i (host IP). Exiting node process."); 
+           exit(1);
+        }
+        // initialize redis here with ip and port
+    }
+    // must specify either -s or -i
+    else
+    {
+        printf("ERROR: Neither -s (Redis socket) or -i (host IP) provided. Exiting node process."); 
+        exit(1);
+    }
+
     p->redis_port = redis_port;
+    strcpy(p->redis_socket, redis_socket);
     strcpy(p->redis_host, redis_host);
     strcpy(p->node_stream_name, node_stream_name);
 
@@ -67,10 +119,10 @@ void parse_command_line_args(int argc, char **argv, command_line_args_t *p) {
 // Assert that the object requested is both not NULL and has the correct type
 void assert_object(const nx_json *json, nx_json_type json_type) {
     if (json == NULL) {
-        printf("Json structure returned null.\n");
+        printf("JSON structure returned null.\n");
         exit(1);
     } else if (json->type != json_type) {
-        printf("The key \"%s\" has type %d and you are trying to assert it has type %d\n", json->key, json->type, json_type);
+        printf("The JSON object \"%s\" has type %d and attempted to assert it to type %d\n", json->key, json->type, json_type);
         exit(1);
     }
 }
@@ -155,7 +207,7 @@ const nx_json *get_parameter_object(const nx_json *json, const char *node, const
         }
         return this_parameter;
     }
-    //printf("Node %s not found in the supergraph\n", node);
+    printf("Node %s not found in the supergraph\n", node);
     exit(1);
 }
 
