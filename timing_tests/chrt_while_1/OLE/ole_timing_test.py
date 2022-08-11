@@ -1,18 +1,20 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# ole_timing_test.py
 
+import os
+import sys
+import time
+import json
 import redis
+import pickle
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import pickle
-import json
-import time
-import sys
-import os
+from datetime import datetime
+
 sys.path.append('..')
 
 from timing_utils import log_hardware, plot_decoder_timing
-from datetime import datetime
 
 # Connect to redis server
 r = redis.Redis(host='localhost', port=6379)
@@ -25,13 +27,13 @@ graph = {
     'metadata': {
         'participant_id': 0,
         'graph_name': 'ole_time_test',
-        'description': 'Test timing for OLE from samples sent by the function generator using nanosleep loop'
+        'description': 'Test timing for OLE from samples sent by the function generator'
     },
     'nodes': [
         {
-            'name': 'func_generator_sleep',
+            'name': 'func_generator',
             'version': 0.0,
-            'nickname': 'func_generator_sleep',
+            'nickname': 'func_generator',
             'stage': 'main',
             'module': '.',
             'redis_inputs': [],
@@ -72,7 +74,7 @@ r.xadd('supervisor_ipstream', {
 )
 
 # Let graph run for test_time minutes (Default is 5)
-print(f'Running graph for {test_time} min...')
+print(f'Running OLE timing test graph for {test_time} min...')
 total_secs = 60 * test_time
 
 while total_secs:
@@ -104,24 +106,24 @@ for i, reply in enumerate(replies2):
     }
     entries2.append(entry)
 
-ole_data = pd.DataFrame(entries2)
-ole_data.set_index('i', inplace=True)
+ole_df = pd.DataFrame(entries2)
+ole_df.set_index('i', inplace=True)
 
 # Plot timing results
-plot_decoder_timing(ole_data, 'OLE', test_time=test_time)
+plot_decoder_timing(ole_df, 'OLE', test_time=test_time)
 
-#clear redis
-r.delete('func_generator')
+# Clear redis
 r.delete('decoder')
+r.delete('func_generator')
 r.memory_purge()
 
-# save dataframe
+# Save dataframe
 if not os.path.exists('dataframes'):
     os.mkdir('dataframes/')
 
-date_str = datetime.now().strftime(r'%y%m%dT%H%M')
-with open(f'dataframes/{date_str}_OLEdata.pkl', 'wb') as f:
-    pickle.dump(ole_data, f)
+date_str = datetime.now().strftime(r'%m%d%y_%H%M')
+with open(f'dataframes/{date_str}_ole.pkl', 'wb') as f:
+    pickle.dump(ole_df, f)
 
 # log hardware used
 log_hardware(f'OLE_{date_str}')

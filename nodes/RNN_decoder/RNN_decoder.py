@@ -1,18 +1,17 @@
 #! /usr/bin/env python
-import argparse
+
 import torch
 torch.set_num_threads(1)
-import numpy as np
-import time
-import logging
-import pickle
-import yaml
-import json
-import os
 
-from src.RNN_model import RNN
-from pathlib import Path
+import os
+import yaml
+import time
+import json
+import logging
+import numpy as np
+
 from brand import BRANDNode
+from src.RNN_model import RNN
 
 # REMOVE LATER
 from sklearn.preprocessing import StandardScaler, MinMaxScaler

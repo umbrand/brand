@@ -1,19 +1,26 @@
 #!/usr/bin/env python
-# imports
-import json
-import subprocess
+# -*- coding: utf-8 -*-
+# pubsub_timing_test.py
+
 import os
+import sys
+import json
 import redis
+import pickle
+import subprocess
 import numpy as np
 import pandas as pd
-import pickle
+from datetime import datetime
 import matplotlib.pyplot as plt
 
-from datetime import datetime
+sys.path.append('..')
 
+from timing_utils import log_hardware
+
+
+# Helper Functions
 def scalarfrombuffer(*args, **kwargs):
     return np.frombuffer(*args, **kwargs)[0]
-
 
 def stream_to_df(stream_entries, fields, dtypes):
     data = [None] * len(stream_entries)
@@ -25,16 +32,12 @@ def stream_to_df(stream_entries, fields, dtypes):
         df[f] = df[f].apply(scalarfrombuffer, dtype=dtype)
     return df
 
-# get cpu info
-command = "lscpu | grep 'Model name' | cut -f 2 -d \":\""
-cpu_model = subprocess.check_output(command, shell=True).strip().decode()
-cpu_model
-print(f'Running tests on CPU model: {cpu_model}')
+# Connect to redis server
+r = redis.Redis(host='localhost', port=6379)
 
-# Connect to Redis
-r = redis.Redis()
+test_time = 5
 
-# Define the default graph
+# Define Graph
 default_graph = {
     'metadata': {
         'participant_id': 0,
@@ -100,6 +103,8 @@ last_id = r.xadd('supervisor_ipstream', {
     'graph': json.dumps(graph)
 })
 
+print(f'Running PubSub timing test graph for {test_time} min...')
+
 # wait for the graph to stop
 done = False
 while not done:
@@ -109,6 +114,8 @@ while not done:
     cmd = (data[b'commands']).decode("utf-8")
     if cmd == "stopGraph":
         done = True
+
+print('Stopping graph...          ')
 
 # load stream data into a dataframe
 pub_entries = r.xrange('publisher_sleep')
@@ -124,7 +131,7 @@ pubsub_df = sub_df.join(pub_df, lsuffix='_sub', rsuffix='_pub')
 # set num channels
 pubsub_df['n_channels'] = n_channels
 
-#Calculate Latencies and sample intervals
+# Calculate Latencies and sample intervals
 latencies = (pubsub_df['t_sub'] - pubsub_df['t_pub']).values / 1e6
 pub_intervals = np.diff(pubsub_df['t_pub'].values) / 1e6
 
@@ -176,17 +183,20 @@ axs[3].set_ylabel('Samples')
 axs[3].set_yscale('log')
 axs[3].legend(loc='upper center')
 
-date_str = datetime.now().strftime(r'%y%m%dT%H%M')
-fig.savefig(f'plots/{date_str}_pubsub_timing.png', facecolor='white', transparent=False)
+date_str = datetime.now().strftime(r'%m%d%y_%H%M')
+fig.savefig(f'plots/pubsub_{date_str}.png', facecolor='white', transparent=False)
 
-# delete publisher and subscriber streams
+# clear redis
 r.delete('publisher_sleep')
 r.delete('subscriber_sleep')
 r.memory_purge()
 
-#save df
+# save df
 if not os.path.exists('dataframes'):
     os.mkdir('dataframes/')
 
-with open(f'dataframes/{date_str}_pubsub_data.pkl', 'wb') as f:
+with open(f'dataframes/{date_str}_pubsub.pkl', 'wb') as f:
     pickle.dump(pubsub_df, f)
+
+# log hardware used
+log_hardware(f'PubSub_{date_str}')

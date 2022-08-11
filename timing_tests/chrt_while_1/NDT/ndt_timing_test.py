@@ -1,19 +1,22 @@
 #!/usr/bin/env python
-import redis
-import pandas as pd
-import pickle
+# -*- coding: utf-8 -*-
+# ndt_timing_test.py
+
+import os
+import sys
 import json
 import time
-import os
+import redis
+import pickle
+import pandas as pd
 from datetime import datetime
 
-import sys
 sys.path.append('..')
   
 from timing_utils import plot_decoder_timing, log_hardware
 
-test_time=5
-compare=True
+test_time = 5
+compare = False
 
 # Connect to redis server
 r = redis.Redis(host='localhost', port=6379)
@@ -24,13 +27,13 @@ graph = {
     'metadata': {
         'participant_id': 0,
         'graph_name': 'ndt_lantency_analysis',
-        'description': 'ndt decoder latency analysis using nanosleep loop'
+        'description': 'ndt decoder latency analysis'
     },
     'nodes': [
         {
-            'name': 'func_generator_sleep',
+            'name': 'func_generator',
             'version': 0.0,
-            'nickname': 'func_generator_sleep',
+            'nickname': 'func_generator',
             'stage': 'main',
             'module': '.',
             'redis_inputs': [],
@@ -72,7 +75,7 @@ r.xadd('supervisor_ipstream', {
 )
 
 # Let graph run for test_time minutes (Default is 5)
-print(f'Running graph for {test_time} min...')
+print(f'Running NDT timing test graph for {test_time} min...')
 total_secs = 60 * test_time
 
 while total_secs:
@@ -90,7 +93,7 @@ r.xadd('supervisor_ipstream', {
         }   
 )
 
-#Create Dataframe from streams
+# Create Dataframe from streams
 replies1 = r.xrange(b'ndt')
 
 entries1 = []
@@ -113,12 +116,12 @@ ndt_df.set_index('i', inplace=True)
 # Plot time intervals between samples (func_generator)
 plot_decoder_timing(ndt_df, 'NDT', test_time=test_time)
 
-#clear redis
+# Clear redis
 r.delete('ndt')
 r.delete('func_generator')
 r.memory_purge()
 
-# # save dataframe
+# Save dataframe
 if not os.path.exists('dataframes'):
     os.mkdir('dataframes/')
 
@@ -126,5 +129,6 @@ date_str = datetime.now().strftime(r'%m%d%y_%H%M')
 with open(f'dataframes/{date_str}_ndt.pkl', 'wb') as f:
     pickle.dump(ndt_df, f)
 
+# log hardware used
 log_hardware(f'NDT_{date_str}')
             

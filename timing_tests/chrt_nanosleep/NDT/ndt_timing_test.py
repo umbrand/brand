@@ -1,37 +1,39 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# ndt_timing_test.py
 
-import redis
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import pickle
+import os
+import sys
 import json
 import time
-import sys
-import os
-sys.path.append('..')
-
-from timing_utils import log_hardware, plot_decoder_timing
+import redis
+import pickle
+import pandas as pd
 from datetime import datetime
+
+sys.path.append('..')
+  
+from timing_utils import plot_decoder_timing, log_hardware
+
+test_time = 5
+compare=False
 
 # Connect to redis server
 r = redis.Redis(host='localhost', port=6379)
 
-test_time = 5
-compare = False
-
 # Define Graph
 graph = {
+    
     'metadata': {
         'participant_id': 0,
-        'graph_name': 'ole_time_test',
-        'description': 'Test timing for OLE from samples sent by the function generator'
+        'graph_name': 'ndt_lantency_analysis',
+        'description': 'ndt decoder latency analysis using nanosleep loop'
     },
     'nodes': [
         {
-            'name': 'func_generator',
+            'name': 'func_generator_sleep',
             'version': 0.0,
-            'nickname': 'func_generator',
+            'nickname': 'func_generator_sleep',
             'stage': 'main',
             'module': '.',
             'redis_inputs': [],
@@ -45,18 +47,20 @@ graph = {
             }
         },
         {
-            'name': 'decoder',
+            'name': 'ndt',
             'version': 0.0,
-            'nickname': 'OLE',
+            'nickname': 'ndt',
             'stage': 'main',
             'module': '.',
             'redis_inputs': ['func_generator'],
-            'redis_outputs': ['decoder'],
+            'redis_outputs': ['ndt'],
             'run_priority': 99,
             'parameters': {
                 'n_features': 256,
-                'n_targets': 2,
-                'decoder_type': 'linear',
+                'cfg_path': 'nodes/ndt/src/config.yaml',
+                'input_stream': 'func_generator',
+                'input_field': 'samples',
+                'input_dtype': 'float64',
                 'log': 'INFO'
             }
         }
@@ -71,7 +75,7 @@ r.xadd('supervisor_ipstream', {
 )
 
 # Let graph run for test_time minutes (Default is 5)
-print(f'Running graph for {test_time} min...')
+print(f'Running NDT timing test graph for {test_time} min...')
 total_secs = 60 * test_time
 
 while total_secs:
@@ -89,38 +93,42 @@ r.xadd('supervisor_ipstream', {
         }   
 )
 
-# Plot total latencies between nodes
-replies2 = r.xrange(b'decoder')
-entries2 = []
-for i, reply in enumerate(replies2):
+# Create Dataframe from streams
+replies1 = r.xrange(b'ndt')
+
+entries1 = []
+for i, reply in enumerate(replies1):
     entry_id, entry_dict = reply
     entry = {
-        'preds': np.frombuffer(entry_dict[b'y'], dtype=np.float32),
-        'ts_in': float(entry_dict[b'ts_gen']),
-        'ts_add': float(entry_dict[b'ts']),
+        'ts_before': float(entry_dict[b'ts_before']),
+        'ts_after': float(entry_dict[b'ts_after']),
         'ts_read': float(entry_dict[b'ts_read']),
-        'i': int(entry_dict[b'i'])
+        'ts_add': float(entry_dict[b'ts_add']),
+        'ts_in': float(entry_dict[b'ts_in']),
+        'i': entry_dict[b'i'],
+        'i_in': entry_dict[b'i_in']
     }
-    entries2.append(entry)
+    entries1.append(entry)
 
-ole_data = pd.DataFrame(entries2)
-ole_data.set_index('i', inplace=True)
+ndt_df = pd.DataFrame(entries1)
+ndt_df.set_index('i', inplace=True)
 
-# Plot timing results
-plot_decoder_timing(ole_data, 'OLE', test_time=test_time)
+# Plot time intervals between samples (func_generator)
+plot_decoder_timing(ndt_df, 'NDT', test_time=test_time)
 
-#clear redis
+# Clear redis
+r.delete('ndt')
 r.delete('func_generator')
-r.delete('decoder')
 r.memory_purge()
 
-# save dataframe
+# Save dataframe
 if not os.path.exists('dataframes'):
     os.mkdir('dataframes/')
 
-date_str = datetime.now().strftime(r'%y%m%dT%H%M')
-with open(f'dataframes/{date_str}_OLEdata.pkl', 'wb') as f:
-    pickle.dump(ole_data, f)
+date_str = datetime.now().strftime(r'%m%d%y_%H%M')
+with open(f'dataframes/{date_str}_ndt.pkl', 'wb') as f:
+    pickle.dump(ndt_df, f)
 
 # log hardware used
-log_hardware(f'OLE_{date_str}')
+log_hardware(f'NDT_{date_str}')
+            

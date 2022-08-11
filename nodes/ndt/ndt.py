@@ -38,7 +38,7 @@ class NDTNode(BRANDNode):
         self.data_dim = self.cfg['input_dim']
 
         # load the saved model
-        self.model = NDT(self.cfg, 0.0, 1.0)
+        self.model = NDT(self.cfg)
         self.model.eval()
 
         warmup_window = torch.zeros((1, self.seq_len, self.data_dim), dtype=torch.float32)

@@ -23,7 +23,6 @@ bin/
 *.rdb
 
 # images and media
-*.png
 *.jbp
 *.bmp
 *.avi
@@ -38,5 +37,3 @@ pyglet_display.pyx
 # Python
 *.egg-info
 *.pkl
-
-*.csv

@@ -1,37 +1,39 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# rnn_timing_test.py
 
-import redis
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import pickle
+import os
+import sys
 import json
 import time
-import sys
-import os
+import redis
+import pickle
+import numpy as np
+import pandas as pd
+from datetime import datetime
+
 sys.path.append('..')
 
 from timing_utils import log_hardware, plot_decoder_timing
-from datetime import datetime
-
-# Connect to redis server
-r = redis.Redis(host='localhost', port=6379)
 
 test_time = 5
 compare = False
+
+# Connect to redis server
+r = redis.Redis(host='localhost', port=6379)
 
 # Define Graph
 graph = {
     'metadata': {
         'participant_id': 0,
         'graph_name': 'RNN_timing_test',
-        'description': 'Test timing for RNN from samples sent by the function generator'
+        'description': 'Test timing for RNN from samples sent by the function generator using nanosleep loop'
     },
     'nodes': [
         {
-            'name': 'func_generator',
+            'name': 'func_generator_sleep',
             'version': 0.0,
-            'nickname': 'func_generator',
+            'nickname': 'func_generator_sleep',
             'stage': 'main',
             'module': '.',
             'redis_inputs': [],
@@ -72,7 +74,7 @@ r.xadd('supervisor_ipstream', {
 )
 
 # Let graph run for test_time minutes (Default is 5)
-print(f'Running graph for {test_time} min...')
+print(f'Running RNN timing test graph for {test_time} min...')
 total_secs = 60 * test_time
 
 while total_secs:
@@ -105,24 +107,24 @@ for i, reply in enumerate(replies2):
     }
     entries2.append(entry)
 
-rnn_data = pd.DataFrame(entries2)
-rnn_data.set_index('i', inplace=True)
+rnn_df = pd.DataFrame(entries2)
+rnn_df.set_index('i', inplace=True)
 
 # Plot timing results
-plot_decoder_timing(rnn_data, 'RNN', test_time=test_time)
+plot_decoder_timing(rnn_df, 'RNN', test_time=test_time)
 
-#clear redis
-r.delete('func_generator')
+# Clear redis
 r.delete('rnn_decoder')
+r.delete('func_generator')
 r.memory_purge()
 
-# save dataframe
+# Save dataframe
 if not os.path.exists('dataframes'):
     os.mkdir('dataframes/')
 
-date_str = datetime.now().strftime(r'%y%m%dT%H%M')
-with open(f'dataframes/{date_str}_RNNdata.pkl', 'wb') as f:
-    pickle.dump(rnn_data, f)
+date_str = datetime.now().strftime(r'%m%d%y_%H%M')
+with open(f'dataframes/{date_str}_rnn.pkl', 'wb') as f:
+    pickle.dump(rnn_df, f)
 
 # log hardware used
 log_hardware(f'RNN_{date_str}')

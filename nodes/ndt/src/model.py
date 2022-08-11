@@ -1,4 +1,7 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# model.py
+
 import math
 import copy
 import torch
@@ -11,47 +14,23 @@ from torch.nn import TransformerEncoderLayer
 from torch.nn.init import constant_, xavier_uniform_
 from torch.nn.modules.linear import NonDynamicallyQuantizableLinear as NDQL
 
-class ScaleNorm(Module):
-    '''ScaleNorm from T-fixup'''
-    def __init__(self, scale, eps=1e-5):
-        super(ScaleNorm, self).__init__()
-        self.scale = nn.Parameter(torch.tensor(scale))
-        self.eps = eps
-
-    def forward(self, x):
-        norm = self.scale / torch.norm(x, dim=-1, keepdim=True).clamp(min=self.eps)
-        return x * norm
-
-def get_attn_mask(params):
-    ones = torch.ones(params['seq_len'], params['seq_len'])
-    forw_mask = (torch.triu(ones, diagonal=-params['context_forward']) == 1).transpose(0, 1)
-    back_mask = (torch.triu(ones, diagonal=-params['context_backward']) == 1)
+def get_attn_mask(config):
+    ones = torch.ones(config['seq_len'], config['seq_len'])
+    forw_mask = (torch.triu(ones, diagonal=-config['context_forward']) == 1).transpose(0, 1)
+    back_mask = (torch.triu(ones, diagonal=-config['context_backward']) == 1)
     mask = (forw_mask & back_mask).float()
     mask = mask.masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
     return mask
-
-def get_norm(input_dim, norm):
-    if norm == 'layer':
-        return nn.LayerNorm(input_dim)
-    elif norm == 'scale':
-        return ScaleNorm(input_dim ** 0.5)
-    elif norm == 'None':
-        return None
 
 class MHA(Module):
     def __init__(self, config):
         super(MHA, self).__init__()
         self.config = config
 
-        # If using undivided attention, each head needs 'input_dim' dimensions
-        self.packed_dim_size = config['input_dim'] * config['n_heads'] if (
-            config['undivided_attn']
-        ) else config['input_dim']
-
         # MHA uses a packed tensor, Queries Keys and Values all share the same weight matrix
-        self.in_proj_weight = Parameter(torch.empty((3 * self.packed_dim_size, config['input_dim'])))
-        self.in_proj_bias = Parameter(torch.empty(3 * self.packed_dim_size))
-        self.out_proj = NDQL(self.packed_dim_size, config['input_dim'])
+        self.in_proj_weight = Parameter(torch.empty((3 * config['input_dim'], config['input_dim'])))
+        self.in_proj_bias = Parameter(torch.empty(3 * config['input_dim']))
+        self.out_proj = NDQL(config['input_dim'], config['input_dim'])
 
         # Init QKV weights and all biases
         xavier_uniform_(self.in_proj_weight)
@@ -62,13 +41,9 @@ class MHA(Module):
         # Use the same weight matrix then seperate 
         self.q, self.k, self.v = torch._C._nn.linear(src, self.in_proj_weight, self.in_proj_bias).chunk(3, dim=-1)
 
-        # If using undivided attention the view shape is [T x (B * n_heads) x N]
-        self.view_shape = (src.shape[0], src.shape[1] * self.config['n_heads'], src.shape[2]) if (
-            bool(self.config['undivided_attn'])
-        ) else (
-            # If using standard MHA the view shape is [T x (B * n_heads) x (N // n_heads)]
-            (src.shape[0], src.shape[1] * self.config['n_heads'], src.shape[2] // self.config['n_heads'])
-        )
+        # If using standard MHA the view shape is [T x (B * n_heads) x (N // n_heads)]
+        self.view_shape = (src.shape[0], src.shape[1] * self.config['n_heads'], src.shape[2] // self.config['n_heads'])
+        
         self.q = self.q.contiguous().view(*self.view_shape).transpose(0, 1) / math.sqrt(self.view_shape[2])
         self.k = self.k.contiguous().view(*self.view_shape).transpose(0, 1)
         self.v = self.v.contiguous().view(*self.view_shape).transpose(0, 1)
@@ -87,7 +62,7 @@ class MHA(Module):
         
         # Multiply attention matrix (QK) and values (V)
         self.attn_output = torch.bmm(self.attn, self.v).transpose(0, 1)
-        self.attn_output = self.attn_output.contiguous().view(src.shape[0] * src.shape[1], self.packed_dim_size)
+        self.attn_output = self.attn_output.contiguous().view(src.shape[0] * src.shape[1], self.config['input_dim'])
 
         # Project to proper size ([T x B x N]) and return
         return torch._C._nn.linear(self.attn_output, self.out_proj.weight, self.out_proj.bias).view(*src.shape)
@@ -98,54 +73,21 @@ class EncoderLayer(TransformerEncoderLayer):
         super().__init__(
             config['input_dim'], 
             nhead=1,
-            dim_feedforward=config['hidden_size'],
-            activation=config['activation']
+            dim_feedforward=config['hidden_size']
         )
         self.config = config
 
         # Override standard MHA for our custom module
         self.self_attn = MHA(config)
 
-        # Override norms to allow for ScaleNorm use
-        self.norm1 = get_norm(config['input_dim'], config['mha_norm'])
-        self.norm2 = get_norm(config['input_dim'], config['mlp_norm'])
-
-        # Override Dropout to change probability at different stages
-        self.dropout = nn.Dropout(config['dropout_post_attn'])
-        self.dropout1 = nn.Dropout(config['dropout_mid_mlp'])
-        self.dropout2 = nn.Dropout(config['dropout_post_mlp'])
-
-        # T-fixup
-        if config['t_fixup']:
-            temp_state_dic = {}
-            for name, param in self.named_parameters():
-                if name in ["linear1.weight", "linear2.weight", "self_attn.out_proj.weight"]:
-                    temp_state_dic[name] = param * (0.67 * (config['n_layers']) ** (- 1. / 4.))
-            for name in self.state_dict():
-                if name not in temp_state_dic:
-                    temp_state_dic[name] = self.state_dict()[name]
-            self.load_state_dict(temp_state_dic)
-
     def forward(self, src, attn_mask=None):
         # MHA
         self.residual = src # skip connection
-        if self.config['pre_norm']: # pre norm
-            if self.training:
-                src = self.residual + self.dropout(self.self_attn(self.norm1(src), attn_mask))
-            else:
-                src = self.residual + self.self_attn(self.norm1(src), attn_mask)
-        else: # post norm
-            src = self.norm1(self.residual + self.dropout(self.self_attn(src, attn_mask)))
-
+        src = self.residual + self.dropout(self.self_attn(self.norm1(src), attn_mask))
+            
         # MLP
         self.residual = src # skip connection
-        if self.config['pre_norm']: # pre norm
-            if self.training:
-                src = self.residual + self.dropout2(self.linear2(self.dropout1(self.activation(self.linear1(self.norm2(src))))))
-            else:
-                src = self.residual + self.linear2(self.activation(self.linear1(self.norm2(src))))
-        else: # post norm
-            src = self.norm2(self.residual + self.dropout2(self.linear2(self.dropout1(self.activation(self.linear1(src))))))
+        src = self.residual + self.dropout2(self.linear2(self.dropout1(self.activation(self.linear1(self.norm2(src))))))
 
         return src
 
@@ -157,7 +99,7 @@ class Encoder(Module):
         self.layers = ModuleList([copy.deepcopy(EncoderLayer(config)) for i in range(config['n_layers'])])
         
         # Normalization to be used after running through all EncoderLayers
-        self.norm = get_norm(config['input_dim'], config['final_norm'])
+        self.norm = nn.LayerNorm(config['input_dim'])
 
     def forward(self, src, attn_mask=None):
         # Run through each EncoderLayer's forward pass
@@ -173,7 +115,7 @@ class Encoder(Module):
 
 class NDT(pl.LightningModule):
 
-    def __init__(self, config, train_mean, train_std):
+    def __init__(self, config):
         super().__init__()
 
         self.config = config
@@ -182,20 +124,9 @@ class NDT(pl.LightningModule):
         torch.random.manual_seed(self.config['seed'])
         torch.backends.cudnn.deterministic = True
 
-        self.train_mean = train_mean
-        self.train_std = train_std
-
         # Define model architecture
         self.encoder = Encoder(self.config)
         self.decoder = nn.Linear(self.config['input_dim'], self.config['input_dim'])
-
-        # Init Decoder
-        self.decoder.bias.data.zero_()
-        self.decoder.weight.data.uniform_(-self.config['decoder_initrange'], self.config['decoder_initrange'])
-
-        # Init Dropout
-        self.embedding_dropout = nn.Dropout(p=self.config['dropout_embedding'])
-        self.rates_dropout = nn.Dropout(p=self.config['dropout_rates'])
 
         # Init Positional Embedding
         pe = torch.zeros(self.config['seq_len'], self.config['input_dim'])
@@ -210,27 +141,15 @@ class NDT(pl.LightningModule):
 
         self.relu = nn.ReLU()
 
-    
-    def optimizer_zero_grad(self, epoch, batch_idx, optimizer, optimizer_idx):
-        optimizer.zero_grad(set_to_none=True)
-
-    def forward(self, input, labels=None):
-        # torch.clamp(input, 0.0, self.train_max, out=input)
-        
-        input = (input - self.train_mean) / self.train_std
-
+    def forward(self, input, labels=None):        
         # Scale and re-order dimensions [B x T x N] -> [T x B x N]]
         input = input.permute(1, 0, 2) * self.scale
 
         # Add Positional Embedding then dropout
         input += self.pos_embedding(self.pe)
-        if self.training:
-            input = self.embedding_dropout(input)
 
         # Pass through transformer encoder and dropout some rates
         input = self.encoder(input, self.attn_mask)
-        if self.training:
-            input = self.rates_dropout(input)
 
         # Pass through decoder and re-order dimensions [T x B x N] ->  [B x T x N], then exponentiate
         pred_rates = self.decoder(input)
