@@ -395,7 +395,7 @@ entry_id, entry_dict = model_stream_entry
 model_data = json.loads(entry_dict[b'data'].decode())
 
 # Get graph name
-graph_name = model_data['metadata']['graph_name']
+graph_name = model_data['graph_name']
 
 # Get timing keys
 sync_key = 'sync'  #graph_timing['SyncKey']
@@ -437,6 +437,7 @@ for stream in stream_dict:
             '.', 1)[0]  # gets node name even if filetype included in name
         stream_dict[stream]['source_yaml'] = os.path.join(
             os.getenv('BRAND_BASE_DIR'),
+            '../brand-modules',
             get_node_module(model_data, stream_dict[stream]['source']),
             'nodes', stream_dict[stream]['source'],
             stream_dict[stream]['source'] + '.yaml')

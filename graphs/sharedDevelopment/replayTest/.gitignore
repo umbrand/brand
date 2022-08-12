@@ -1,7 +1,0 @@
-*.pdf
-*.csv
-*.pkl
-model/
-variables/
-*.pb
-*.json

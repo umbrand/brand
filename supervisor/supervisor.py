@@ -25,6 +25,7 @@ class Supervisor:
         self.children = []
 
         self.BRAND_BASE_DIR = os.getcwd()
+        self.BRAND_MOD_DIR = os.path.join(self.BRAND_BASE_DIR,'../brand-modules/') # path to the brand modules directory
 
         self.save_path = self.BRAND_BASE_DIR
         self.save_path_rdb = self.save_path
@@ -102,11 +103,13 @@ class Supervisor:
             try:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
+                    graph_dict['graph_name'] = str(args.graph).split('/')[-1]
             except yaml.YAMLError as exc:
                 logger.error("Error in parsing the graph file"+str(exc))
                 sys.exit(1)
             logger.info("Graph file parsed successfully")
         return graph_dict
+
 
 
     def search_node_yaml_file(self,module,name)->str:
@@ -116,7 +119,7 @@ class Supervisor:
             name : node name
         '''
         # change the working directory to the module directory
-        directory = [os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name)]
+        directory = [os.path.join(self.BRAND_MOD_DIR, module, 'nodes', name)]
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".yaml"):
@@ -131,7 +134,8 @@ class Supervisor:
             module: module name
             name : node name
         '''
-        directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
+        directory = [os.path.join(self.BRAND_MOD_DIR, module, "nodes", name)]
+        logger.info("Directory: %s" % directory)
         for dir in directory:
             for file in os.listdir(dir):
                 if file.endswith(".bin") or file.endswith(".out"):
@@ -189,12 +193,10 @@ class Supervisor:
     def get_save_path(self, graph_dict):
         """
         Get the path where the RDB and NWB files should be saved
-
         Parameters
         ----------
         graph_dict : dict
             Dictionary containing the supergraph parameters
-
         Returns
         -------
         save_path : str
@@ -202,7 +204,8 @@ class Supervisor:
         """
         # Check if the participant file exists
         has_participant_file = (
-            'participant_file' in self.model['metadata']
+            'metadata' in graph_dict
+            and 'participant_file' in graph_dict['metadata']
             and os.path.exists(graph_dict['metadata']['participant_file']))
 
         # Get participant and session info
@@ -230,7 +233,7 @@ class Supervisor:
         '''
         nodes = graph_dict['nodes']
 
-        self.graph_name = graph_dict['metadata']['graph_name']
+        self.graph_name = graph_dict['graph_name']
 
         # Set rdb filename
         if rdb_filename is None:
@@ -244,10 +247,7 @@ class Supervisor:
 
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
-
-        self.model["metadata"] = {}
-        metadata = graph_dict['metadata']
-        self.model["metadata"] = metadata
+        self.model["graph_name"] = self.graph_name
 
         # Set rdb save directory
         self.save_path = self.get_save_path(graph_dict)
@@ -271,6 +271,12 @@ class Supervisor:
                 sys.exit(1)
 
             # Loading the nodes and graph into self.model dict
+            #check for duplicate nicknames
+            if n["nickname"] in self.model["nodes"]:
+                logger.warning("Duplicate node nickname found: %s" % n["nickname"])
+                logger.warning("Rename the nicknames to avoid duplicates and rerun the experiment")
+                self.stop_graph()
+                
             self.model["nodes"][n["nickname"]] = {}
             self.model["nodes"][n["nickname"]].update(n)
             self.model["nodes"][n["nickname"]]["binary"] = bin_f
@@ -300,6 +306,7 @@ class Supervisor:
             'command': 'startGraph',
             'graph': json.dumps(self.model)
         })
+        nickname_list = []
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
@@ -356,6 +363,7 @@ class Supervisor:
         self.r.xadd('booter', {'command': 'stopGraph'})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
+        self.r.flushdb()
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
@@ -414,7 +422,9 @@ class Supervisor:
             graph_dict = {}
             try:
                 with open(file, 'r') as stream:
+                    self.r.flushdb()
                     graph_dict = yaml.safe_load(stream)
+                    graph_dict['graph_name'] = str(file).split('/')[-1]
             except yaml.YAMLError as exc:
                 logger.error(exc)
                 sys.exit(1)
