@@ -103,7 +103,7 @@ class Supervisor:
             try:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
-                    graph_dict['graph_name'] = str(args.graph).split('/')[-1]
+                    graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error("Error in parsing the graph file"+str(exc))
                 sys.exit(1)
@@ -213,7 +213,7 @@ class Supervisor:
             with open(graph_dict['metadata']['participant_file'], 'r') as f:
                 participant_info = yaml.safe_load(f)
             participant_id = participant_info['metadata']['participant_id']
-        elif 'participant_id' in graph_dict['metadata']:
+        elif 'metadata' in graph_dict and 'participant_id' in graph_dict['metadata']:
             participant_id = graph_dict['metadata']['participant_id']
         else:
             participant_id = 0
@@ -426,7 +426,7 @@ class Supervisor:
                 with open(file, 'r') as stream:
                     self.r.flushdb()
                     graph_dict = yaml.safe_load(stream)
-                    graph_dict['graph_name'] = str(file).split('/')[-1]
+                    graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error(exc)
                 sys.exit(1)
