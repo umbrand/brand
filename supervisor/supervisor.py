@@ -136,12 +136,10 @@ class Supervisor:
             if self.redis_pid is not None:
                 os.kill(int(self.redis_pid), signal.SIGTERM)
                 logger.info("Redis server killed")
-                sys.exit(1)
             else:
                 logger.info("No redis server found")
         except Exception as e:
             logger.error("Error in killing the redis server"+str(e))
-            sys.exit(1)
 
 
 
@@ -161,15 +159,11 @@ class Supervisor:
                         bin_f = bin_file
                         return bin_f
         if(bin_f is None):
-            logger.error("No bin/exec file found for the node")
-            logger.info("%s is not a valid node....." % name)
-            logger.info("Bin files / executables do not exist in the path")
-            logger.info("Try sourcing the setup sript and  then run make in the root directory....")
-            self.r.flushdb()
-            logger.info("Redis flushed")
-            logger.info("Stopping the graph")
-
-
+            logger.error(f"No bin/exec file found for the node {name}. Try running make in the root directory.")
+            logger.info("Closing Redis and stopping the supervisor.")
+            #self.r.flushdb()
+            self.kill_redis_server()
+            sys.exit(1)
 
 
     def get_graph_status(self,state)->str:
@@ -313,8 +307,9 @@ class Supervisor:
                     self.model["derivatives"][a_name] = a_values
 
         except KeyError as e:
-            logger.error("KeyError: %s" % e)
-            self.r.flushdb()
+            logger.error("KeyError: %s field missing in graph YAML" % e)
+            logger.info("Closing Redis and stopping the supervisor.")
+            #self.r.flushdb()
             self.kill_redis_server()
             sys.exit(1)
 
