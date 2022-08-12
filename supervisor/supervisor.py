@@ -268,14 +268,15 @@ class Supervisor:
             else:
                 logger.info("Bin files / executables do not exist in the path")
                 logger.error("%s is not a valid node...." % n["nickname"])
-                sys.exit(1)
-
+                logger.info("Stopping the graph")
+                self.stop_graph()
             # Loading the nodes and graph into self.model dict
             #check for duplicate nicknames
             if n["nickname"] in self.model["nodes"]:
                 logger.warning("Duplicate node nickname found: %s" % n["nickname"])
                 logger.warning("Rename the nicknames to avoid duplicates and rerun the experiment")
                 self.r.save()
+                logger.info("Stopping the graph")
                 self.stop_graph()
                 return
                 
