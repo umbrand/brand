@@ -14,8 +14,6 @@ import time
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
-
-
 class Supervisor:
     def __init__(self):
         ''' Initialize the supervisor class and load the graph file loaded from the command line '''
@@ -293,25 +291,7 @@ class Supervisor:
         # Load node information
         self.model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
-<<<<<<< HEAD
-        for n in nodes:
-            bin_f = self.search_node_bin_file(n["module"],n["name"])
-            if(os.path.exists(bin_f)):
-                logger.info("Yaml and bin files exist in the path")
-                logger.info("%s is a valid node...." % n["nickname"])
-            else:
-                logger.info("Bin files / executables do not exist in the path")
-                logger.error("%s is not a valid node...." % n["nickname"])
-                logger.info("Stopping the graph")
-                self.stop_graph()
 
-            # Loading the nodes and graph into self.model dict    
-            self.model["nodes"][n["nickname"]] = {}
-            self.model["nodes"][n["nickname"]].update(n)
-            self.model["nodes"][n["nickname"]]["binary"] = bin_f
-
-
-=======
         # catch key errors for nodes that are not in the graph
         try:
             for n in nodes:
@@ -320,9 +300,7 @@ class Supervisor:
                     logger.info("%s is a valid node...." % n["nickname"])
                     # Check for duplicate nicknames
                     if n["nickname"] in self.model["nodes"]:
-                        logger.error(f"Duplicate node nickname found: {n["nickname"]}. Check the graph YAML file")
-                        logger.warning("Rename the nicknames to avoid duplicates and rerun the experiment")
-                        self.r.save()
+                        logger.error("Duplicate node nickname found: %s. Rename the nicknames in the graph YAML file." % n["nickname"])
                         logger.info("Stopping the graph")
                         self.stop_graph()
                         return
@@ -345,7 +323,6 @@ class Supervisor:
             #self.r.flushdb()
             self.kill_redis_server()
             sys.exit(1)
->>>>>>> dev
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
