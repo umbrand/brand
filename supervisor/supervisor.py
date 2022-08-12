@@ -104,7 +104,7 @@ class Supervisor:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
-                logger.error("Error in parsing the graph file"+str(exc))
+                logger.error("Error in parsing the graph file "+str(exc))
                 sys.exit(1)
             logger.info("Graph file parsed successfully")
         return graph_dict
@@ -187,7 +187,7 @@ class Supervisor:
             redis_command = chrt_args + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
-        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(redis_command)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
@@ -351,25 +351,25 @@ class Supervisor:
                     if priority:  # if priority is not None or empty
                         chrt_args = ['chrt', '-f', str(int(priority))]
                         args = chrt_args + args
-                proc = subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
                 self.r.xadd("graph_status", {'status': self.state[3]})
-                try:
-                    logger.info("Parent process is running and waiting for commands from redis..")
-                    self.parent = os.getpid()
-                    logger.info("Parent Running on: %d" % os.getppid())
-                    self.children.append(proc.pid)
-                    logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
-                except signal.SIGCHLD:
-                        outs,_ = proc.communicate(timeout=0.2)
-                        logger.info("subprocess exited with status %d" % proc.returncode)
-                        logger.info("stdout: %s" % outs.decode('utf-8'))
-                except subprocess.TimeoutExpired:
-                        logger.info("subprocess timed out")
-                        proc.kill()
-                        outs,_ = proc.communicate()
-                        logger.info("stdout: %s" % outs.decode('utf-8'))
-                        logger.info("subprocess exited with status %d" % proc.returncode)
+                #try:
+                logger.info("Parent process is running and waiting for commands from redis..")
+                self.parent = os.getpid()
+                logger.info("Parent Running on: %d" % os.getppid())
+                self.children.append(proc.pid)
+                logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
+                # except signal.SIGCHLD:
+                #         outs,_ = proc.communicate(timeout=0.2)
+                #         logger.info("subprocess exited with status %d" % proc.returncode)
+                #         logger.info("stdout: %s" % outs.decode('utf-8'))
+                # except subprocess.TimeoutExpired:
+                #         logger.info("subprocess timed out")
+                #         proc.kill()
+                #         outs,_ = proc.communicate()
+                #         logger.info("stdout: %s" % outs.decode('utf-8'))
+                #         logger.info("subprocess exited with status %d" % proc.returncode)
 
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
@@ -385,8 +385,14 @@ class Supervisor:
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
-                os.kill(self.children[i], signal.SIGINT)
-                logger.info("Killed the child process with pid %d" % self.children[i])
+                try: 
+                    # check if process exists 
+                    os.kill(self.children[i], 0)
+                except OSError:
+                    logger.warning(f"Child process with pid {self.children[i]} isn't running (may have crashed)")
+                else:
+                    os.kill(self.children[i], signal.SIGINT)
+                    logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
         else:
             logger.info("No child processes to kill")
@@ -411,8 +417,7 @@ class Supervisor:
                             self.rdb_filename,
                             self.host,
                             str(self.port),
-                            save_path_nwb],
-                            stdout=subprocess.PIPE)
+                            save_path_nwb])
         p_nwb.wait()
 
         # Flush database
@@ -445,6 +450,9 @@ class Supervisor:
                     graph_dict = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 logger.error(exc)
+                logger.info("Closing Redis and stopping the supervisor.")
+                #self.r.flushdb()
+                self.kill_redis_server()
                 sys.exit(1)
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
             self.start_graph()
