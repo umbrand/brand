@@ -30,7 +30,6 @@ checkStatus () {
 # To add a dependency, just add the pkg name to the list.
 dependencies=(
 libsqlite3-dev
-redis-server
 automake
 libtool
 curl
