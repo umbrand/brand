@@ -354,22 +354,11 @@ class Supervisor:
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
                 self.r.xadd("graph_status", {'status': self.state[3]})
-                #try:
                 logger.info("Parent process is running and waiting for commands from redis..")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(proc.pid)
                 logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
-                # except signal.SIGCHLD:
-                #         outs,_ = proc.communicate(timeout=0.2)
-                #         logger.info("subprocess exited with status %d" % proc.returncode)
-                #         logger.info("stdout: %s" % outs.decode('utf-8'))
-                # except subprocess.TimeoutExpired:
-                #         logger.info("subprocess timed out")
-                #         proc.kill()
-                #         outs,_ = proc.communicate()
-                #         logger.info("stdout: %s" % outs.decode('utf-8'))
-                #         logger.info("subprocess exited with status %d" % proc.returncode)
 
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
