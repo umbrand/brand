@@ -67,6 +67,7 @@ class Supervisor:
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
+        ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -96,6 +97,7 @@ class Supervisor:
 
         self.machine = args.machine
         self.redis_priority = args.redis_priority
+        self.redis_affinity = args.redis_affinity
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -185,6 +187,9 @@ class Supervisor:
         if self.redis_priority:
             chrt_args = ['chrt', '-f', f'{self.redis_priority :d}']
             redis_command = chrt_args + redis_command
+        if self.redis_affinity:
+            redis_command = ['taskset', '-c', self.redis_affinity
+                             ] + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command)
@@ -341,8 +346,8 @@ class Supervisor:
                     or node_info["machine"] == self.machine):
                 binary = node_info["binary"]
                 logger.info("Binary for %s is %s" % (node,binary))
-                logger.info("Node stream Name: %s"% node_stream_name)
-                args = [binary, "-n", node_stream_name]
+                logger.info("Node Stream Name: %s" % node_stream_name)
+                args = [binary, '-n', node_stream_name]
                 args += ['-i', host, '-p', str(port)]
                 if self.unixsocket:
                     args += ['-s', self.unixsocket]
@@ -351,6 +356,11 @@ class Supervisor:
                     if priority:  # if priority is not None or empty
                         chrt_args = ['chrt', '-f', str(int(priority))]
                         args = chrt_args + args
+                if 'cpu_affinity' in node_info:  # if affinity is specified
+                    affinity = node_info['cpu_affinity']
+                    if affinity:  # if affinity is not None or empty
+                        taskset_args = ['taskset', '-c', str(affinity)]
+                        args = taskset_args + args
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
                 self.r.xadd("graph_status", {'status': self.state[3]})

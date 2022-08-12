@@ -40,14 +40,15 @@ def load_model(estimator, filepath):
 
 class Decoder(BRANDNode):
     def __init__(self):
-        
+
         super().__init__()
 
         # build the decoder
         self.n_features = self.parameters['n_features']
         self.n_targets = self.parameters['n_targets']
-        self.model_path = self.parameters['model_path']
-        
+        self.model_path = (self.parameters['model_path']
+                           if 'model_path' in self.parameters else None)
+
         self.build()
 
         # initialize IDs for the two Redis streams
@@ -55,7 +56,7 @@ class Decoder(BRANDNode):
         self.param_id = '$'
 
     def build(self):
-        
+
         self.mdl = Ridge()
         try:
             self.mdl = load_model(self.mdl, self.model_path)
@@ -71,7 +72,7 @@ class Decoder(BRANDNode):
         return y
 
     def run(self):
-        
+
         # initialize decoder dict
         decoder_entry = {
             'ts': float(),
@@ -80,26 +81,30 @@ class Decoder(BRANDNode):
             'y': np.zeros(self.n_targets).tobytes(),
             'n_features': self.n_features,
             'n_targets': self.n_targets,
+            'ts_read': float()
         }
 
         stream_dict = {b'func_generator': self.data_id}
-        
+
         while True:
             # read from the function generator stream
             streams = self.r.xread(stream_dict, block=0, count=1)
+            ts_read = time.monotonic()
             stream_name, stream_entries = streams[0]
             self.data_id, entry_dict = stream_entries[0]
             stream_dict[b'func_generator'] = self.data_id
+
+            decoder_entry['ts_gen'] = float(np.frombuffer(entry_dict[b'ts'], dtype=np.uint64) / 1000000000)
+            decoder_entry['i'] = int(np.frombuffer(entry_dict[b'i'], dtype=np.uint64))
 
             # load the input and generate a prediction
             x = np.frombuffer(entry_dict[b'samples'], dtype=np.float64)
             y = self.predict(x)
 
             # write results to Redis
-            decoder_entry['ts'] = time.monotonic()
-            decoder_entry['ts_gen'] = float(entry_dict[b'ts'])
-            decoder_entry['i'] = int(entry_dict[b'i'])
             decoder_entry['y'] = y.tobytes()
+            decoder_entry['ts_read'] = ts_read
+            decoder_entry['ts'] = time.monotonic()
             self.r.xadd('decoder', decoder_entry)
 
     def terminate(self, sig, frame):
