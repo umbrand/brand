@@ -5,6 +5,7 @@
 ################################################
 
 BRAND_BASE_DIR=$(pwd)
+BRAND_MOD_DIR=$BRAND_BASE_DIR/../brand-modules/
 export BRAND_BASE_DIR # save brand base dir to the environment
 
 # Activate the rt environment to get to work

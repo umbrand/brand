@@ -275,7 +275,9 @@ class Supervisor:
             if n["nickname"] in self.model["nodes"]:
                 logger.warning("Duplicate node nickname found: %s" % n["nickname"])
                 logger.warning("Rename the nicknames to avoid duplicates and rerun the experiment")
+                self.r.save()
                 self.stop_graph()
+                return
                 
             self.model["nodes"][n["nickname"]] = {}
             self.model["nodes"][n["nickname"]].update(n)
