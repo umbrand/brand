@@ -219,8 +219,8 @@ class Supervisor:
             participant_id = 0
 
         # Make paths for saving files
-        session_str = datetime.today().strftime(r'%Y.%m.%d')
-        session_id = f'{participant_id}.{session_str}'
+        session_str = datetime.today().strftime(r'%Y-%m-%d')
+        session_id = f'{session_str}'
         save_path = os.path.join(self.BRAND_BASE_DIR, '..', 'Data',
                                  str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
@@ -235,14 +235,6 @@ class Supervisor:
 
         self.graph_name = graph_dict['graph_name']
 
-        # Set rdb filename
-        if rdb_filename is None:
-            self.rdb_filename =  self.graph_name + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        else:
-            self.rdb_filename = rdb_filename
-        self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f'rdb filename: {self.rdb_filename}')
-
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
         self.model["redis_host"] = self.host
@@ -256,6 +248,15 @@ class Supervisor:
             os.makedirs(self.save_path_rdb)
         self.r.config_set('dir', self.save_path_rdb)
         logger.info(f"RDB save directory set to {self.save_path_rdb}")
+
+        # Set rdb filename
+        if rdb_filename is None:
+            print(os.path.split(self.save_path))
+            self.rdb_filename =  self.save_path.split(os.path.sep)[-3] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
+        else:
+            self.rdb_filename = rdb_filename
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f'rdb filename: {self.rdb_filename}')
 
         # Load node information
         self.model["nodes"] = {}
@@ -460,12 +461,18 @@ def main():
             key,messages = cmd[0]
             last_id,data = messages[0]
             cmd = (data[b'commands']).decode("utf-8")
+
+            if b'rdb_filename' in data:
+                rdb_filename = data[b'rdb_filename'].decode("utf-8")
+            else:
+                rdb_filename = None
+
             if b'file' in data:
                 file = data[b'file'].decode("utf-8")
-                supervisor.parseCommands(cmd, file=file)
+                supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
             elif b'graph' in data:
                 graph = json.loads(data[b'graph'])
-                supervisor.parseCommands(cmd, graph=graph)
+                supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
             else:
                 supervisor.parseCommands(cmd)
 
