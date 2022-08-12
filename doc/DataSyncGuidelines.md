@@ -1,28 +1,8 @@
-# How Data Alignment Works in BRAND
+# Guidelines for Data Alignment in BRAND
 
-BRAND is designed to run nodes in an asynchronous graph. To protect data integrity, we need to track flow of data through the graph. Nodes interacting with data `read` from and `add` to Redis `stream`s. To track flow, we create a data label for every data entry to a Redis `stream`, and we record a global timestamp for when that data entry is queued for transfer to the Redis database.
+BRAND is designed to run nodes in an asynchronous graph. To protect data integrity, we need to track flow of data through the graph. Nodes interacting with data `read` from and `add` to Redis streams. To track flow, we create a data label for every data entry to a Redis stream, and we record a global timestamp for when that data entry is queued for transfer to the Redis database.
 
-## Graph-Level Indications of Labelling and Timekeeping
-
-For ease of tracking data across all nodes, the graph YAML file should define what these labels are in a unique section as follows:
-
-```
-Timing:
-    SyncKey:    <name of the key in each entry containing data labels>
-    TimeKey:    <name of the key in each entry containing global timestamps>
-```
-
-A concrete example of this section could be:
-
-```
-Timing:
-    SyncKey:    sync
-    TimeKey:    monotonic_time
-```
-
-This example will be used throughout the details below.
-
-## Labelling Data
+## Data Labels
 
 There are two types of data writes within BRAND.
 
@@ -37,8 +17,10 @@ Consider a node that parses incoming information from a different system not a p
 
 * The Cerebus records information from a cortical implant. A `cerebusAdapter` node is designed to read that data and introduce it to BRAND by storing it in a Redis `stream`.
 * A microphone records ambient audio. A `microphoneAdapter` node is designed to read in that ambient audio and introduce it to BRAND by storing it in a Redis `stream`.
+* A mouse tracks user movements. A `mouseAdapter` node is designed to read mouse inputs and introduce it to BRAND by storing it in a Redis `stream`.
+* In a more abstract case: a function generator node records the passage of time and generates some waverform as a function of time. A `functionGenerator` node is built to store this waveform in a Redis `stream`.
 
-The node that introduces data to BRAND must include a label for that data within the data's entry. Logically this can take any form, but for logging purposes it often helps if this is some clock. Within the entry, there should be a key named `SyncKey`, or namely `sync`. This label should take the form
+The node that introduces data to BRAND must include a label for that data within the data's entry. Logically this can take any form, but for logging purposes it often helps if this is some clock. Within the entry, there should be a key named `sync`. This label should take the form:
 
 ```
 {'sync':{<label_name>:<label>}}
@@ -64,36 +46,14 @@ or more specifically for a node that may combine a `cerebusAdapter` output strea
 {'sync':{'nsp1_clock':<clk_1_val>, 'mouse_clock':<clk_mouse_val>}}
 ```
 
-This way, it can always be traced how data introduced to the BRAND system is processed through the graph.
+This way, how data introduced to the BRAND system is processed through the graph can always be traced.
 
-Due to the asynchronous nature of BRAND, each node must wait for one or more new stream entries before it may run its computations. In other words, the node must be blocked from execution until sufficient samples have been acquired. Since different streams need not have the same entry rates, only one stream should be used to block each node. The name of the label being used by a node to block should be included in the output stream's definition in the node YAML file:
-
-```
-RedisStreams:
-
-    Inputs:
-        ...
-
-    Outputs:
-        <output_stream_name>:
-            'sync':     <blocking_label_name>
-            ...
-```
-
-In the case of variable entry rates for a node's incoming streams, it is up to the node's developer to decide which is being used to block. However, in all cases, it is *strongly recommended* that the higher time-resolution stream should be used for blocking, but the most recent label for all input streams should be included in the label key.
+Due to the asynchronous nature of BRAND, each node must wait for one or more new stream entries before it may run its computations. In other words, the node must be blocked from execution until sufficient samples have been acquired. Since different streams need not have the same entry rates, only one stream should be used to block each node. It is up to the node's developer to decide which is being used to block. However, in all cases, it is *strongly recommended* that the higher time-resolution stream should be used for blocking, but the most recent label for all input streams should be included in the label key.
 
 ## Global Timestamps
 
-In addition to tracking data flow through a graph, it is also important to track latencies of computations as the data flows through the graph. To do this, each node must also include an entry in each of its streams stating an accurate and precise measure of system time. For now, this entry should derive from the Linux [`monotonic_clock`](https://linux.die.net/man/3/clock_gettime). The other `Timing` key at the graph level should include this information:
-
+In addition to tracking data flow through a graph, it is also important to track latencies of computations as the data flows through the graph. To do this, each node must also include an entry in each of its streams stating an accurate and precise measure of system time. For now, this entry should derive from the Linux [`monotonic_clock`](https://linux.die.net/man/3/clock_gettime). For now, the timing key is defined as `ts`, so the timing key within the output stream would look like:
 ```
-{<TimeKey>:<monotonic_time>}
+{'ts':<monotonic_time_value>}
 ```
-
-or more specifically
-
-```
-{'monotonic_time':<monotonic_time_value>}
-```
-
 Note that this feature only works if the BRAND system is on one computer, so a distributed solution will be introduced in the future. 

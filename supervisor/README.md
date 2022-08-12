@@ -112,28 +112,74 @@ $ python supervisor/supervisor.py
 6. If the command is startGraph, the node is Steps 1-5 are repeated for each node in the graph and each node runs as independent child processes.
 7. If the command is stopGraph, all the child processes are killed and the graph is stopped.
 ```
-## Redis Streams
-- `graph_status`: This stream is used to publish the status of the graph (XADD).
-- `supergraph_stream`: This stream is used to publish the model (XADD).
-- `<node_nickname>_data`: This stream is used to reading the data of the node being run (XREAD).
-- `<node_nickname>_output`: This stream is used to process the data or convert the raw data to be run on output stream (XADD).
-- `supervisor_ipstream`: This stream is used to listen to commands startGraph and stopGraph for the supervisor (XREAD).
-
-## Redis Commands
-Commands can be sent to the supervisor through Redis using the following syntax: ```xadd supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]```. The following commands are currently implemented:
-1. ```startGraph [file <path_to_file>]```: Start graph from file defined on start up. If graph file wasn't supplied on start up, must be defined here.
-2. ```stopGraph```: Stop graph, by stopping the processes for each running node.
 
 
-## Typical usage
-Run this before graph: ```$python3 -m pip install -r supervisor/requirements.txt``` to install required packages.
-1. ```$python3 supervisor/supervisor.py -g graph.yaml```
-2. Redis server is started.
-3. Start the graph using command ```$xadd supervisor_ipstream * commands startGraph```
-4. Check the model published on the model stream using command ```$xrevrange supergraph_stream + - count 1```
-5. Check the status of the graph anytime using command ```$xrevrange graph_status + - count 1```
-6. Update of parameters on the go can be done by using command ```xadd supervisor_ipstream * commands startGraph file <path_to_file>```
-7. Stop the graph using command ```$xadd supervisor_ipstream * commands stopGraph```. 
+## Execution of the supervisor
+```
+Follow the below instructions and commands for running supervisor utility:
+
+1. Start the supervisor by running either of the following commands:
+```    
+        $ python3 supervisor/supervisor.py -g <name_of_the_graph_yaml_file>
+        $ run -g <name_of_the_graph_yaml_file> 
+```
+ >Optionally, you can also use extra arguments with the supervisor utility. Below are the extra arguments that can be used:
+ - `-g` / `--graph` : Name of the graph yaml file.
+ - `-i` / `--ip` : IP address to bind the server node to.
+ - `-p` / `--port` : Port number to bind the server node to.
+ - `-c`/ `--cfg` : Name of the config file specific to redis server.
+ - `-m` / `--machine` : Name of the machine on which the supervisor is running.
+
+
+2. Once, the supervisor has started, you can open a separate terminal and run the following commands (-h and -p flags are optional if you're running on default host and port):
+```
+$ redis-cli -h <hostname> -p <port>
+```
+3. Inside the redis-cli, run the following commands to start the graph:
+```
+    $ XADD supervisor_ipstream * commands startGraph
+```
+4. (Optional) If you want to start the graph with a specific file, run the following command:
+```
+    $ XADD supervisor_ipstream * commands startGraph file       <name_of_the_graph_yaml_file>
+```    
+5. Now that the nodes have started, you can check the status of the graph using the following command in redis-cli:
+```
+    $ XREVRANGE graph_status + - COUNT 1
+```
+
+6. To check the metadata published in form of a master dictionary, run the following command in redis-cli:
+```
+    $ XREVRANGE supergraph_stream + - COUNT 1
+```
+7. To stop the graph, run the following command in redis-cli:
+```
+    $ XADD supervisor_ipstream * commands stopGraph
+```
+8. To stop the graph and save NWB export files, run the following command in redis-cli:
+```
+    $ XADD supervisor_ipstream * commands stopGraphAndSaveNWB
+```
+
+
+## Redis streams used in supervisor
+1. `supergraph_stream` : This stream is used to publish the metadata of the graph.
+2. `graph_status` : This stream is used to publish the status of the graph.
+3. `supervisor_ipstream` : This stream is used to publish the commands to the supervisor.
+4. `<node_name>_stream` : This stream is used for checking data on the <node_name> stream, where <node_name> is the name of the node.
+5. `<node_name>_state` : This stream is used to publish the status of the node.
+
+### Graph status codes on `graph_status` stream
+> The following are the status codes that are published on `graph_status` stream:
+```
+    initialized             - Graph is initialized.
+    parsing                 - Graph is being parsed for nodes and parameters.
+    graph_failed            - Graph failed to initialize due to some error.
+    running                 - Graph is parsed and running.
+    published               - Graph is published on supergraph_stream as a master dictionary.
+    stopped/not initialized - Graph is stopped or not initialized.
+```
+
 
 ## Supervisor glossary
 `parse_vargs`:

@@ -1,19 +1,28 @@
-# Setup
+# Setup of PREEMPT_RT
+
 ## Installing the PREEMPT_RT Patch
-### System Information
+
+### System Information (following PREEMPT_RT installation)
+
 Example:
-Kernel version (via `uname -msr`): `Linux 4.15.0-101-generic x86_64`
+Kernel version (via `uname -msr`):
+```bash
+Linux 5.15.43-rt45 x86_64
+```
 
 Ubuntu version (via `lsb_release -a`):
-```
+```bash
 Distributor ID:	Ubuntu
-Description:	Ubuntu 18.04.4 LTS
-Release:	18.04
-Codename:	bionic
+Description:	Ubuntu 20.04.3 LTS
+Release:	    20.04
+Codename:	    focal
 ```
 
 ### Downloading the patch
-Find the most recent long-term kernel [here](https://kernel.org). Go to the `PREEMPT_RT` project and find the most recent `rt` patch for the long-term kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/). Note that all three version numbers of the Linux kernel must match all three numbers of the `rt` patch (except the `rtXX`), so find the matching Linux kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/). For example, If the most recent long-term Linux kernel version is `5.15.44` but the `rt` project only has `5.15.43`, then you must use the Linux kernel for version `5.15.43` too. Be sure to download the `.xz` file extension for the Linux kernel and the `.patch.xz` extension for the `rt` patch.
+
+We recommend using the identical kernel version which was used to develop BRAND (`5.15.43-rt45`), which can be installed from the instructions below.
+
+To download the kernel and patch, run the following (assumed from the user's home folder):
 ```
 cd
 mkdir -p Installs/rt-kernel
@@ -44,7 +53,7 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
 1. Under `Cryptographic API (CRYPTO [-y])` > `Certificates for signature checking` (last item in the list) > `(debian/canonical-certs.pem) Additional X.509 keys for default system keyring` (or something like that in the parentheses), delete the string in the field.
 1. In the same menu under `(debian/canonical-revoked-certs.pem) X.509 certificates to be preloaded into the system blacklist keyring` (or something like that in the parentheses), delete the string in the field.
 1. Hit `Save`, then `Exit` all the way out of `menuconfig`.
-1. Compile the new kernel. Note the `-j` option runs parallel jobs, so increase the number to speed up the process, but too many can hang the system.
+1. Compile the new kernel. Note the `-j` option runs parallel jobs, so increase the number to speed up the process, but too many can hang the system. This step takes approximately 20 minutes to run on an Intel i9-12900.
     ```
     make -j8 all; sudo make -j8 modules_install; sudo make -j8 install
     ```
@@ -63,11 +72,22 @@ Follow the steps below based on this [blog post](https://chenna.me/blog/2020/02/
 1. Reboot to boot the `PREEMPT_RT` kernel.
 
 #### Installation Notes
-- The `make -j8 deb-pkg` step took about 30 minutes to complete on `SNEL-Rig1-A` (Intel Core i7-4790K CPU @ 4.00GHz).
+
 - After running the `dpkg -i` command, you may see warnings about missing firmware. Follow the instructions [here](https://askubuntu.com/questions/832524/possible-missing-frmware-lib-firmware-i915) to install that missing firmware.
 
+### Newer Kernel Versions
+
+BRAND was developed on, tested on, and officially supports kernel version `5.15.43-rt45`. Should you decide to use a new kernel version, we recommend following these instructions to locate a new kernel:
+1. Find the most recent Linux long-term support kernel [here](https://kernel.org).
+1. Go to the `PREEMPT_RT` project and find the most recent `rt` patch for the long-term support kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/).
+1. Note that all three version numbers of the Linux kernel must match all three numbers of the `rt` patch (except the `rtXX`), so find the matching Linux kernel version [here](https://mirrors.edge.kernel.org/pub/linux/kernel/).
+    - For example, If the most recent long-term Linux kernel version is `5.15.44` but the `rt` project only has `5.15.43`, then you must use the Linux kernel for version `5.15.43` too. Be sure to download the `.xz` file extension for the Linux kernel and the `.patch.xz` extension for the `rt` patch.
+1. Complete the installation steps outlined above
+
 ### Testing the Kernel
+
 #### Installing the tests
+
 Dependencies:
 ```
 sudo apt-get install libnuma-dev  # for cyclictest

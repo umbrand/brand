@@ -3,9 +3,7 @@ $(error "ROOT is undefined")
 endif
 
 export HIREDIS_PATH=$(ROOT)/lib/hiredis
-export LPCNET_PATH=$(ROOT)/lib/LPCNet
 export REDIS_PATH=$(ROOT)/lib/redis
-export LPCNET_LIB_PATH=$(ROOT)/lib/LPCNet/.libs
 
 # save all compiled nodes in local node folder
 # so that we have consistency in where the run
