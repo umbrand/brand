@@ -40,14 +40,15 @@ def load_model(estimator, filepath):
 
 class Decoder(BRANDNode):
     def __init__(self):
-        
+
         super().__init__()
 
         # build the decoder
         self.n_features = self.parameters['n_features']
         self.n_targets = self.parameters['n_targets']
-        #self.model_path = self.parameters['model_path']
-        
+        self.model_path = (self.parameters['model_path']
+                           if 'model_path' in self.parameters else None)
+
         self.build()
 
         # initialize IDs for the two Redis streams
@@ -55,7 +56,7 @@ class Decoder(BRANDNode):
         self.param_id = '$'
 
     def build(self):
-        
+
         self.mdl = Ridge()
         try:
             self.mdl = load_model(self.mdl, self.model_path)
@@ -71,7 +72,7 @@ class Decoder(BRANDNode):
         return y
 
     def run(self):
-        
+
         # initialize decoder dict
         decoder_entry = {
             'ts': float(),
@@ -84,7 +85,7 @@ class Decoder(BRANDNode):
         }
 
         stream_dict = {b'func_generator': self.data_id}
-        
+
         while True:
             # read from the function generator stream
             streams = self.r.xread(stream_dict, block=0, count=1)
