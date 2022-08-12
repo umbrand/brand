@@ -15,7 +15,7 @@ MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/*
 # make some clean targets for all subdirs
 MODULES_CLEANDIRS = $(MODULES_SUBDIRS:%=clean-%)
 
-all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis lpcnet redis
+all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis redis
 
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
@@ -23,11 +23,11 @@ all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis lpcnet redis
 .PHONY: modules_subdirs $(MODULES_CLEANDIRS)
 
 # make targets for all relevant paths under nodes/
-$(SUBDIRS): hiredis lpcnet redis
+$(SUBDIRS): hiredis redis
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
 
 # make targets for all relevant paths under nodes/
-$(MODULES_SUBDIRS): hiredis lpcnet redis
+$(MODULES_SUBDIRS): hiredis redis
 	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$@
 
 # Linking to hiredis seems to have a bug, where make
@@ -39,15 +39,6 @@ hiredis: redis
 	ldconfig -C /tmp/cache $(HIREDIS_PATH)
 	$(RM) /tmp/cache
 
-lpcnet: export CFLAGS = -O3 -g -mavx2 -mfma
-lpcnet:
-# if Makefile hasn't been generated run autogen and configure
-ifeq ($(wildcard $(LPCNET_PATH)/Makefile), )
-	cd $(LPCNET_PATH) && ./autogen.sh
-	cd $(LPCNET_PATH) && ./configure
-endif
-	$(MAKE) -C $(LPCNET_PATH)
-
 redis:
 	$(MAKE) -C $(REDIS_PATH) redis-server redis-cli
 	mv $(REDIS_PATH)/src/redis-server $(BIN_PATH)
@@ -56,7 +47,7 @@ redis:
 redis-test:
 	$(MAKE) -C $(REDIS_PATH) test
 
-clean-all: clean clean-hiredis clean-lpcnet
+clean-all: clean clean-hiredis
 
 clean: $(CLEANDIRS) $(MODULES_CLEANDIRS)
 
@@ -73,6 +64,3 @@ clean-hiredis:
 clean-redis:
 	$(MAKE) -C $(REDIS_PATH) clean
 	$(RM) $(BIN_PATH)/redis-server $(BIN_PATH)/redis-cli
-
-clean-lpcnet:
-	$(MAKE) -C $(LPCNET_PATH) clean

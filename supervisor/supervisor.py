@@ -33,6 +33,7 @@ class Supervisor:
                       "published", "stopped/not initialized")
 
         self.graph_file = None
+        self.redis_pid = None
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -125,6 +126,23 @@ class Supervisor:
         return yaml_file
 
 
+    def kill_redis_server(self):
+        '''
+        Kills the redis server
+        '''
+        logger.info("Killing the redis server")
+        try:
+            logger.info("PID of the redis server: %s" % self.redis_pid)
+            if self.redis_pid is not None:
+                os.kill(int(self.redis_pid), signal.SIGTERM)
+                logger.info("Redis server killed")
+            else:
+                logger.info("No redis server found")
+        except Exception as e:
+            logger.error("Error in killing the redis server"+str(e))
+
+
+
     def search_node_bin_file(self,module,name)->str:
         ''' Search the node bin/exec file and return the bin/exec file path 
         Args:
@@ -132,12 +150,20 @@ class Supervisor:
             name : node name
         '''
         directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
+        bin_f = None
         for dir in directory:
             for file in os.listdir(dir):
-                if file.endswith(".bin") or file.endswith(".out"):
-                    bin_file = os.path.join(dir, file)
-                    logger.info("bin/exec file path: %s" % bin_file)
-        return bin_file
+                    if file.startswith(name) and (file.endswith(".bin") or file.endswith(".out")):
+                        bin_file = os.path.join(dir, file)
+                        logger.info("bin/exec file path: %s" % bin_file)
+                        bin_f = bin_file
+                        return bin_f
+        if(bin_f is None):
+            logger.error(f"No bin/exec file found for the node {name}. Try running make in the root directory.")
+            logger.info("Closing Redis and stopping the supervisor.")
+            #self.r.flushdb()
+            self.kill_redis_server()
+            sys.exit(1)
 
 
     def get_graph_status(self,state)->str:
@@ -162,6 +188,7 @@ class Supervisor:
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
             logger.debug(out.decode())
@@ -260,28 +287,31 @@ class Supervisor:
         # Load node information
         self.model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
-        for n in nodes:
-            bin_f = self.search_node_bin_file(n["module"],n["name"])
-            if(os.path.exists(bin_f)):
-                logger.info("Yaml and bin files exist in the path")
-                logger.info("%s is a valid node...." % n["nickname"])
-            else:
-                logger.info("Bin files / executables do not exist in the path")
-                logger.error("%s is not a valid node...." % n["nickname"])
-                sys.exit(1)
+        # catch key errors for nodes that are not in the graph
+        try:
+            for n in nodes:
+                bin_f = self.search_node_bin_file(n["module"],n["name"])
+                if bin_f is not None:
+                    logger.info("%s is a valid node...." % n["nickname"])
+                    # Loading the nodes and graph into self.model dict
+                    self.model["nodes"][n["nickname"]] = {}
+                    self.model["nodes"][n["nickname"]].update(n)
+                    self.model["nodes"][n["nickname"]]["binary"] = bin_f
 
-            # Loading the nodes and graph into self.model dict
-            self.model["nodes"][n["nickname"]] = {}
-            self.model["nodes"][n["nickname"]].update(n)
-            self.model["nodes"][n["nickname"]]["binary"] = bin_f
+            if "derivatives" in graph_dict:
+                self.model["derivatives"] = {}
+                derivatives = graph_dict['derivatives']
+                for a in derivatives:
+                    a_name = list(a.keys())[0]
+                    a_values = a[a_name]
+                    self.model["derivatives"][a_name] = a_values
 
-        if "derivatives" in graph_dict:
-            self.model["derivatives"] = {}
-            derivatives = graph_dict['derivatives']
-            for a in derivatives:
-                a_name = list(a.keys())[0]
-                a_values = a[a_name]
-                self.model["derivatives"][a_name] = a_values
+        except KeyError as e:
+            logger.error("KeyError: %s field missing in graph YAML" % e)
+            logger.info("Closing Redis and stopping the supervisor.")
+            #self.r.flushdb()
+            self.kill_redis_server()
+            sys.exit(1)
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -331,7 +361,7 @@ class Supervisor:
                     logger.info("Parent Running on: %d" % os.getppid())
                     self.children.append(os.getpid())
                     args = [binary, '-n',node_stream_name]
-                    args += ['-hs', host, '-p', str(port)]
+                    args += ['-i', host, '-p', str(port)]
                     if self.unixsocket:
                         args += ['-s', self.unixsocket]
                     if 'run_priority' in node_info:  # if priority is specified
@@ -362,6 +392,8 @@ class Supervisor:
                 os.kill(self.children[i], signal.SIGINT)
                 logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
+        else:
+            logger.info("No child processes to kill")
 
 
     def stop_graph_and_save_nwb(self):
