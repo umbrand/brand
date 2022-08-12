@@ -499,7 +499,7 @@ if trial_stream is not None:
 ###############################################
 
 # get metadata
-graph_meta = model_data['metadata']
+graph_meta = model_data['derivatives']['exportNWB']['parameters']
 participant_metadata_file = graph_meta['participant_file']
 with open(participant_metadata_file, 'r') as f:
     yamlData = yaml.safe_load(f)
