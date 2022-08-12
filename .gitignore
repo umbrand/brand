@@ -23,7 +23,6 @@ bin/
 *.rdb
 
 # images and media
-*.png
 *.jbp
 *.bmp
 *.avi

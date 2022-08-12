@@ -15,7 +15,7 @@ MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/*
 # make some clean targets for all subdirs
 MODULES_CLEANDIRS = $(MODULES_SUBDIRS:%=clean-%)
 
-all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis  redis
+all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis redis
 
 .PHONY: subdirs $(SUBDIRS)
 .PHONY: subdirs $(CLEANDIRS)
@@ -39,8 +39,6 @@ hiredis: redis
 	ldconfig -C /tmp/cache $(HIREDIS_PATH)
 	$(RM) /tmp/cache
 
-
-
 redis:
 	$(MAKE) -C $(REDIS_PATH) redis-server redis-cli
 	mv $(REDIS_PATH)/src/redis-server $(BIN_PATH)
@@ -49,7 +47,7 @@ redis:
 redis-test:
 	$(MAKE) -C $(REDIS_PATH) test
 
-clean-all: clean clean-hiredis 
+clean-all: clean clean-hiredis
 
 clean: $(CLEANDIRS) $(MODULES_CLEANDIRS)
 
@@ -66,5 +64,4 @@ clean-hiredis:
 clean-redis:
 	$(MAKE) -C $(REDIS_PATH) clean
 	$(RM) $(BIN_PATH)/redis-server $(BIN_PATH)/redis-cli
-
 
