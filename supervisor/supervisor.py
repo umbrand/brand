@@ -6,10 +6,10 @@ import signal
 import subprocess
 import sys
 from datetime import datetime
-
 import coloredlogs
 import yaml
 from redis import Redis
+import time
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -104,7 +104,7 @@ class Supervisor:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
-                logger.error("Error in parsing the graph file"+str(exc))
+                logger.error("Error in parsing the graph file "+str(exc))
                 sys.exit(1)
             logger.info("Graph file parsed successfully")
         return graph_dict
@@ -187,7 +187,7 @@ class Supervisor:
             redis_command = chrt_args + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
-        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(redis_command)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
@@ -323,7 +323,6 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
 
 
-    ####### functions for the booting and stopping node #######
     def start_graph(self):
         ''' Start the graph '''
         self.r.xadd('booter', {
@@ -340,43 +339,29 @@ class Supervisor:
             node_stream_name = node_info["nickname"]
             if ('machine' not in node_info
                     or node_info["machine"] == self.machine):
-                pid = os.fork() # forking the supervisor process
-                self.r.xadd("graph_status", {'status': self.state[3]}) #status 3 means graph is parsed and running successfully
-                if(pid > 0):
-                    try:
-                        logger.info("Parent process is running and waiting for commands from redis..")
-                        self.parent = os.getpid()
-                        self.children.append(pid)
-                        logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
-                    except signal.SIGCHLD:
-                        signal(signal.SIGCHLD,callback = self.child_process_handler(node_stream_name))
-                elif(pid < 0):
-                    logger.critical("Unable to create a child process")
-                    sys.exit(1)
-                else:
-                    logger.info("Child process created with pid: %s" % os.getpid())
-                    binary = node_info["binary"]
-                    logger.info("Binary for %s is %s" % (node,binary))
-                    logger.info("Node Stream Name: %s" % node_stream_name)
-                    logger.info("Parent Running on: %d" % os.getppid())
-                    self.children.append(os.getpid())
-                    args = [binary, '-n',node_stream_name]
-                    args += ['-i', host, '-p', str(port)]
-                    if self.unixsocket:
-                        args += ['-s', self.unixsocket]
-                    if 'run_priority' in node_info:  # if priority is specified
-                        priority = node_info['run_priority']
-                        if priority:  # if priority is not None or empty
-                            chrt_args = ['chrt', '-f', str(int(priority))]
-                            args = chrt_args + args
-                    try:
-                        subprocess.run(args)
-                    except subprocess.CalledProcessError as e:
-                        logger.info("Something wrong",e)
+                binary = node_info["binary"]
+                logger.info("Binary for %s is %s" % (node,binary))
+                logger.info("Node stream Name: %s"% node_stream_name)
+                args = [binary, "-n", node_stream_name]
+                args += ['-i', host, '-p', str(port)]
+                if self.unixsocket:
+                    args += ['-s', self.unixsocket]
+                if 'run_priority' in node_info:  # if priority is specified
+                    priority = node_info['run_priority']
+                    if priority:  # if priority is not None or empty
+                        chrt_args = ['chrt', '-f', str(int(priority))]
+                        args = chrt_args + args
+                proc = subprocess.Popen(args)
+                logger.info("Child process created with pid: %s" % proc.pid)
+                self.r.xadd("graph_status", {'status': self.state[3]})
+                logger.info("Parent process is running and waiting for commands from redis..")
+                self.parent = os.getpid()
+                logger.info("Parent Running on: %d" % os.getppid())
+                self.children.append(proc.pid)
+                logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
+
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
-
-
 
 
     def stop_graph(self):
@@ -389,8 +374,14 @@ class Supervisor:
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
-                os.kill(self.children[i], signal.SIGINT)
-                logger.info("Killed the child process with pid %d" % self.children[i])
+                try: 
+                    # check if process exists 
+                    os.kill(self.children[i], 0)
+                except OSError:
+                    logger.warning(f"Child process with pid {self.children[i]} isn't running (may have crashed)")
+                else:
+                    os.kill(self.children[i], signal.SIGINT)
+                    logger.info("Killed the child process with pid %d" % self.children[i])
             self.children = []
         else:
             logger.info("No child processes to kill")
@@ -415,8 +406,7 @@ class Supervisor:
                             self.rdb_filename,
                             self.host,
                             str(self.port),
-                            save_path_nwb],
-                            stdout=subprocess.PIPE)
+                            save_path_nwb])
         p_nwb.wait()
 
         # Flush database
@@ -449,6 +439,9 @@ class Supervisor:
                     graph_dict = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
                 logger.error(exc)
+                logger.info("Closing Redis and stopping the supervisor.")
+                #self.r.flushdb()
+                self.kill_redis_server()
                 sys.exit(1)
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
             self.start_graph()
