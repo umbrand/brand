@@ -366,7 +366,6 @@ class Supervisor:
         self.r.xadd('booter', {'command': 'stopGraph'})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
-        self.r.flushdb()
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
