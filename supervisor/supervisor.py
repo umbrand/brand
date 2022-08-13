@@ -112,23 +112,6 @@ class Supervisor:
         return graph_dict
 
 
-
-    def search_node_yaml_file(self,module,name)->str:
-        ''' Search the node yaml file and return the yaml file path 
-        Args:
-            module: module name
-            name : node name
-        '''
-        # change the working directory to the module directory
-        directory = [os.path.join(self.BRAND_MOD_DIR, module, 'nodes', name)]
-        for dir in directory:
-            for file in os.listdir(dir):
-                if file.endswith(".yaml"):
-                    yaml_file = os.path.join(dir, file)
-                    logger.info("yaml file path: %s" % yaml_file)
-        return yaml_file
-
-
     def kill_redis_server(self):
         '''
         Kills the redis server
