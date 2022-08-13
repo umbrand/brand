@@ -395,7 +395,7 @@ entry_id, entry_dict = model_stream_entry
 model_data = json.loads(entry_dict[b'data'].decode())
 
 # Get graph name
-graph_name = model_data['metadata']['graph_name']
+graph_name = model_data['graph_name']
 
 # Get timing keys
 sync_key = 'sync'  #graph_timing['SyncKey']
@@ -498,7 +498,7 @@ if trial_stream is not None:
 ###############################################
 
 # get metadata
-graph_meta = model_data['metadata']
+graph_meta = model_data['derivatives']['exportNWB']['parameters']
 participant_metadata_file = graph_meta['participant_file']
 with open(participant_metadata_file, 'r') as f:
     yamlData = yaml.safe_load(f)
