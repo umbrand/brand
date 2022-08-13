@@ -265,7 +265,6 @@ class Supervisor:
 
         # Set rdb filename
         if rdb_filename is None:
-            print(os.path.split(self.save_path))
             self.rdb_filename =  self.save_path.split(os.path.sep)[-3] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
         else:
             self.rdb_filename = rdb_filename
@@ -324,7 +323,6 @@ class Supervisor:
             'command': 'startGraph',
             'graph': json.dumps(self.model)
         })
-        nickname_list = []
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
@@ -436,7 +434,6 @@ class Supervisor:
             graph_dict = {}
             try:
                 with open(file, 'r') as stream:
-                    self.r.flushdb()
                     graph_dict = yaml.safe_load(stream)
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
             except yaml.YAMLError as exc:
