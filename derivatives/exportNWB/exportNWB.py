@@ -437,7 +437,6 @@ for stream in stream_dict:
             '.', 1)[0]  # gets node name even if filetype included in name
         stream_dict[stream]['source_yaml'] = os.path.join(
             os.getenv('BRAND_BASE_DIR'),
-            '../brand-modules',
             get_node_module(model_data, stream_dict[stream]['source']),
             'nodes', stream_dict[stream]['source'],
             stream_dict[stream]['source'] + '.yaml')
