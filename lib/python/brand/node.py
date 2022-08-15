@@ -74,7 +74,7 @@ class BRANDNode():
         """
 
         #redis_connection_parse = argparse.ArgumentParser()
-        #redis_connection_parse.add_argument('-hs', '--redis_host', type=str, required=True, default='localhost')
+        #redis_connection_parse.add_argument('-i', '--redis_host', type=str, required=True, default='localhost')
         #redis_connection_parse.add_argument('-p', '--redis_port', type=int, required=True, default=6379)
         #redis_connection_parse.add_argument('-n', '--nickname', type=str, required=True, default='redis_v0.1')
 
@@ -125,7 +125,6 @@ class BRANDNode():
         for node in model_data['nodes']:
             if model_data['nodes'][node]['nickname'] == self.NAME:
                 node_parameters = model_data['nodes'][node]['parameters']
-                print(type(model_data['nodes'][node]['parameters']))
                 break
 
         #for parameter in node_parameters:
