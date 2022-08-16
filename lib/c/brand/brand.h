@@ -5,18 +5,10 @@
 #include  "nxjson.h"
 
 //--------------------------------------------------------------
-// Parse command line arguments
+// Parse command line arguments and connect to Redis
 //--------------------------------------------------------------
 
-typedef struct command_line_args_t {
-    int redis_port;
-    char redis_host[20];
-    char node_stream_name[20];
-    char redis_socket[40];
-} command_line_args_t;
-
-void parse_command_line_args(int argc, char **argv, command_line_args_t *p);
-
+redisContext* parse_command_line_args_init_redis(int argc, char **argv, char* NICKNAME);
 
 //--------------------------------------------------------------
 // Tools for working with nxson
@@ -24,7 +16,6 @@ void parse_command_line_args(int argc, char **argv, command_line_args_t *p);
 
 const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *supergraph_id);
 char* get_parameter_string(const nx_json *json, const char *node, const char *parameter);
-//char*** get_parameter_list_string(const nx_json *json, const char *node, const char *parameter, char ***output,int *n);
 int get_parameter_int(const nx_json *json, const char *node, const char *parameter);
 //void get_parameter_float(const nx_json *json, const char *node, const char *parameter, float *output);
 //void get_parameter_bool(const nx_json *json, const char *node, const char *parameter, bool *output);

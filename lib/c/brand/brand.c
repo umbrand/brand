@@ -29,8 +29,8 @@
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 
-void parse_command_line_args(int argc, char **argv, command_line_args_t *p) { 
-
+redisContext* parse_command_line_args_init_redis(int argc, char **argv, char* NICKNAME) { 
+    
     int opt;
     int redis_port;
     char redis_host[20];
@@ -39,6 +39,7 @@ void parse_command_line_args(int argc, char **argv, command_line_args_t *p) {
 
     int nflg = 0, sflg = 0, iflg = 0, pflg = 0, errflg = 0;
 
+    // Parse command line args
     while ((opt = getopt(argc, argv, "n:s:i:p:")) != -1) {
         switch (opt) { 
             case 'n': 
@@ -64,49 +65,58 @@ void parse_command_line_args(int argc, char **argv, command_line_args_t *p) {
         }
     }
 
-    // must specify -n
+    // Must specify -n
     if (nflg == 0)
     {
-        printf("ERROR: -n (nickname) argument not provided. Exiting node process.");
+        printf("[%s] ERROR: -n (nickname) argument not provided. Exiting node process.", NICKNAME);
 		exit(1);
     }
 
+    // Replace default node nickname
+    printf("[%s] Process nickname changed from \"%s\" to \"%s\".\n", NICKNAME, NICKNAME, node_stream_name); 
+    strcpy(NICKNAME, node_stream_name);
+
+    redisContext *redis_context;
+
     if (sflg > 0)
     {
-        // if -s is specified, ignore -i, and print warning if -i is also specified (that it is being ignored)
+        // If -s is specified, ignore -i, and print warning if -i is also specified (that it is being ignored)
         if (iflg > 0)
         {
-           printf("WARNING: Both -s (Redis socket) and -i (host IP) provided, so -i is being ignored."); 
+           printf("[%s] WARNING: Both -s (Redis socket) and -i (host IP) provided, so -i is being ignored.\n", NICKNAME); 
         }
-        // initialize redis here with socket
+        printf("[%s] Initializing Redis...\n", NICKNAME);
+        redis_context = redisConnectUnix(redis_socket); 
+        if (redis_context->err) {
+            printf("[%s] Redis connection error: %s\n", NICKNAME, redis_context->errstr);
+            exit(1);
+        }
+        printf("[%s] Redis initialized.\n", NICKNAME);
     }
     else if (iflg > 0)
     {
-        // if -i is specified without -s, must also specify -p
+        // If -i is specified without -s, must also specify -p
         if (pflg == 0)
         {
-           printf("ERROR: -p (port) argument not provided with -i (host IP). Exiting node process."); 
+           printf("[%s] ERROR: -p (port) argument not provided with -i (host IP). Exiting node process.\n", NICKNAME); 
            exit(1);
         }
-        // initialize redis here with ip and port
+        printf("[%s] Initializing Redis...\n", NICKNAME);
+        redis_context = redisConnect(redis_host, redis_port); 
+        if (redis_context->err) {
+            printf("[%s] Redis connection error: %s\n", NICKNAME, redis_context->errstr);
+            exit(1);
+        }
+        printf("[%s] Redis initialized.\n", NICKNAME);
     }
-    // must specify either -s or -i
+    // Must specify either -s or -i
     else
     {
-        printf("ERROR: Neither -s (Redis socket) or -i (host IP) provided. Exiting node process."); 
+        printf("ERROR: Neither -s (Redis socket) or -i (host IP) provided. Exiting node process.", NICKNAME); 
         exit(1);
     }
 
-    p->redis_port = redis_port;
-    strcpy(p->redis_socket, redis_socket);
-    strcpy(p->redis_host, redis_host);
-    strcpy(p->node_stream_name, node_stream_name);
-
-    /*
-    printf("redis host: %s\n", p->redis_host);
-    printf("redis port: %d\n", p->redis_port);
-    printf("node nickname: %s\n", p->node_stream_name);
-    */ 
+    return redis_context;
 }
 
 
@@ -149,29 +159,26 @@ void print_type(nx_json_type json_type)
 
 const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *supergraph_id) {
 
-    //printf("PRE REPLY\n");
-    char buffer[512];
-    //printf("Supergraph_id: %s\n",supergraph_id);
+    char buffer[512]; 
     sprintf(buffer, "XREVRANGE supergraph_stream + %s COUNT 1", supergraph_id);
-    //printf("%s\n", buffer);
 
-    reply = redisCommand(c,buffer);
+    reply = redisCommand(c, buffer);
     if (reply->type == REDIS_REPLY_ERROR) {
         printf("Error: %s\n", reply->str);
         exit(1);
     }
 
-    // This is a valid response, means there's nothing new to see, so we short circuit
+    // This is a valid response, and there's nothing new to see, so we return
     if (reply->type == REDIS_REPLY_NIL || reply->elements == 0)  
         return NULL;
 
-    // Now we get the stream data in string format (should be valid JSON, produced by supervisor.py)
+    // Now we get the stream data in string format (should be a valid JSON, produced by supervisor.py)
     char *data = reply->element[0]->element[1]->element[1]->str;
     
-    // Get the ID corresponding to the SUPERGRAPH and then increment it
+    // Get the ID corresponding to the supergraph
     //strcpy(supergraph_id, reply->element[0]->element[0]->str);
 
-    // Now we parse this into JSON, and ensure that it's valid
+    // Now we parse the data into JSON, and ensure that it's valid
     const nx_json *json = nx_json_parse_utf8(data);
     assert_object(json, NX_JSON_OBJECT);
 
@@ -187,20 +194,18 @@ const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *sup
 //----------------------------------------------------------------------
 const nx_json *get_parameter_object(const nx_json *json, const char *node, const char *parameter)
 {
-    //printf("Loading param %s\n", parameter);
-    // The JSON object of the nodes in the supergraph
+    // Get the JSON object of the nodes in the supergraph
     const nx_json *object_nodes = nx_json_get(json, "nodes");
     assert_object(object_nodes, NX_JSON_OBJECT);
-    //search for the node in the nodes object
-    if( strcmp(nx_json_get(object_nodes, node)->key, node) == 0)
+    // Check that target node exists in the nodes object
+    if(strcmp(nx_json_get(object_nodes, node)->key, node) == 0)
     {
-        //printf("Found node %s\n", node);
-        // The JSON object of the parameters of the node
-        const nx_json *node_parameters = nx_json_get(nx_json_get(object_nodes, node),"parameters");
-        //printf("# parameters %d\n", node_parameters->children.length);
+        // Get the JSON object for the parameters within the JSON object of the node
+        const nx_json *node_parameters = nx_json_get(nx_json_get(object_nodes, node), "parameters");
         //assert_object(node_parameters, NX_JSON_ARRAY);
-        //get the parameter from the parameters array
+        // Get the specific parameter from the parameters object
         const nx_json *this_parameter = nx_json_get(node_parameters, parameter);
+        // Check that parameter object is not null
         if (this_parameter == NULL) {
             printf("parameter %s returned null.\n", parameter);
             exit(1);
@@ -218,10 +223,9 @@ const nx_json *get_parameter_object(const nx_json *json, const char *node, const
 char* get_parameter_string(const nx_json *json, const char *node, const char *parameter) 
 {
     const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    // check if parameter is a string
+    // Check if parameter is a string and return value
     if (parameter_object->type == NX_JSON_STRING) 
     {
-        //printf("Found parameter %s\n", parameter);
         return(parameter_object->text_value);
     } 
     else 
@@ -229,7 +233,6 @@ char* get_parameter_string(const nx_json *json, const char *node, const char *pa
         printf("Parameter %s does not have the type string\n", parameter);
         exit(1);
     }
-    //return(output);
 }
 
 //-------------------------------------------------------------------
@@ -238,10 +241,9 @@ char* get_parameter_string(const nx_json *json, const char *node, const char *pa
 int get_parameter_int(const nx_json *json, const char *node, const char *parameter)
 {
     const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    // check if parameter is a int
+    // Check if parameter is an int and return value
     if (parameter_object->type == NX_JSON_INTEGER) 
     {
-        //printf("Found parameter %s\n", parameter);
         return (int)parameter_object->num.u_value;
     } 
     else 
@@ -315,13 +317,12 @@ void emit_status(redisContext *c, const char *node_name, enum node_state state, 
         case NODE_INFO       : sprintf(node_state, "state \"Info: %s\"",        node_message);  break;
         default:
             printf("Unknown state %d\n", state);
-            break;
-                            
+            break;                     
     }
     
     char stream[512];
     redisReply *reply;
-    sprintf(stream, "XADD %s_state * %s", node_name,node_state);
+    sprintf(stream, "XADD %s_state * %s", node_name, node_state);
     printf("%s\n", stream);
     reply = redisCommand(c,stream);
     freeReplyObject(reply);
