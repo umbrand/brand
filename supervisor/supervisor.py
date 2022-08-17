@@ -140,8 +140,8 @@ class Supervisor:
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
-            self.logger.warning(f'{name} executable was not found at '
-                                f'{filepath}')
+            logger.warning(f'{name} executable was not found at '
+                           f'{filepath}')
         return filepath
 
 
