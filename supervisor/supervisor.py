@@ -108,7 +108,7 @@ class Supervisor:
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error("Error in parsing the graph file "+str(exc))
-                sys.exit(1)
+                raise
             logger.info("Graph file parsed successfully")
         return graph_dict
 
@@ -294,10 +294,7 @@ class Supervisor:
 
         except KeyError as e:
             logger.error("KeyError: %s field missing in graph YAML" % e)
-            logger.info("Closing Redis and stopping the supervisor.")
-            #self.r.flushdb()
-            self.kill_redis_server()
-            sys.exit(1)
+            raise
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -429,10 +426,7 @@ class Supervisor:
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error(exc)
-                logger.info("Closing Redis and stopping the supervisor.")
-                #self.r.flushdb()
-                self.kill_redis_server()
-                sys.exit(1)
+                raise
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
             self.start_graph()
         elif command == "startGraph" and graph is not None:
