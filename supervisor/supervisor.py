@@ -6,10 +6,11 @@ import signal
 import subprocess
 import sys
 from datetime import datetime
+
 import coloredlogs
+import redis
 import yaml
 from redis import Redis
-import time
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -362,8 +363,8 @@ class Supervisor:
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
-                try: 
-                    # check if process exists 
+                try:
+                    # check if process exists
                     os.kill(self.children[i], 0)
                 except OSError:
                     logger.warning(f"Child process with pid {self.children[i]} isn't running (may have crashed)")
@@ -455,28 +456,33 @@ def main():
     supervisor = Supervisor()
     last_id = '$'
     while(True):
-        cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
+        try:
+            cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
                                  count=1,
                                  block=50000)
-        if cmd:
-            key,messages = cmd[0]
-            last_id,data = messages[0]
-            cmd = (data[b'commands']).decode("utf-8")
+            if cmd:
+                key,messages = cmd[0]
+                last_id,data = messages[0]
+                cmd = (data[b'commands']).decode("utf-8")
 
-            if b'rdb_filename' in data:
-                rdb_filename = data[b'rdb_filename'].decode("utf-8")
-            else:
-                rdb_filename = None
+                if b'rdb_filename' in data:
+                    rdb_filename = data[b'rdb_filename'].decode("utf-8")
+                else:
+                    rdb_filename = None
 
-            if b'file' in data:
-                file = data[b'file'].decode("utf-8")
-                supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
-            elif b'graph' in data:
-                graph = json.loads(data[b'graph'])
-                supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
-            else:
-                supervisor.parseCommands(cmd)
-
+                if b'file' in data:
+                    file = data[b'file'].decode("utf-8")
+                    supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
+                elif b'graph' in data:
+                    graph = json.loads(data[b'graph'])
+                    supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                else:
+                    supervisor.parseCommands(cmd)
+        except redis.exceptions.ConnectionError as exc:
+            logger.error('Could not connect to Redis: ' + repr(exc))
+            sys.exit(0)
+        except Exception:
+            logger.exception(f'Could not execute command')
 
 if __name__ == "__main__":
     main()
