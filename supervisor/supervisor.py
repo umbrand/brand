@@ -182,7 +182,8 @@ class Supervisor:
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
-            logger.debug(out.decode())
+            if out:
+                logger.debug(out.decode())
             if 'Address already in use' in str(out):
                 logger.warning("Could not run redis-server (address already in use).")
                 logger.warning(
