@@ -129,29 +129,19 @@ class Supervisor:
 
 
 
-    def search_node_bin_file(self,module,name)->str:
+    def search_node_bin_file(self, module, name) -> str:
         ''' Search the node bin/exec file and return the bin/exec file path 
         Args:
             module: module name
             name : node name
         '''
-
-        directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
-        bin_f = None
-
-        for dir in directory:
-            for file in os.listdir(dir):
-                    if file.startswith(name) and (file.endswith(".bin") or file.endswith(".out")):
-                        bin_file = os.path.join(dir, file)
-                        logger.info("bin/exec file path: %s" % bin_file)
-                        bin_f = bin_file
-                        return bin_f
-        if(bin_f is None):
-            logger.error(f"No bin/exec file found for the node {name}. Try running make in the root directory.")
-            logger.info("Closing Redis and stopping the supervisor.")
-            #self.r.flushdb()
-            self.kill_redis_server()
-            sys.exit(1)
+        filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
+                                f'{name}.bin')
+        filepath = os.path.abspath(filepath)
+        if not os.path.exists(filepath):
+            self.logger.warning(f'{name} executable was not found at '
+                                f'{filepath}')
+        return filepath
 
 
     def get_graph_status(self,state)->str:
