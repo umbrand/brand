@@ -254,6 +254,7 @@ class Supervisor:
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
         self.model["graph_name"] = self.graph_name
+        self.model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
         self.save_path = self.get_save_path(graph_dict)
