@@ -6,3 +6,6 @@
 	path = lib/redis
 	url = https://github.com/antirez/redis.git 
 	ignore = untracked
+[submodule "lib/nxjson"]
+	path = lib/nxjson
+	url = https://github.com/thestr4ng3r/nxjson.git
