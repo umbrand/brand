@@ -254,6 +254,7 @@ class Supervisor:
         self.model["redis_host"] = self.host
         self.model["redis_port"] = self.port
         self.model["graph_name"] = self.graph_name
+        self.model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
         self.save_path = self.get_save_path(graph_dict)
@@ -358,7 +359,6 @@ class Supervisor:
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(proc.pid)
                 logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
-
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
