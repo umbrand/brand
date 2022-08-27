@@ -52,8 +52,8 @@ Due to the asynchronous nature of BRAND, each node must wait for one or more new
 
 ## Global Timestamps
 
-In addition to tracking data flow through a graph, it is also important to track latencies of computations as the data flows through the graph. To do this, each node must also include an entry in each of its streams stating an accurate and precise measure of system time. For now, this entry should derive from the Linux [`monotonic_clock`](https://linux.die.net/man/3/clock_gettime). For now, the timing key is defined as `ts`, so the timing key within the output stream would look like:
+In addition to tracking data flow through a graph, it is also important to track latencies of computations as the data flows through the graph. To do this, each node must also include an entry in each of its streams stating an accurate and precise measure of system time. For now, this entry should derive from the Linux [`monotonic_clock_ns`](https://linux.die.net/man/3/clock_gettime). The nanosecond monotonic clock time should be stored in each stream entry as an unsigned 64-bit integer encoded to bytes. The timing key within the output stream will look like:
 ```
-{'ts':<monotonic_time_value>}
+{<time_key>:<monotonic_ns_time_value>}
 ```
 Note that this feature only works if the BRAND system is on one computer, so a distributed solution will be introduced in the future. 
