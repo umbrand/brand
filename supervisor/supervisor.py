@@ -64,6 +64,7 @@ class Supervisor:
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
+        ap.add_argument("-l", "--log-level", type=str, required=False, help="supervisor logging level")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -94,6 +95,11 @@ class Supervisor:
         self.machine = args.machine
         self.redis_priority = args.redis_priority
         self.redis_affinity = args.redis_affinity
+
+        if args.log_level is not None:
+            logger.setLevel(getattr(logging, args.log_level.upper(), None))
+        else:
+            logger.setLevel(getattr(logging, 'DEBUG', None))
 
         self.graph_file = args.graph
         graph_dict = {}
