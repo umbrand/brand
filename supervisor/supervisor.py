@@ -45,15 +45,10 @@ class Supervisor:
 
         if self.graph_file is not None: self.load_graph(graph_dict)
 
+
     def handler(signal_received,self):
         raise KeyboardInterrupt("SIGTERM received")
 
-    def child_process_handler(self,node_stream_name):
-        '''
-        Child handler
-        '''
-        logger.debug("Checking the status from the node")
-        self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)
 
     def parse_args(self)->dict:
         ''' Parse the graph file loaded from the command line and return the graph dictionary using -g option/cmdline argument
@@ -112,23 +107,6 @@ class Supervisor:
                 raise
             logger.info("Graph file parsed successfully")
         return graph_dict
-        
-
-    def kill_redis_server(self):
-        '''
-        Kills the redis server
-        '''
-        logger.info("Killing the redis server")
-        try:
-            logger.info("PID of the redis server: %s" % self.redis_pid)
-            if self.redis_pid is not None:
-                os.kill(int(self.redis_pid), signal.SIGTERM)
-                logger.info("Redis server killed")
-            else:
-                logger.info("No redis server found")
-        except Exception as e:
-            logger.error("Error in killing the redis server"+str(e))
-
 
 
     def search_node_bin_file(self, module, name) -> str:
@@ -197,6 +175,7 @@ class Supervisor:
         self.r.config_set('dbfilename', self.rdb_filename)
         logger.info(f"RDB file name set to {self.rdb_filename}")
 
+
     def get_save_path(self, graph_dict):
         """
         Get the path where the RDB and NWB files should be saved
@@ -232,6 +211,7 @@ class Supervisor:
                                  str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
         return save_path
+
 
     def load_graph(self,graph_dict,rdb_filename=None):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
@@ -348,6 +328,7 @@ class Supervisor:
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
+
     def stop_graph(self):
         '''
         Stops the graph
@@ -356,6 +337,7 @@ class Supervisor:
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_children()
+
 
     def kill_children(self):
         '''
@@ -375,6 +357,7 @@ class Supervisor:
             self.children = []
         else:
             logger.info("No child processes to kill")
+
 
     def stop_graph_and_save_nwb(self):
         '''
@@ -414,6 +397,7 @@ class Supervisor:
         logger.info('SIGINT received, Exiting')
         sys.exit(0)
 
+
     def parseCommands(self, command, file=None, rdb_filename=None, graph=None):
         '''
         Parses the command and calls the appropriate function
@@ -446,6 +430,7 @@ class Supervisor:
             self.stop_graph_and_save_nwb()
         else:
             logger.warning("Invalid command")
+
 
     # supervisor-specific exceptions
     class GraphError(Exception):
