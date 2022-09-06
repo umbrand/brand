@@ -5,11 +5,13 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from datetime import datetime
+
 import coloredlogs
+import redis
 import yaml
 from redis import Redis
-import time
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -107,7 +109,7 @@ class Supervisor:
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error("Error in parsing the graph file "+str(exc))
-                sys.exit(1)
+                raise
             logger.info("Graph file parsed successfully")
         return graph_dict
 
@@ -129,29 +131,19 @@ class Supervisor:
 
 
 
-    def search_node_bin_file(self,module,name)->str:
+    def search_node_bin_file(self, module, name) -> str:
         ''' Search the node bin/exec file and return the bin/exec file path 
         Args:
             module: module name
             name : node name
         '''
-
-        directory = [os.path.join(self.BRAND_BASE_DIR, module, "nodes", name)]
-        bin_f = None
-
-        for dir in directory:
-            for file in os.listdir(dir):
-                    if file.startswith(name) and (file.endswith(".bin") or file.endswith(".out")):
-                        bin_file = os.path.join(dir, file)
-                        logger.info("bin/exec file path: %s" % bin_file)
-                        bin_f = bin_file
-                        return bin_f
-        if(bin_f is None):
-            logger.error(f"No bin/exec file found for the node {name}. Try running make in the root directory.")
-            logger.info("Closing Redis and stopping the supervisor.")
-            #self.r.flushdb()
-            self.kill_redis_server()
-            sys.exit(1)
+        filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
+                                f'{name}.bin')
+        filepath = os.path.abspath(filepath)
+        if not os.path.exists(filepath):
+            logger.warning(f'{name} executable was not found at '
+                           f'{filepath}')
+        return filepath
 
 
     def get_graph_status(self,state)->str:
@@ -182,7 +174,8 @@ class Supervisor:
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
-            logger.debug(out.decode())
+            if out:
+                logger.debug(out.decode())
             if 'Address already in use' in str(out):
                 logger.warning("Could not run redis-server (address already in use).")
                 logger.warning(
@@ -303,10 +296,7 @@ class Supervisor:
 
         except KeyError as e:
             logger.error("KeyError: %s field missing in graph YAML" % e)
-            logger.info("Closing Redis and stopping the supervisor.")
-            #self.r.flushdb()
-            self.kill_redis_server()
-            sys.exit(1)
+            raise
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -372,8 +362,8 @@ class Supervisor:
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
-                try: 
-                    # check if process exists 
+                try:
+                    # check if process exists
                     os.kill(self.children[i], 0)
                 except OSError:
                     logger.warning(f"Child process with pid {self.children[i]} isn't running (may have crashed)")
@@ -438,10 +428,7 @@ class Supervisor:
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
             except yaml.YAMLError as exc:
                 logger.error(exc)
-                logger.info("Closing Redis and stopping the supervisor.")
-                #self.r.flushdb()
-                self.kill_redis_server()
-                sys.exit(1)
+                raise
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
             self.start_graph()
         elif command == "startGraph" and graph is not None:
@@ -465,28 +452,33 @@ def main():
     supervisor = Supervisor()
     last_id = '$'
     while(True):
-        cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
+        try:
+            cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
                                  count=1,
                                  block=50000)
-        if cmd:
-            key,messages = cmd[0]
-            last_id,data = messages[0]
-            cmd = (data[b'commands']).decode("utf-8")
+            if cmd:
+                key,messages = cmd[0]
+                last_id,data = messages[0]
+                cmd = (data[b'commands']).decode("utf-8")
 
-            if b'rdb_filename' in data:
-                rdb_filename = data[b'rdb_filename'].decode("utf-8")
-            else:
-                rdb_filename = None
+                if b'rdb_filename' in data:
+                    rdb_filename = data[b'rdb_filename'].decode("utf-8")
+                else:
+                    rdb_filename = None
 
-            if b'file' in data:
-                file = data[b'file'].decode("utf-8")
-                supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
-            elif b'graph' in data:
-                graph = json.loads(data[b'graph'])
-                supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
-            else:
-                supervisor.parseCommands(cmd)
-
+                if b'file' in data:
+                    file = data[b'file'].decode("utf-8")
+                    supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
+                elif b'graph' in data:
+                    graph = json.loads(data[b'graph'])
+                    supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                else:
+                    supervisor.parseCommands(cmd)
+        except redis.exceptions.ConnectionError as exc:
+            logger.error('Could not connect to Redis: ' + repr(exc))
+            sys.exit(0)
+        except Exception:
+            logger.exception(f'Could not execute command')
 
 if __name__ == "__main__":
     main()
