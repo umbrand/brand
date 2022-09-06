@@ -103,8 +103,7 @@ class Supervisor:
                     graph_dict = yaml.safe_load(stream)
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
             except yaml.YAMLError as exc:
-                logger.error("Error in parsing the graph file "+str(exc))
-                raise
+                self.GraphError(args.graph, repr(exc))
             logger.info("Graph file parsed successfully")
         return graph_dict
 
@@ -148,19 +147,16 @@ class Supervisor:
                              ] + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
-        proc = subprocess.Popen(redis_command)
+        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
             if out:
                 logger.debug(out.decode())
             if 'Address already in use' in str(out):
-                logger.warning("Could not run redis-server (address already in use).")
-                logger.warning(
-                    "Assuming that the process using the TCP port"
-                    " is another redis-server instance. Continuing.")
+                raise self.RedisError("Could not run redis-server (address already in use). Is supervisor already running?")
             else:
-                raise Exception("Could not run redis-server. Aborting.")
+                raise self.RedisError("Launching redis-server failed for an unknown reason, check supervisor logs. Aborting.")
         except subprocess.TimeoutExpired:  # no error message received
             logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
@@ -445,7 +441,11 @@ class Supervisor:
 
 
 def main():
-    supervisor = Supervisor()
+    try:
+        supervisor = Supervisor()
+    except Supervisor.RedisError as exc:
+        logger.error(exc.err_str)
+        sys.exit(0)
     last_id = '$'
     while(True):
         try:
