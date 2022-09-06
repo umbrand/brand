@@ -112,7 +112,7 @@ class Supervisor:
                 raise
             logger.info("Graph file parsed successfully")
         return graph_dict
-
+        
 
     def kill_redis_server(self):
         '''
@@ -141,8 +141,8 @@ class Supervisor:
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
-            logger.warning(f'{name} executable was not found at '
-                           f'{filepath}')
+            raise self.GraphError(self.graph_name,
+                f'{name} executable was not found at {filepath}')
         return filepath
 
 
@@ -277,10 +277,7 @@ class Supervisor:
                     logger.info("%s is a valid node...." % n["nickname"])
                     # Check for duplicate nicknames
                     if n["nickname"] in self.model["nodes"]:
-                        logger.error("Duplicate node nickname found: %s. Rename the nicknames in the graph YAML file." % n["nickname"])
-                        logger.info("Stopping the graph")
-                        self.stop_graph()
-                        return
+                        raise self.GraphError(self.graph_name, f"Duplicate node nicknames found: {n['nickname']}")
                     # Loading the nodes and graph into self.model dict
                     self.model["nodes"][n["nickname"]] = {}
                     self.model["nodes"][n["nickname"]].update(n)
@@ -295,8 +292,7 @@ class Supervisor:
                     self.model["derivatives"][a_name] = a_values
 
         except KeyError as e:
-            logger.error("KeyError: %s field missing in graph YAML" % e)
-            raise
+            raise self.GraphError(self.graph_name, f"KeyError: {e} field missing in graph YAML")
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -354,11 +350,17 @@ class Supervisor:
 
     def stop_graph(self):
         '''
-        Kills the child processes and stops the graph
+        Stops the graph
         '''
         self.r.xadd('booter', {'command': 'stopGraph'})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
+        self.kill_children()
+
+    def kill_children(self):
+        '''
+        Kills child processes
+        '''
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
@@ -373,7 +375,6 @@ class Supervisor:
             self.children = []
         else:
             logger.info("No child processes to kill")
-
 
     def stop_graph_and_save_nwb(self):
         '''
@@ -427,8 +428,7 @@ class Supervisor:
                     graph_dict = yaml.safe_load(stream)
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
             except yaml.YAMLError as exc:
-                logger.error(exc)
-                raise
+                raise self.GraphError(file, repr(exc))
             self.load_graph(graph_dict,rdb_filename=rdb_filename)
             self.start_graph()
         elif command == "startGraph" and graph is not None:
@@ -446,6 +446,17 @@ class Supervisor:
             self.stop_graph_and_save_nwb()
         else:
             logger.warning("Invalid command")
+
+    # supervisor-specific exceptions
+    class GraphError(Exception):
+        def __init__(self, graph_name='', err_str=''):
+            self.graph_name = graph_name
+            self.err_str = err_str
+
+    class RedisError(Exception):
+        def __init__(self, err_str=''):
+            self.err_str = err_str
+
 
 
 def main():
@@ -477,6 +488,13 @@ def main():
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
             sys.exit(0)
+        except Supervisor.GraphError as exc:
+            # if the graph has an error, stop the graph
+            supervisor.r.xadd("graph_status", {'status': supervisor.state[2]})
+            supervisor.kill_children()
+            supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+            logger.error(f"Failed to start {exc.graph_name} graph")
+            logger.error(exc.err_str)
         except Exception:
             logger.exception(f'Could not execute command')
 
