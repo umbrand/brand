@@ -253,6 +253,24 @@ int get_parameter_int(const nx_json *json, const char *node, const char *paramet
     }
 }
 
+//-------------------------------------------------------------------
+//-- Get graph load time 
+//-------------------------------------------------------------------
+unsigned long get_graph_load_ts_long(const nx_json *json)
+{
+    // Get the JSON object for the timestamp
+    const nx_json *object_ts = nx_json_get(json, "graph_loaded_ts"); 
+    if (object_ts->type == NX_JSON_INTEGER) 
+    {
+        return (unsigned long)object_ts->num.s_value;
+    } 
+    else 
+    {
+        printf("\"graph_loaded_ts\" does not have the type int\n");
+        exit(1);
+    }
+}  
+
 /*
 //-------------------------------------------------------------------
 //-- Get a parameter FLOAT
