@@ -13,7 +13,7 @@ import redis
 import yaml
 from redis import Redis
 
-from brand import (GraphError, RedisError)
+from brand import (GraphError, NodeError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -107,8 +107,11 @@ class Supervisor:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
+                    self.graph_file = args.graph
+            except FileNotFoundError as exc:
+                raise GraphError(args.graph, f"Could not find the graph at {args.graph}", exc)
             except yaml.YAMLError as exc:
-                GraphError(args.graph, repr(exc), False, exc)
+                raise GraphError(args.graph, repr(exc), exc)
             logger.info("Graph file parsed successfully")
         return graph_dict
 
@@ -123,9 +126,10 @@ class Supervisor:
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
-            raise GraphError(self.graph_name,
-                f'{name} executable was not found at {filepath}',
-                True)
+            raise NodeError(
+                self.graph_name,
+                name,
+                f'{name} executable was not found at {filepath}')
         return filepath
 
 
@@ -221,12 +225,15 @@ class Supervisor:
             graph_dict: graph dictionary
         '''
 
-        try:
-            self.graph_name = graph_dict['graph_name']
-            nodes = graph_dict['nodes']
-            self.save_path = self.get_save_path(graph_dict)
-        except KeyError as exc:
-            raise GraphError(self.graph_name, f"KeyError: {exc} field missing in graph YAML", True, exc)
+        if set(["graph_name", "nodes"]).issubset(graph_dict):
+            self.graph_name = graph_dict["graph_name"]
+            nodes = graph_dict["nodes"]
+        else:
+            raise GraphError(
+                self.graph_file,
+                "KeyError: "
+                f"{list(set(['graph_name', 'nodes'])-set(graph_dict))}"
+                f" field(s) missing in {self.graph_file}")
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
@@ -236,6 +243,7 @@ class Supervisor:
         self.model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
+        self.save_path = self.get_save_path(graph_dict)
         self.save_path_rdb = os.path.join(self.save_path, 'RDB')
         if not os.path.exists(self.save_path_rdb):
             os.makedirs(self.save_path_rdb)
@@ -259,10 +267,13 @@ class Supervisor:
             for n in nodes:
                 bin_f = self.search_node_bin_file(n["module"],n["name"])
                 if bin_f is not None:
-                    logger.info("%s is a valid node...." % n["nickname"])
+                    logger.info("%s is a valid node" % n["nickname"])
                     # Check for duplicate nicknames
                     if n["nickname"] in self.model["nodes"]:
-                        raise GraphError(self.graph_name, f"Duplicate node nicknames found: {n['nickname']}", True)
+                        raise NodeError(
+                            self.graph_name,
+                            n["nickname"],
+                            f"Duplicate node nicknames found: {n['nickname']}")
                     # Loading the nodes and graph into self.model dict
                     self.model["nodes"][n["nickname"]] = {}
                     self.model["nodes"][n["nickname"]].update(n)
@@ -277,7 +288,24 @@ class Supervisor:
                     self.model["derivatives"][a_name] = a_values
 
         except KeyError as exc:
-            raise GraphError(self.graph_name, f"KeyError: {exc} field missing in graph YAML for node nickname {n['nickname']}", True, exc)
+            if "nickname" in n:
+                name = n["nickname"]
+            elif "name" in n:
+                name = n["name"]
+            else:
+                raise NodeError(
+                    self.graph_name,
+                    "NodeNameAndNicknameNotFound",
+                    "KeyError: "
+                    "'name' and 'nickname' fields missing in graph YAML",
+                    exc)
+            raise NodeError(
+                self.graph_name,
+                name,
+                "KeyError: "
+                f"{exc} field missing in graph YAML "
+                f"for node {name}",
+                exc)
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -285,7 +313,7 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream",payload)
-        logger.info("Supergraph Stream (Model) published successfully with payload..")
+        logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
 
 
@@ -325,11 +353,17 @@ class Supervisor:
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
                 self.r.xadd("graph_status", {'status': self.state[3]})
-                logger.info("Parent process is running and waiting for commands from redis..")
+                logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(proc.pid)
-                logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
+                node_status = self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)
+                if not node_status:
+                    raise NodeError(
+                        self.graph_name,
+                        node_info["nickname"],
+                        f"{node_info['nickname']}'s initialize status was not received, stopping graph")
+                logger.info(node_status)
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
@@ -415,7 +449,7 @@ class Supervisor:
         '''
         if command == "startGraph":
             if self.children:
-                raise GraphError(self.graph_name, "Graph already running, run stopGraph before initiating another graph!", False)
+                raise GraphError(self.graph_file, "Graph already running, run stopGraph before initiating another graph!")
 
             if file is not None:
                 logger.info("Start graph command received with file")
@@ -424,10 +458,11 @@ class Supervisor:
                     with open(file, 'r') as stream:
                         graph_dict = yaml.safe_load(stream)
                         graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
+                        self.graph_file = file
                 except FileNotFoundError as exc:
-                    raise GraphError(file, f"Could not find the graph at {file}", False, exc)
+                    raise GraphError(file, f"Could not find the graph at {file}", exc)
                 except yaml.YAMLError as exc:
-                    raise GraphError(file, repr(exc), False, exc)
+                    raise GraphError(file, repr(exc), exc)
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
                 self.start_graph()
             elif graph is not None:
@@ -487,11 +522,23 @@ def main():
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
                 'message': repr(exc)})
-            if exc.kill_nodes:
-                supervisor.kill_nodes()
-                supervisor.model["nodes"] = {}
+            if supervisor.children:
+                status = supervisor.r.xrevrange("graph_status", '+', '-', count=2)
+                supervisor.r.xadd("graph_status",
+                    {'status': status[-1][1][b'status']})
+            else:
+                supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+            logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph_name)[1])[0]} graph")
+            logger.error(exc.err_str)
+        except NodeError as exc:
+            # if a node has an error, stop the graph and kill all nodes
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': repr(exc)})
+            supervisor.kill_nodes()
+            supervisor.model["nodes"] = {}
             supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
-            logger.error(f"Failed to start {exc.graph_name} graph")
+            logger.error(f"Error with the {exc.node_nickname} node in the {exc.graph_name} graph")
             logger.error(exc.err_str)
         except Exception as exc:
             supervisor.r.xadd("supervisor_status", {"status": "Unhandled exception", "message": repr(exc)})

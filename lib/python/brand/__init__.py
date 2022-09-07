@@ -4,4 +4,4 @@ from .tools import (get_node_parameter_value, get_parameter_value,
                          node_stage)
 from .node import BRANDNode 
 
-from .exceptions import (GraphError, RedisError)
+from .exceptions import (GraphError, NodeError, RedisError)
