@@ -13,7 +13,7 @@ import redis
 import yaml
 from redis import Redis
 
-from brand import (GraphError, NodeError, RedisError)
+from brand import (GraphError, NodeError, BooterError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -37,6 +37,8 @@ class Supervisor:
 
         self.graph_file = None
         self.redis_pid = None
+
+        self.booter_status_id = '-'
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -357,13 +359,18 @@ class Supervisor:
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(proc.pid)
-                node_status = self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)
-                if not node_status:
-                    raise NodeError(
-                        self.graph_name,
-                        node_info["nickname"],
-                        f"{node_info['nickname']}'s initialize status was not received, stopping graph")
-                logger.info(node_status)
+        
+        for _, node_info in self.model["nodes"].items():
+            node_status = self.r.xread({str(node_info["nickname"]+"_state"):"$"},count=1,block=5000)
+            if not node_status:
+                raise NodeError(
+                    self.graph_name,
+                    node_info["nickname"],
+                    f"{node_info['nickname']}'s initialize status was not received, stopping graph")
+            logger.info(node_status)
+        
+        self.checkBooter()
+
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
@@ -481,7 +488,22 @@ class Supervisor:
         else:
             logger.warning("Invalid command")
 
+    def checkBooter(self):
+        '''
+        Checks status of booter nodes
+        '''
+        statuses = self.r.xrevrange('booter_status', '+', self.booter_status_id)
+        if len(statuses) > 0:
+            for entry in statuses:
+                if entry[1][b'status'] == 'graph failed':
+                    BooterError(
+                        entry[1][b'machine'],
+                        self.graph_file,
+                        f"{entry[1][b'machine']} encountered an error: {entry[1][b'message']}",
+                        entry[1][b'message'])
 
+            new_id = statuses[0][0].decode('utf-8').split('-')
+            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
 
 def main():
     try:
@@ -490,35 +512,43 @@ def main():
         logger.error(exc.err_str)
         sys.exit(0)
     last_id = '$'
+    logger.info('Listening for commands')
     supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
     while(True):
         try:
+            supervisor.checkBooter()
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
                                  count=1,
-                                 block=50000)
+                                 block=10000)
             if cmd:
                 key,messages = cmd[0]
                 last_id,data = messages[0]
-                cmd = (data[b'commands']).decode("utf-8")
+                if b'commands' in data:
+                    cmd = (data[b'commands']).decode("utf-8")
 
-                if b'rdb_filename' in data:
-                    rdb_filename = data[b'rdb_filename'].decode("utf-8")
-                else:
-                    rdb_filename = None
+                    if b'rdb_filename' in data:
+                        rdb_filename = data[b'rdb_filename'].decode("utf-8")
+                    else:
+                        rdb_filename = None
 
-                if b'file' in data:
-                    file = data[b'file'].decode("utf-8")
-                    supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
-                elif b'graph' in data:
-                    graph = json.loads(data[b'graph'])
-                    supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                    if b'file' in data:
+                        file = data[b'file'].decode("utf-8")
+                        supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
+                    elif b'graph' in data:
+                        graph = json.loads(data[b'graph'])
+                        supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                    else:
+                        supervisor.parseCommands(cmd)
                 else:
-                    supervisor.parseCommands(cmd)
+                    supervisor.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
+                    logger.error("'commands' key not in supervisor_ipstream entry")
+                    supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
+
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
             supervisor.terminate()
         except GraphError as exc:
-            # if the graph has an error, stop the graph
+            # if the graph has an error, it was never executed, so log it
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
                 'message': repr(exc)})
@@ -531,14 +561,22 @@ def main():
             logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph_name)[1])[0]} graph")
             logger.error(exc.err_str)
         except NodeError as exc:
-            # if a node has an error, stop the graph and kill all nodes
+            # if a node has an error, stop the graph
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
                 'message': repr(exc)})
-            supervisor.kill_nodes()
-            supervisor.model["nodes"] = {}
-            supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+            supervisor.r.xadd("supervisor_ipstream",
+                {'commands': 'stopGraph'})
             logger.error(f"Error with the {exc.node_nickname} node in the {exc.graph_name} graph")
+            logger.error(exc.err_str)
+        except BooterError as exc:
+            # if a booter has an error, stop the graph and kill all nodes
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': repr(exc)})
+            supervisor.r.xadd("supervisor_ipstream",
+                {'commands': 'stopGraph'})
+            logger.error(f"Error with the {exc.machine} machine")
             logger.error(exc.err_str)
         except Exception as exc:
             supervisor.r.xadd("supervisor_status", {"status": "Unhandled exception", "message": repr(exc)})

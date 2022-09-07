@@ -13,6 +13,8 @@ import sys
 import coloredlogs
 import redis
 
+from brand import (GraphError, NodeError, RedisError)
+
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
 
@@ -88,8 +90,11 @@ class Booter():
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
-            self.logger.warning(f'{name} executable was not found at '
-                                f'{filepath}')
+            raise NodeError(
+                self.model['graph_name'],
+                name,
+                f'{name} executable was not found at {filepath}',
+                True)
         return filepath
 
     def load_graph(self, graph: dict):
@@ -129,10 +134,23 @@ class Booter():
                         args = chrt_args + args
                 p = subprocess.Popen(args)
                 self.children[node] = p
+        
+        self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
 
     def stop_graph(self):
         """
         Stop the nodes on this machine that correspond to the running graph
+        """
+        self.kill_nodes()
+        if 'graph_name' in self.model:
+            graph = self.model['graph_name']
+        else:
+            graph = 'None'
+        self.r.xadd("booter_status", {"machine": self.machine, "status": f"{graph} graph stopped successfully"})
+    
+    def kill_nodes(self):
+        """
+        Kills the nodes running on this machine
         """
         for node, p in self.children.items():
             p.send_signal(signal.SIGINT)
@@ -169,6 +187,7 @@ class Booter():
         """
         entry_id = '$'
         self.logger.info('Listening for commands')
+        self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
         while True:
             try:
                 streams = self.r.xread({'booter': entry_id},
@@ -183,14 +202,31 @@ class Booter():
             except redis.exceptions.ConnectionError as exc:
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
-            except Exception:
-                self.logger.exception(f'Could not execute command')
+            except NodeError as exc:
+                # if a node has an error, stop the graph and kill all nodes
+                self.r.xadd("booter_status",
+                    {'machine': self.machine,
+                    'status': 'graph failed',
+                    'message': repr(exc)})
+                self.kill_nodes()
+                self.r.xadd("booter_status",
+                    {'machine': self.machine, 'status': 'Listening for commands'})
+                self.logger.error(f"Error with the {exc.node_nickname} node in the {exc.graph_name} graph")
+                self.logger.error(exc.err_str)
+            except Exception as exc:
+                self.r.xadd("booter_status", {"machine": self.machine, "status": "Unhandled exception", "message": repr(exc)})
+                self.logger.exception(f'Could not execute command. {repr(exc)}')
+                self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
 
     def terminate(self, *args, **kwargs):
         """
         End this booter process when SIGINT is received
         """
         self.logger.info('SIGINT received, Exiting')
+        try:
+            self.r.xadd("booter_status", {"machine": self.machine, "status": "SIGINT received, Exiting"})
+        except Exception as exc:
+            self.logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
 
 
