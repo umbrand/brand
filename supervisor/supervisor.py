@@ -488,6 +488,7 @@ class Supervisor:
         else:
             logger.warning("Invalid command")
 
+
     def checkBooter(self):
         '''
         Checks status of booter nodes
@@ -495,15 +496,14 @@ class Supervisor:
         statuses = self.r.xrevrange('booter_status', '+', self.booter_status_id)
         if len(statuses) > 0:
             for entry in statuses:
-                if entry[1][b'status'] == 'graph failed':
-                    BooterError(
-                        entry[1][b'machine'],
+                if entry[1][b'status'].decode('utf-8') == 'graph failed':
+                    new_id = entry[0].decode('utf-8').split('-')
+                    self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
+                    raise BooterError(
+                        entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
-                        f"{entry[1][b'machine']} encountered an error: {entry[1][b'message']}",
-                        entry[1][b'message'])
-
-            new_id = statuses[0][0].decode('utf-8').split('-')
-            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
+                        f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
+                        entry[1][b'message'].decode('utf-8'))
 
 def main():
     try:
@@ -519,7 +519,7 @@ def main():
             supervisor.checkBooter()
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
                                  count=1,
-                                 block=10000)
+                                 block=5000)
             if cmd:
                 key,messages = cmd[0]
                 last_id,data = messages[0]
