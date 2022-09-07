@@ -416,14 +416,14 @@ stream_dict = {
 }
 stream_to_del = []
 for stream in stream_dict:
-    stream_dict[stream]['source'] = get_stream_source(model_data, stream)
+    stream_dict[stream]['source'] = stream_params[stream]['source_node']
     if stream_dict[stream]['source'] is None:
         logging.error(f'Wrong graph! Source node not found! Stream: {stream}')
         stream_to_del.append(stream)
     else:
         if 'name' in stream_params[stream] and 'sync' in stream_params[stream]:
             stream_dict[stream]['stream_defn'] = {k: stream_params[stream][k]
-                for k in stream_params[stream] if k not in ['enable']}
+                for k in stream_params[stream] if k not in ['enable','source_node']}
         else:
             logging.warning(
                 f'Invalid NWB parameters in graph YAML. \'name\' and \'sync\' are required for each stream. Stream: {stream}'
