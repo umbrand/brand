@@ -298,26 +298,6 @@ def create_nwb_timeseries(nwbfile, stream, stream_data, var_params):
     nwbfile.add_acquisition(timeseries)
 
 
-def get_stream_source(graph_data, stream):
-    """
-    Returns the node sourcing a redis stream.
-    Parameters
-    ----------
-    graph_data : dict
-        supergraph dictionary
-    stream : str
-        name of the stream whose source to search
-    Returns
-    -------
-    str
-        name of the node sourcing stream
-    """
-    for node in graph_data['nodes']:
-        if stream in graph_data['nodes'][node]['redis_outputs']:
-            return graph_data['nodes'][node]['name']
-    return None
-
-
 def get_node_module(graph_data, node_name):
     """
     Get the module name from the node name in a yaml file
