@@ -21,6 +21,9 @@ derivatives:
         streams:
           <graph_stream_1>:                                 # stream name as defined in the graph
 
+            source_node:        <name of source node>       # name of the node with the corresponding YAML file from 
+                                                            # which stream config will be read for NWB export   
+            
             enable:             <True/False>                # optional, defaults to the node's YAML value if not
                                                             # defined here
 
@@ -37,6 +40,9 @@ derivatives:
                                                             # corresponding to the key in the stream in the graph
 
           <graph_stream_2>:                                 # stream name as defined in the graph
+
+            source_node:        <name of source node>       # name of the node with the corresponding YAML file from 
+                                                            # which stream config will be read for NWB export  
 
             enable:             <True/False>                # optional, defaults to the node's YAML value if not
                                                             # defined here
@@ -66,11 +72,13 @@ derivatives:
       time_key:           ts
       streams:
         state:
+          source_node:    my_cool_node
           enable:         True
           sync:           ['xPC_clock']
           name:           state
           state:          state
         trial_success:
+          source_node:    my_cool_node
           # no enable, so uses the default from the node's YAML
           sync:           ['xPC_clock']
           name:           trial_success
