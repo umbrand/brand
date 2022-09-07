@@ -298,26 +298,6 @@ def create_nwb_timeseries(nwbfile, stream, stream_data, var_params):
     nwbfile.add_acquisition(timeseries)
 
 
-def get_stream_source(graph_data, stream):
-    """
-    Returns the node sourcing a redis stream.
-    Parameters
-    ----------
-    graph_data : dict
-        supergraph dictionary
-    stream : str
-        name of the stream whose source to search
-    Returns
-    -------
-    str
-        name of the node sourcing stream
-    """
-    for node in graph_data['nodes']:
-        if stream in graph_data['nodes'][node]['redis_outputs']:
-            return graph_data['nodes'][node]['name']
-    return None
-
-
 def get_node_module(graph_data, node_name):
     """
     Get the module name from the node name in a yaml file
@@ -416,14 +396,14 @@ stream_dict = {
 }
 stream_to_del = []
 for stream in stream_dict:
-    stream_dict[stream]['source'] = get_stream_source(model_data, stream)
+    stream_dict[stream]['source'] = stream_params[stream]['source_node']
     if stream_dict[stream]['source'] is None:
         logging.error(f'Wrong graph! Source node not found! Stream: {stream}')
         stream_to_del.append(stream)
     else:
         if 'name' in stream_params[stream] and 'sync' in stream_params[stream]:
             stream_dict[stream]['stream_defn'] = {k: stream_params[stream][k]
-                for k in stream_params[stream] if k not in ['enable']}
+                for k in stream_params[stream] if k not in ['enable','source_node']}
         else:
             logging.warning(
                 f'Invalid NWB parameters in graph YAML. \'name\' and \'sync\' are required for each stream. Stream: {stream}'
