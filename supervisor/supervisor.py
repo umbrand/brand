@@ -400,6 +400,10 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
+        try:
+            self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
+        except Exception as exc:
+            logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
 
 
@@ -451,6 +455,7 @@ def main():
         logger.error(exc.err_str)
         sys.exit(0)
     last_id = '$'
+    supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
     while(True):
         try:
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
@@ -476,7 +481,7 @@ def main():
                     supervisor.parseCommands(cmd)
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
-            sys.exit(0)
+            supervisor.terminate()
         except GraphError as exc:
             # if the graph has an error, stop the graph
             supervisor.r.xadd("graph_status",
@@ -488,8 +493,10 @@ def main():
             supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
             logger.error(f"Failed to start {exc.graph_name} graph")
             logger.error(exc.err_str)
-        except Exception:
-            logger.exception(f'Could not execute command')
+        except Exception as exc:
+            supervisor.r.xadd("supervisor_status", {"status": "Unhandled exception", "message": repr(exc)})
+            logger.exception(f'Could not execute command. {repr(exc)}')
+            supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
 if __name__ == "__main__":
     main()
