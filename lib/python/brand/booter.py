@@ -14,7 +14,7 @@ import traceback
 import coloredlogs
 import redis
 
-from brand import (GraphError, NodeError, RedisError)
+from brand import NodeError
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
