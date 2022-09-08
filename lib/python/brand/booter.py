@@ -119,7 +119,7 @@ class Booter():
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 node_stream_name = cfg["nickname"]
                 args = [
-                    cfg['binary'], '-n', node_stream_name, '-hs', host, '-p',
+                    cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
                     str(port)
                 ]
                 if 'run_priority' in cfg:  # if priority is specified
