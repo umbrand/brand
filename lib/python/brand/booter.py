@@ -210,7 +210,7 @@ class Booter():
                     {'machine': self.machine,
                     'status': 'graph failed',
                     'message': str(exc),
-                    'traceback': traceback.format_exc()})
+                    'traceback': 'Booter ' + self.machine + ' ' + traceback.format_exc()})
                 self.r.xadd("booter_status",
                     {'machine': self.machine, 'status': 'Listening for commands'})
                 self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
@@ -221,7 +221,7 @@ class Booter():
                     {'machine': self.machine,
                     'status': 'Unhandled exception',
                     'message': str(exc),
-                    'traceback': 'Booter ' + traceback.format_exc()})
+                    'traceback': 'Booter ' + self.machine + ' ' + traceback.format_exc()})
                 self.logger.exception(f'Could not execute command. {repr(exc)}')
                 self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
 

@@ -575,11 +575,10 @@ def main():
 
         except BooterError as exc:
             # if a booter has an error, stop the graph and kill all nodes
-            full_tb = 'Booter ' + exc.machine + exc.booter_tb + '\nSupervisor ' + traceback.format_exc()
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
                 'message': str(exc),
-                'traceback': full_tb})
+                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
             supervisor.r.xadd("supervisor_ipstream",
                 {'commands': 'stopGraph'})
             logger.error(f"Error with the {exc.machine} machine")
