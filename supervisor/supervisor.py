@@ -330,8 +330,14 @@ class Supervisor:
         logger.info("Validation of the graph is successful")
         host = self.model["redis_host"]
         port = self.model["redis_port"]
+        node_start_id = {}
         for node, node_info in self.model["nodes"].items():
             node_stream_name = node_info["nickname"]
+            node_state_entry = self.r.xrevrange(str(node_info["nickname"])+"_state", '+', '-', count=1)
+            if node_state_entry:
+                node_start_id[node_stream_name] = node_state_entry[0][0]
+            else:
+                node_start_id[node_stream_name] = '0-0'
             if ('machine' not in node_info
                     or node_info["machine"] == self.machine):
                 binary = node_info["binary"]
@@ -360,7 +366,7 @@ class Supervisor:
                 self.children.append(proc.pid)
         
         for _, node_info in self.model["nodes"].items():
-            node_status = self.r.xread({str(node_info["nickname"]+"_state"):"$"},count=1,block=5000)
+            node_status = self.r.xread({str(node_info["nickname"]+"_state"):node_start_id[node_info["nickname"]]},count=1,block=5000)
             if not node_status:
                 raise NodeError(
                     f"{node_info['nickname']}'s initialize status was not received, stopping graph",
