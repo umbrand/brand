@@ -549,7 +549,7 @@ def main():
 
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
-            supervisor.terminate()
+            sys.exit(0)
 
         except GraphError as exc:
             # if the graph has an error, it was never executed, so log it
