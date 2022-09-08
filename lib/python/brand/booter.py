@@ -9,6 +9,7 @@ import os
 import signal
 import subprocess
 import sys
+import traceback
 
 import coloredlogs
 import redis
@@ -91,9 +92,9 @@ class Booter():
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
             raise NodeError(
+                f'{name} executable was not found at {filepath}',
                 self.model['graph_name'],
-                name,
-                f'{name} executable was not found at {filepath}')
+                name)
         return filepath
 
     def load_graph(self, graph: dict):
@@ -198,22 +199,29 @@ class Booter():
                     command = entry_data[b'command'].decode()
                     self.logger.info(f'Received {command} command')
                     self.parse_command(entry_data)
+
             except redis.exceptions.ConnectionError as exc:
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
+
             except NodeError as exc:
                 # if a node has an error, stop the graph and kill all nodes
                 self.r.xadd("booter_status",
                     {'machine': self.machine,
                     'status': 'graph failed',
-                    'message': repr(exc)})
-                self.kill_nodes()
+                    'message': str(exc),
+                    'traceback': traceback.format_exc()})
                 self.r.xadd("booter_status",
                     {'machine': self.machine, 'status': 'Listening for commands'})
-                self.logger.error(f"Error with the {exc.node_nickname} node in the {exc.graph_name} graph")
-                self.logger.error(exc.err_str)
+                self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+                self.logger.error(str(exc))
+
             except Exception as exc:
-                self.r.xadd("booter_status", {"machine": self.machine, "status": "Unhandled exception", "message": repr(exc)})
+                self.r.xadd('booter_status',
+                    {'machine': self.machine,
+                    'status': 'Unhandled exception',
+                    'message': str(exc),
+                    'traceback': 'Booter ' + traceback.format_exc()})
                 self.logger.exception(f'Could not execute command. {repr(exc)}')
                 self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
 

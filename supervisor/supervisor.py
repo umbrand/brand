@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime
 
 import coloredlogs
@@ -111,9 +112,9 @@ class Supervisor:
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
                     self.graph_file = args.graph
             except FileNotFoundError as exc:
-                raise GraphError(args.graph, f"Could not find the graph at {args.graph}", exc)
+                raise GraphError(f"Could not find the graph at {args.graph}", args.graph) from exc
             except yaml.YAMLError as exc:
-                raise GraphError(args.graph, repr(exc), exc)
+                raise GraphError("Error parsing graph YAML file", args.graph) from exc
             logger.info("Graph file parsed successfully")
         return graph_dict
 
@@ -129,9 +130,9 @@ class Supervisor:
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
             raise NodeError(
+                f'{name} executable was not found at {filepath}',
                 self.graph_name,
-                name,
-                f'{name} executable was not found at {filepath}')
+                name)
         return filepath
 
 
@@ -232,10 +233,10 @@ class Supervisor:
             nodes = graph_dict["nodes"]
         else:
             raise GraphError(
-                self.graph_file,
                 "KeyError: "
                 f"{list(set(['graph_name', 'nodes'])-set(graph_dict))}"
-                f" field(s) missing in {self.graph_file}")
+                f" field(s) missing in {self.graph_file}",
+                self.graph_file)
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
@@ -273,9 +274,9 @@ class Supervisor:
                     # Check for duplicate nicknames
                     if n["nickname"] in self.model["nodes"]:
                         raise NodeError(
+                            f"Duplicate node nicknames found: {n['nickname']}",
                             self.graph_name,
-                            n["nickname"],
-                            f"Duplicate node nicknames found: {n['nickname']}")
+                            n["nickname"])
                     # Loading the nodes and graph into self.model dict
                     self.model["nodes"][n["nickname"]] = {}
                     self.model["nodes"][n["nickname"]].update(n)
@@ -296,18 +297,16 @@ class Supervisor:
                 name = n["name"]
             else:
                 raise NodeError(
-                    self.graph_name,
-                    "NodeNameAndNicknameNotFound",
                     "KeyError: "
                     "'name' and 'nickname' fields missing in graph YAML",
-                    exc)
+                    self.graph_name,
+                    "NodeNameAndNicknameNotFound") from exc
             raise NodeError(
-                self.graph_name,
-                name,
                 "KeyError: "
                 f"{exc} field missing in graph YAML "
                 f"for node {name}",
-                exc)
+                self.graph_name,
+                name) from exc
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -364,9 +363,9 @@ class Supervisor:
             node_status = self.r.xread({str(node_info["nickname"]+"_state"):"$"},count=1,block=5000)
             if not node_status:
                 raise NodeError(
+                    f"{node_info['nickname']}'s initialize status was not received, stopping graph",
                     self.graph_name,
-                    node_info["nickname"],
-                    f"{node_info['nickname']}'s initialize status was not received, stopping graph")
+                    node_info["nickname"])
             logger.info(node_status)
         
         self.checkBooter()
@@ -456,7 +455,7 @@ class Supervisor:
         '''
         if command == "startGraph":
             if self.children:
-                raise GraphError(self.graph_file, "Graph already running, run stopGraph before initiating another graph!")
+                raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
             if file is not None:
                 logger.info("Start graph command received with file")
@@ -467,9 +466,9 @@ class Supervisor:
                         graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
                         self.graph_file = file
                 except FileNotFoundError as exc:
-                    raise GraphError(file, f"Could not find the graph at {file}", exc)
+                    raise GraphError(f"Could not find the graph at {file}", file) from exc
                 except yaml.YAMLError as exc:
-                    raise GraphError(file, repr(exc), exc)
+                    raise GraphError("Error parsing graph YAML file", file) from exc
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
                 self.start_graph()
             elif graph is not None:
@@ -495,15 +494,15 @@ class Supervisor:
         '''
         statuses = self.r.xrevrange('booter_status', '+', self.booter_status_id)
         if len(statuses) > 0:
+            new_id = statuses[0][0].decode('utf-8').split('-')
+            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
             for entry in statuses:
                 if entry[1][b'status'].decode('utf-8') == 'graph failed':
-                    new_id = entry[0].decode('utf-8').split('-')
-                    self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
                     raise BooterError(
+                        f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
                         entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
-                        f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
-                        entry[1][b'message'].decode('utf-8'))
+                        entry[1][b'traceback'].decode('utf-8'))
 
 def main():
     try:
@@ -547,39 +546,50 @@ def main():
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
             supervisor.terminate()
+
         except GraphError as exc:
             # if the graph has an error, it was never executed, so log it
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
-                'message': repr(exc)})
+                'message': str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
             if supervisor.children:
                 status = supervisor.r.xrevrange("graph_status", '+', '-', count=2)
                 supervisor.r.xadd("graph_status",
                     {'status': status[-1][1][b'status']})
             else:
                 supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
-            logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph_name)[1])[0]} graph")
-            logger.error(exc.err_str)
+            logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph)[1])[0]} graph")
+            logger.error(str(exc))
+
         except NodeError as exc:
             # if a node has an error, stop the graph
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
-                'message': repr(exc)})
+                'message': str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
             supervisor.r.xadd("supervisor_ipstream",
                 {'commands': 'stopGraph'})
-            logger.error(f"Error with the {exc.node_nickname} node in the {exc.graph_name} graph")
-            logger.error(exc.err_str)
+            logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+            logger.error(str(exc))
+
         except BooterError as exc:
             # if a booter has an error, stop the graph and kill all nodes
+            full_tb = 'Booter ' + exc.machine + exc.booter_tb + '\nSupervisor ' + traceback.format_exc()
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
-                'message': repr(exc)})
+                'message': str(exc),
+                'traceback': full_tb})
             supervisor.r.xadd("supervisor_ipstream",
                 {'commands': 'stopGraph'})
             logger.error(f"Error with the {exc.machine} machine")
-            logger.error(exc.err_str)
+            logger.error(str(exc))
+            
         except Exception as exc:
-            supervisor.r.xadd("supervisor_status", {"status": "Unhandled exception", "message": repr(exc)})
+            supervisor.r.xadd("supervisor_status",
+                {"status": "Unhandled exception",
+                "message": str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
             logger.exception(f'Could not execute command. {repr(exc)}')
             supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
