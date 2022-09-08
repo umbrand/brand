@@ -494,15 +494,19 @@ class Supervisor:
         '''
         statuses = self.r.xrevrange('booter_status', '+', self.booter_status_id)
         if len(statuses) > 0:
-            new_id = statuses[0][0].decode('utf-8').split('-')
-            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
             for entry in statuses:
                 if entry[1][b'status'].decode('utf-8') == 'graph failed':
+                    # if we have a 'graph failed', get messages starting from the error
+                    new_id = entry[0].decode('utf-8').split('-')
+                    self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
                     raise BooterError(
                         f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
                         entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
                         entry[1][b'traceback'].decode('utf-8'))
+
+            new_id = statuses[0][0].decode('utf-8').split('-')
+            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
 
 def main():
     try:
