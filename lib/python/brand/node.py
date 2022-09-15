@@ -37,6 +37,7 @@ class BRANDNode():
 
         # initialize parameters
         self.parameters = {}
+        self.supergraph_id = '0-0'
         self.initializeParameters()
 
         # set up logging
@@ -103,29 +104,38 @@ class BRANDNode():
 
         return r
 
+    def getParametersFromSupergraph(self):
+        """
+        Read node parameters from Redis
+        """
+        id = self.supergraph_id.split('-')
+        id = id[0] + '-' + str(int(id[1]) + 1)
+
+        model_stream_entry = self.r.xrevrange(b'supergraph_stream', '+', id, 1)
+
+        if not model_stream_entry:
+            return None
+
+        self.supergraph_id, entry_dict = model_stream_entry[0]
+        self.supergraph_id = self.supergraph_id.decode('utf-8')
+
+        model_data = json.loads(entry_dict[b'data'].decode())
+
+        for node in model_data['nodes']:
+            if model_data['nodes'][node]['nickname'] == self.NAME:
+                return model_data['nodes'][node]['parameters']
+
+        return {}
+
     def initializeParameters(self):
         """
         Read node parameters from Redis.
         ...
         """
-        model_stream_entry = self.r.xrevrange(b'supergraph_stream', '+', '-', 1)[0]
-
-        if model_stream_entry is None:
+        node_parameters = self.getParametersFromSupergraph()
+        if node_parameters is None:
             print(f"[{self.NAME}] No model published to supergraph_stream in Redis")
             sys.exit(1)
-
-        entry_id, entry_dict = model_stream_entry
-
-        model_data = json.loads(entry_dict[b'data'].decode())
-
-        # self.sync_key = model_data['sync_key'].encode()
-        # self.time_key = model_data['time_key'].encode()
-
-        node_parameters = {}
-        for node in model_data['nodes']:
-            if model_data['nodes'][node]['nickname'] == self.NAME:
-                node_parameters = model_data['nodes'][node]['parameters']
-                break
 
         #for parameter in node_parameters:
         #self.parameters[parameter['name']] = parameter['value']

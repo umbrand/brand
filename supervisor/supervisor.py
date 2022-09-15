@@ -308,7 +308,6 @@ class Supervisor:
                 self.graph_name,
                 name) from exc
 
-        self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
         payload = {
             "data": model_pub
@@ -393,7 +392,64 @@ class Supervisor:
             self.children = []
         else:
             logger.info("No child processes to kill")
+    
+    def update_params(self, new_params):
+        '''
+        Updates parameters from an input dictionary
+        and writes a new supergraph
 
+        Parameters
+        ----------
+        new_params : dict
+            a dictionary with the following structure:
+                keys correspond to the encoded
+                    nicknames of nodes that have
+                    parameter updates
+                values are dicts represented as
+                    strings (i.e. from `json.dumps`).
+                    These dicts have keys that are the
+                    parameter name and values that are
+                    the new parameter value
+        '''
+
+        # load the existing supergraph
+        model_draft = self.model
+
+        # fill in the new parameters
+        if model_draft:
+            for nickname in new_params:
+                nn_dec = nickname.decode("utf-8")
+                if nn_dec in model_draft["nodes"]:
+                    try:
+                        nickname_params = json.loads(new_params[nickname].decode())
+                    except json.decoder.JSONDecodeError as exc:
+                        raise GraphError(
+                            "JSONDecodeError: Redis strings should be single quotes (\')"
+                            " and strings for JSON keys/values should be double quotes (\")",
+                            self.graph_file)
+                    for param, value in nickname_params.items():
+                        model_draft["nodes"][nn_dec]["parameters"][param] = value
+                else:
+                    raise GraphError(
+                        f"There is no {nn_dec} nickname in the supergraph, skipped all parameter updates",
+                        self.graph_file)
+        else:
+            raise GraphError(
+                "Could not update graph parameters since no graph has been loaded yet",
+                self.graph_file)
+        
+        # if we make it out of the above loop without error, then the parameter update is valid, so overwrite the existing model
+        self.model = model_draft
+
+        # write the new supergraph
+        model_pub = json.dumps(self.model)
+        payload = {
+            "data": model_pub
+        }
+        self.r.xadd("supergraph_stream",payload)
+        logger.info("Supergraph updated successfully")
+        self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
+        self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is running
 
     def stop_graph_and_save_nwb(self):
         '''
@@ -438,18 +494,27 @@ class Supervisor:
         sys.exit(0)
 
 
-    def parseCommands(self, command, file=None, rdb_filename=None, graph=None):
+    def parseCommands(self, data):
         '''
-        Parses the command and calls the appropriate function
+        Parses the command and calls the appropriate function(s)
         Args:
-            command: command to be parsed
+            data: contains the command to run in data[b'commands']
+                and other information needed to execute the command
         '''
-        if command == "startGraph":
+        cmd = (data[b'commands']).decode("utf-8")
+
+        if cmd == "startGraph":
             if self.children:
                 raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
-            if file is not None:
+            if b'rdb_filename' in data:
+                rdb_filename = data[b'rdb_filename'].decode("utf-8")
+            else:
+                rdb_filename = None
+
+            if b'file' in data:
                 logger.info("Start graph command received with file")
+                file = data[b'file'].decode("utf-8")
                 graph_dict = {}
                 try:
                     with open(file, 'r') as stream:
@@ -462,17 +527,21 @@ class Supervisor:
                     raise GraphError("Error parsing graph YAML file", file) from exc
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
                 self.start_graph()
-            elif graph is not None:
+            elif b'graph' in data:
                 logger.info("Start graph command received with graph dict")
-                self.load_graph(graph)
+                self.load_graph(json.loads(data[b'graph']))
                 self.start_graph()
             else:
                 logger.info("Start graph command received")
                 self.start_graph()
-        elif command == "stopGraph":
+        elif cmd == "updateParameters":
+            logger.info("Update parameters command received")
+            new_params = {k:data[k] for k in data if k not in [b"commands"]}
+            self.update_params(new_params)
+        elif cmd == "stopGraph":
             logger.info("Stop graph command received")
             self.stop_graph()
-        elif command == "stopGraphAndSaveNWB":
+        elif cmd == "stopGraphAndSaveNWB":
             logger.info("Stop graph and save NWB command received")
             self.stop_graph_and_save_nwb()
         else:
@@ -518,21 +587,7 @@ def main():
                 key,messages = cmd[0]
                 last_id,data = messages[0]
                 if b'commands' in data:
-                    cmd = (data[b'commands']).decode("utf-8")
-
-                    if b'rdb_filename' in data:
-                        rdb_filename = data[b'rdb_filename'].decode("utf-8")
-                    else:
-                        rdb_filename = None
-
-                    if b'file' in data:
-                        file = data[b'file'].decode("utf-8")
-                        supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
-                    elif b'graph' in data:
-                        graph = json.loads(data[b'graph'])
-                        supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
-                    else:
-                        supervisor.parseCommands(cmd)
+                    supervisor.parseCommands(data)
                 else:
                     supervisor.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
                     logger.error("'commands' key not in supervisor_ipstream entry")
