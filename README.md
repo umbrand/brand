@@ -195,7 +195,8 @@ At this time, `supervisor` can only execute one graph at a time. Check back in a
 
 Commands can be sent to the `supervisor` through Redis using the following syntax: `XADD supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]`. The following commands are currently implemented:
 
-* `startGraph` [file <path_to_file>]: Start graph from YAML file path.
+* `startGraph [file <path_to_file>]`: Start graph from YAML file path.
+* `updateParameters [<nickname> '{"<parameter_name>":"<parameter_value>", ...}' ...]`: Updates the supergraph with specified parameter values for specified nodes. This can be executed anytime after having loaded a graph.
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
 * `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
 
