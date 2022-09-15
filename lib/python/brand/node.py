@@ -108,10 +108,7 @@ class BRANDNode():
         """
         Read node parameters from Redis
         """
-        id = self.supergraph_id.split('-')
-        id = id[0] + '-' + str(int(id[1]) + 1)
-
-        model_stream_entry = self.r.xrevrange(b'supergraph_stream', '+', id, 1)
+        model_stream_entry = self.r.xrevrange(b'supergraph_stream', '+', '('+self.supergraph_id, 1)
 
         if not model_stream_entry:
             return None
