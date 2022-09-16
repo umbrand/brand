@@ -210,12 +210,12 @@ def add_nwb_trial_info(nwbfile, stream, stream_data, var_params):
                 stream_data[var]['sync_timestamps'] <= trial.stop_time.values)]
             var_data_per_trial[
                 id] = np.nan if var_data_in_trial.size == 0 else var_data_in_trial[
-                    0]
+                    0].item()
 
         nwbfile.add_trial_column(
             name=stream + '_' + var,
             description=var_params[var]['nwb']['description'],
-            data=var_data_per_trial)
+            data=list(var_data_per_trial))
 
 
 def create_nwb_position(nwbfile, stream, stream_data, var_params):
