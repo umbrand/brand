@@ -16,7 +16,8 @@ redisContext* parse_command_line_args_init_redis(int argc, char **argv, char* NI
 
 const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *supergraph_id);
 char* get_parameter_string(const nx_json *json, const char *node, const char *parameter);
-int get_parameter_int(const nx_json *json, const char *node, const char *parameter);
+int get_parameter_int(const nx_json *json, const char *node, const char *parameter); 
+unsigned long get_graph_load_ts_long(const nx_json *json);
 //void get_parameter_float(const nx_json *json, const char *node, const char *parameter, float *output);
 //void get_parameter_bool(const nx_json *json, const char *node, const char *parameter, bool *output);
 

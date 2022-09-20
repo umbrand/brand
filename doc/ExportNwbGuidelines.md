@@ -10,40 +10,94 @@ This guide will detail best practices for writing BRAND nodes to be compatible w
 
 Configuration for the `exportNWB.py` script is included in the graph YAML, within the `derivatives` field.
 
-```
+```yaml
 derivatives:
-    - exportNWB.py:
-      redis_inputs:                 [list of all redis streams]
-      redis_outputs:                []
+  - exportNWB:
       parameters:
-          enable_nwb:
-              <redis_stream_1>:   <True/False>
-              <redis_stream_2>:   <True/False>
-              ...
+        participant_file:       ../Data/t0/t0.yaml
+        description:            description of the graph
+        sync_key:               <the sync key used throughout the graph>
+        time_key:               <the time key used throughout the graph>
+        streams:
+          <graph_stream_1>:                                 # stream name as defined in the graph
+
+            enable:             <True/False>                # optional, defaults to the node's YAML value if not
+                                                            # defined here
+
+            sync:               <list of sync labels>       # the 0th item should be the blocking sync, add others to
+                                                            # include in NWB
+
+            name:               <stream name in node YAML>  # the name of the stream in the node's YAML corresponding
+                                                            # to this stream in the graph
+
+            <graph_key_1>:      <node_key_1>                # the name of the key in the stream in the node's YAML
+                                                            # corresponding to the key in the stream in the graph
+
+            <graph_key_2>:      <node_key_2>                # the name of the key in the stream in the node's YAML
+                                                            # corresponding to the key in the stream in the graph
+
+          <graph_stream_2>:                                 # stream name as defined in the graph
+
+            enable:             <True/False>                # optional, defaults to the node's YAML value if not
+                                                            # defined here
+
+            sync:               <list of sync labels>       # the 0th item should be the blocking sync, add others to
+                                                            # include in NWB
+
+            name:               <stream name in node YAML>  # the name of the stream in the node's YAML corresponding
+                                                            # to this stream in the graph
+
+            <graph_key_1>:      <node_key_1>                # the name of the key in the stream in the node's YAML
+                                                            # corresponding to the key in the stream in the graph
+
+            <graph_key_2>:      <node_key_2>                # the name of the key in the stream in the node's YAML
+                                                            # corresponding to the key in the stream in the graph
 ```
 
-In this definition, `redis_inputs` should contain all redis streams that a user may or may not want to have logged. This is for simple enabling/disabling of NWB logging for a given stream during graph execution.
+Here is an example `exportNWB` configuration:
 
-As described below, the YAML file of the node that generates a stream will also contain an `enable_nwb` parameter for whether that stream is enabled for logging by default. The `enable_nwb` parameter in the `exportNWB.py` derivative definition in the graph YAML is the priority setting for a given stream. If a stream's name is not included under the graph's `enable_nwb`, then `exportNWB.py` pulls the parameter from the node's YAML.
+```yaml
+derivatives:
+- exportNWB:
+    parameters:
+      participant_file:   ../Data/t0/t0.yaml
+      description:        testing FSM for individuated finger movements
+      sync_key:           sync
+      time_key:           ts
+      streams:
+        state:
+          enable:         True
+          sync:           ['xPC_clock']
+          name:           state
+          state:          state
+        trial_success:
+          # no enable, so uses the default from the node's YAML
+          sync:           ['xPC_clock']
+          name:           trial_success
+          success:        success
+```
 
-As will be mentioned below, `exportNWB.py` also requires a YAML file with data on the participant. For now, the path to this file is also specified in the graph YAML, within the `metadata:participant_file` field.
+Placing the `sync_key`, `time_key`, and `sync` options at the graph level provides flexibility to change graph connections without altering stream structures in a node's YAML. Coupling graph streams to node stream definitions with the `name` parameter and coupling the keys in a graph stream to keys in a node stream definition also support flexibility in changing graph connections without altering node YAMLs. This implementation allows an arbitrary stream to be connected to an arbitrary node's input (provided the structure matches) while maintaining support for logging with NWB.
+
+As described below, the YAML file of the node that generates a stream will also contain an `enable_nwb` parameter for whether that stream is enabled for logging by default. The `enable_nwb` parameter in the `exportNWB.py` derivative configuration in the graph YAML is the priority setting for a given stream. If the `enable` key is not included under a stream's parameters within the `exportNWB.py` derivative configuration, then `exportNWB.py` pulls the parameter from the node's YAML.
+
+As will be mentioned below, `exportNWB.py` also requires a YAML file with data on the participant. The path to this file is also specified in the `exportNWB.py` parameters, within the `participant_file` field.
 
 ## Data Alignment
 
-Since BRAND runs asynchronous graphs, there is a need to track the flow of data through a graph for data integrity. See the [Guidelines for Data Alignment in BRAND](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/DataSyncGuidelines.md) for a description of how this is implemented in BRAND. This is therefore critical to the functionality of `exportNWB.py`, since it must take that data and store it in a deterministic way. To do so, data from all streams in a graph are logged using the `sync` key contained in each stream entry as the timestamp for that entry. `exportNWB.py` also generates a `<stream_name>_sync` container that uses the NWB `TimeSeries` container. The `<stream_name>_sync` `TimeSeries` has one item entered for each `sync` key value in the stream. In each item, `exportNWB.py` logs the `monotonic` timestamps, which are required according to DataSyncGuidelines.md, and Redis timestamps at which each entry was logged. Additionally, if the stream is composed of multiple input streams, any additional `sync` labels are included in a separate column of `<stream_name>_sync`.
+Since BRAND runs asynchronous graphs, there is a need to track the flow of data through a graph for data integrity. See the [Guidelines for Data Alignment](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/DataSyncGuidelines.md) for a description of how this is implemented for `exportNWB.py`. This is therefore critical to the functionality of `exportNWB.py`, since it must take that data and store it in a deterministic way. To do so, data from all streams in a graph are logged using the `sync` key contained in each stream entry as the timestamp for that entry. `exportNWB.py` also generates a `<stream_name>_sync` container that uses the NWB `TimeSeries` container. The `<stream_name>_sync` `TimeSeries` has one item entered for each `sync` key value in the stream. In each item, `exportNWB.py` logs the `monotonic` timestamps, which are required according to the [Guidelines for Data Alignment](https://github.com/snel-repo/realtime_rig_dev/blob/dev/doc/DataSyncGuidelines.md), and Redis timestamps at which each entry was logged. Additionally, if the stream is composed of multiple input streams, any additional `sync` labels are included in a separate column of `<stream_name>_sync`.
 
 ## Node YAML
 
 Information regarding how a stream should be exported in an NWB file should be contained in the YAML file for the node that generates that stream. This implies the author of the node must write information regarding how that stream should be logged in NWB, as the author knows the stream's content best. Within a node's YAML, the NWB writing information is included in the stream's definition:
 
-```
+```yaml
 RedisStreams:
   Inputs:
     ...
 
   Outputs:
     <output_stream_1>:
-      sync:                   [name of sync key, as per data alignment guidelines]
       enable_nwb:             <True/False>
       type_nwb:               <TimeSeries/Position/SpikeTimes/Trial/TrialInfo>
       <output_stream_1_key_1>:
