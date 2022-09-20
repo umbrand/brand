@@ -564,7 +564,7 @@ class Supervisor:
                         self.graph_file,
                         entry[1][b'traceback'].decode('utf-8'))
 
-            self.booter_status_id = statuses[0][0].decode('utf-8')
+            self.booter_status_id = statuses[-1][0].decode('utf-8')
 
 def main():
     try:
