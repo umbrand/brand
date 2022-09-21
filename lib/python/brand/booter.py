@@ -119,7 +119,7 @@ class Booter():
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 node_stream_name = cfg["nickname"]
                 args = [
-                    cfg['binary'], '-n', node_stream_name, '-hs', host, '-p',
+                    cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
                     str(port)
                 ]
                 if 'run_priority' in cfg:  # if priority is specified
@@ -127,6 +127,11 @@ class Booter():
                     if priority:  # if priority is not None or empty
                         chrt_args = ['chrt', '-f', str(int(priority))]
                         args = chrt_args + args
+                if 'cpu_affinity' in cfg:  # if affinity is specified
+                    affinity = cfg['cpu_affinity']
+                    if affinity:  # if affinity is not None or empty
+                        taskset_args = ['taskset', '-c', str(affinity)]
+                        args = taskset_args + args
                 p = subprocess.Popen(args)
                 self.children[node] = p
 
