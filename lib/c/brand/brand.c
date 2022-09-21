@@ -7,22 +7,6 @@
 #include <signal.h>
 #include "brand.h"
 
-// #define REDIS_REPLY_STRING 1
-// #define REDIS_REPLY_ARRAY 2
-// #define REDIS_REPLY_INTEGER 3
-// #define REDIS_REPLY_NIL 4
-// #define REDIS_REPLY_STATUS 5
-// #define REDIS_REPLY_ERROR 6
-// #define REDIS_REPLY_DOUBLE 7
-// #define REDIS_REPLY_BOOL 8
-// #define REDIS_REPLY_MAP 9
-// #define REDIS_REPLY_SET 10
-// #define REDIS_REPLY_ATTR 11
-// #define REDIS_REPLY_PUSH 12
-// #define REDIS_REPLY_BIGNUM 13
-// #define REDIS_REPLY_VERB 14
-
-
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 // Parse command line args (Redis and nickname)
@@ -118,7 +102,6 @@ redisContext* parse_command_line_args_init_redis(int argc, char **argv, char* NI
 
     return redis_context;
 }
-
 
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
@@ -254,6 +237,52 @@ int get_parameter_int(const nx_json *json, const char *node, const char *paramet
 }
 
 //-------------------------------------------------------------------
+//-- Get a parameter list int
+//-------------------------------------------------------------------
+int **get_parameter_list_int(const nx_json *json, const char *node, const char *parameter, int **output, int *n)
+{
+    const nx_json *parameter_value = get_parameter_object(json, node, parameter);
+    assert_object(parameter_value, NX_JSON_ARRAY);
+    *n = parameter_value->children.length;
+    // printf("%s contains %d elements: ", parameter, *n);  // debug
+    //allocate dynamic memory to store 2d array
+    *output = (int *)malloc(sizeof(int) * (*n));
+    for (int i = 0; i < *n; i++)
+    {
+        const nx_json *this_value = nx_json_item(parameter_value, i);
+        assert_object(this_value, NX_JSON_INTEGER);
+        // printf("%d ", this_value->num.u_value);  // debug
+        (*output)[i] = this_value->num.u_value;
+    }
+    // printf("\n");  // debug
+}
+
+//-------------------------------------------------------------------
+//-- Get a parameter list string
+//-------------------------------------------------------------------
+// TODO: The memory for output should be defined within this function, and `int n` should be `int &n`, with n
+// being the number of elements to return
+
+char*** get_parameter_list_string(const nx_json *json, const char *node, const char *parameter, char ***output, int *n)
+{
+    const nx_json *parameter_value = get_parameter_object(json, node, parameter);
+    assert_object(parameter_value, NX_JSON_ARRAY);
+    *n = parameter_value->children.length;
+    // printf("%s contains %d elements: ",parameter ,*n);  // debug
+    // allocate dynamic memory to store 2d array
+    *output = (char **)malloc(sizeof(char *) * (*n));
+    for (int i = 0; i < *n; i++) 
+    {
+        (*output)[i] = (char *)malloc(sizeof(char) * 512);
+        const nx_json *this_value = nx_json_item(parameter_value,i);
+        assert_object(this_value, NX_JSON_STRING);
+        // printf("%s ", this_value->text_value);  // debug
+        strcpy((*output)[i], this_value->text_value);
+    }
+    // printf("\n");  // debug
+}
+
+//-------------------------------------------------------------------
 //-- Get graph load time 
 //-------------------------------------------------------------------
 unsigned long get_graph_load_ts_long(const nx_json *json)
@@ -269,53 +298,7 @@ unsigned long get_graph_load_ts_long(const nx_json *json)
         printf("\"graph_loaded_ts\" does not have the type int\n");
         exit(1);
     }
-}  
-
-/*
-//-------------------------------------------------------------------
-//-- Get a parameter FLOAT
-//-------------------------------------------------------------------
-void get_parameter_float(const nx_json *json, const char *node, const char *parameter, float *output)
-{
-    const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
-    assert_object(parameter_type, NX_JSON_STRING);
-    if (strcmp(parameter_type->text_value, "float") == 0) 
-    {
-        printf("Found parameter %s\n", parameter);
-        const nx_json *parameter_value = nx_json_get(parameter_object, "value");
-        assert_object(parameter_value, NX_JSON_DOUBLE);
-        *output = parameter_value->num.dbl_value;
-    } 
-    else 
-    {
-        printf("Parameter %s does not have the type float\n", parameter);
-        exit(1);
-    }
 }
-
-//-------------------------------------------------------------------
-//-- Get a parameter BOOL
-//-------------------------------------------------------------------
-void get_parameter_bool(const nx_json *json, const char *node, const char *parameter, bool *output)
-{
-    const nx_json *parameter_object = get_parameter_object(json, node, parameter);
-    const nx_json *parameter_type   = nx_json_get(parameter_object, "type");
-    assert_object(parameter_type, NX_JSON_STRING);
-    if (strcmp(parameter_type->text_value, "bool") == 0) 
-    {
-        printf("Found parameter %s\n", parameter);
-        const nx_json *parameter_value = nx_json_get(parameter_object, "value");
-        assert_object(parameter_value, NX_JSON_BOOL);
-        *output = parameter_value->num.s_value;
-    } 
-    else 
-    {
-        printf("Parameter %s does not have the type bool\n", parameter);
-        exit(1);
-    }
-}
-*/
 
 //--------------------------------------------------------------
 // Emit node state
@@ -341,7 +324,7 @@ void emit_status(redisContext *c, const char *node_name, enum node_state state, 
     char stream[512];
     redisReply *reply;
     sprintf(stream, "XADD %s_state * %s", node_name, node_state);
-    printf("%s\n", stream);
+    printf("[%s] %s\n", node_name, stream);
     reply = redisCommand(c,stream);
     freeReplyObject(reply);
 }
