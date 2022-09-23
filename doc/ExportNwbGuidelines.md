@@ -21,6 +21,9 @@ derivatives:
         streams:
           <graph_stream_1>:                                 # stream name as defined in the graph
 
+            source_node:        <name of source node>       # name of the node with the corresponding YAML file from 
+                                                            # which stream config will be read for NWB export   
+            
             enable:             <True/False>                # optional, defaults to the node's YAML value if not
                                                             # defined here
 
@@ -37,6 +40,9 @@ derivatives:
                                                             # corresponding to the key in the stream in the graph
 
           <graph_stream_2>:                                 # stream name as defined in the graph
+
+            source_node:        <name of source node>       # name of the node with the corresponding YAML file from 
+                                                            # which stream config will be read for NWB export  
 
             enable:             <True/False>                # optional, defaults to the node's YAML value if not
                                                             # defined here
@@ -66,18 +72,20 @@ derivatives:
       time_key:           ts
       streams:
         state:
+          source_node:    my_cool_node
           enable:         True
           sync:           ['xPC_clock']
           name:           state
           state:          state
         trial_success:
+          source_node:    my_cool_node
           # no enable, so uses the default from the node's YAML
           sync:           ['xPC_clock']
           name:           trial_success
           success:        success
 ```
 
-Placing the `sync_key`, `time_key`, and `sync` options at the graph level provides flexibility to change graph connections without altering stream structures in a node's YAML. Coupling graph streams to node stream definitions with the `name` parameter and coupling the keys in a graph stream to keys in a node stream definition also support flexibility in changing graph connections without altering node YAMLs. This implementation allows an arbitrary stream to be connected to an arbitrary node's input (provided the structure matches) while maintaining support for logging with NWB.
+Placing the `sync_key`, `time_key`, and `sync` options at the graph level provides flexibility to change graph connections without altering stream structures in a node's YAML. Coupling graph streams to node stream definitions with the `name` parameter and coupling the keys in a graph stream to keys in a node stream definition also support flexibility in changing graph connections without altering node YAMLs. This implementation allows an arbitrary stream to be connected to an arbitrary node's input (provided the structure matches) while maintaining support for logging with NWB. Lastly, using the `source_node` parameter indicates the name (not nickname) of the node that generates the stream, allowing the node's YAML file containing the configuration to be found.
 
 As described below, the YAML file of the node that generates a stream will also contain an `enable_nwb` parameter for whether that stream is enabled for logging by default. The `enable_nwb` parameter in the `exportNWB.py` derivative configuration in the graph YAML is the priority setting for a given stream. If the `enable` key is not included under a stream's parameters within the `exportNWB.py` derivative configuration, then `exportNWB.py` pulls the parameter from the node's YAML.
 

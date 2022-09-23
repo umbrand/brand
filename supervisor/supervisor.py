@@ -6,12 +6,15 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime
 
 import coloredlogs
 import redis
 import yaml
 from redis import Redis
+
+from brand import (GraphError, NodeError, BooterError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -36,6 +39,8 @@ class Supervisor:
         self.graph_file = None
         self.redis_pid = None
 
+        self.booter_status_id = '-'
+
         signal.signal(signal.SIGINT, self.terminate)
 
         graph_dict = self.parse_args()
@@ -45,15 +50,10 @@ class Supervisor:
 
         if self.graph_file is not None: self.load_graph(graph_dict)
 
+
     def handler(signal_received,self):
         raise KeyboardInterrupt("SIGTERM received")
 
-    def child_process_handler(self,node_stream_name):
-        '''
-        Child handler
-        '''
-        logger.debug("Checking the status from the node")
-        self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000)
 
     def parse_args(self)->dict:
         ''' Parse the graph file loaded from the command line and return the graph dictionary using -g option/cmdline argument
@@ -69,6 +69,7 @@ class Supervisor:
         ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
+        ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -100,6 +101,8 @@ class Supervisor:
         self.redis_priority = args.redis_priority
         self.redis_affinity = args.redis_affinity
 
+        logger.setLevel(args.log_level)
+
         self.graph_file = args.graph
         graph_dict = {}
         if self.graph_file is not None:
@@ -107,28 +110,13 @@ class Supervisor:
                 with open(args.graph, 'r') as stream:
                     graph_dict = yaml.safe_load(stream)
                     graph_dict['graph_name'] = os.path.splitext(os.path.split(args.graph)[-1])[0]
+                    self.graph_file = args.graph
+            except FileNotFoundError as exc:
+                raise GraphError(f"Could not find the graph at {args.graph}", args.graph) from exc
             except yaml.YAMLError as exc:
-                logger.error("Error in parsing the graph file "+str(exc))
-                raise
+                raise GraphError("Error parsing graph YAML file", args.graph) from exc
             logger.info("Graph file parsed successfully")
         return graph_dict
-
-
-    def kill_redis_server(self):
-        '''
-        Kills the redis server
-        '''
-        logger.info("Killing the redis server")
-        try:
-            logger.info("PID of the redis server: %s" % self.redis_pid)
-            if self.redis_pid is not None:
-                os.kill(int(self.redis_pid), signal.SIGTERM)
-                logger.info("Redis server killed")
-            else:
-                logger.info("No redis server found")
-        except Exception as e:
-            logger.error("Error in killing the redis server"+str(e))
-
 
 
     def search_node_bin_file(self, module, name) -> str:
@@ -141,8 +129,10 @@ class Supervisor:
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
         if not os.path.exists(filepath):
-            logger.warning(f'{name} executable was not found at '
-                           f'{filepath}')
+            raise NodeError(
+                f'{name} executable was not found at {filepath}',
+                self.graph_name,
+                name)
         return filepath
 
 
@@ -170,19 +160,16 @@ class Supervisor:
                              ] + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
-        proc = subprocess.Popen(redis_command)
+        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
             if out:
                 logger.debug(out.decode())
             if 'Address already in use' in str(out):
-                logger.warning("Could not run redis-server (address already in use).")
-                logger.warning(
-                    "Assuming that the process using the TCP port"
-                    " is another redis-server instance. Continuing.")
+                raise RedisError("Could not run redis-server (address already in use). Is supervisor already running?")
             else:
-                raise Exception("Could not run redis-server. Aborting.")
+                raise RedisError("Launching redis-server failed for an unknown reason, check supervisor logs. Aborting.")
         except subprocess.TimeoutExpired:  # no error message received
             logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
@@ -196,6 +183,7 @@ class Supervisor:
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', self.rdb_filename)
         logger.info(f"RDB file name set to {self.rdb_filename}")
+
 
     def get_save_path(self, graph_dict):
         """
@@ -233,14 +221,22 @@ class Supervisor:
         save_path = os.path.abspath(save_path)
         return save_path
 
+
     def load_graph(self,graph_dict,rdb_filename=None):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
         Args:
             graph_dict: graph dictionary
         '''
-        nodes = graph_dict['nodes']
 
-        self.graph_name = graph_dict['graph_name']
+        if set(["graph_name", "nodes"]).issubset(graph_dict):
+            self.graph_name = graph_dict["graph_name"]
+            nodes = graph_dict["nodes"]
+        else:
+            raise GraphError(
+                "KeyError: "
+                f"{list(set(['graph_name', 'nodes'])-set(graph_dict))}"
+                f" field(s) missing in {self.graph_file}",
+                self.graph_file)
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
@@ -274,13 +270,13 @@ class Supervisor:
             for n in nodes:
                 bin_f = self.search_node_bin_file(n["module"],n["name"])
                 if bin_f is not None:
-                    logger.info("%s is a valid node...." % n["nickname"])
+                    logger.info("%s is a valid node" % n["nickname"])
                     # Check for duplicate nicknames
                     if n["nickname"] in self.model["nodes"]:
-                        logger.error("Duplicate node nickname found: %s. Rename the nicknames in the graph YAML file." % n["nickname"])
-                        logger.info("Stopping the graph")
-                        self.stop_graph()
-                        return
+                        raise NodeError(
+                            f"Duplicate node nicknames found: {n['nickname']}",
+                            self.graph_name,
+                            n["nickname"])
                     # Loading the nodes and graph into self.model dict
                     self.model["nodes"][n["nickname"]] = {}
                     self.model["nodes"][n["nickname"]].update(n)
@@ -294,9 +290,23 @@ class Supervisor:
                     a_values = a[a_name]
                     self.model["derivatives"][a_name] = a_values
 
-        except KeyError as e:
-            logger.error("KeyError: %s field missing in graph YAML" % e)
-            raise
+        except KeyError as exc:
+            if "nickname" in n:
+                name = n["nickname"]
+            elif "name" in n:
+                name = n["name"]
+            else:
+                raise NodeError(
+                    "KeyError: "
+                    "'name' and 'nickname' fields missing in graph YAML",
+                    self.graph_name,
+                    "NodeNameAndNicknameNotFound") from exc
+            raise NodeError(
+                "KeyError: "
+                f"{exc} field missing in graph YAML "
+                f"for node {name}",
+                self.graph_name,
+                name) from exc
 
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is parsed and running successfully
         model_pub = json.dumps(self.model)
@@ -304,7 +314,7 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream",payload)
-        logger.info("Supergraph Stream (Model) published successfully with payload..")
+        logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
 
 
@@ -344,21 +354,31 @@ class Supervisor:
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
                 self.r.xadd("graph_status", {'status': self.state[3]})
-                logger.info("Parent process is running and waiting for commands from redis..")
+                logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
                 self.children.append(proc.pid)
-                logger.info(self.r.xread({str(node_stream_name+"_state"):"$"},count=1,block=5000))
+        
+        self.checkBooter()
+
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
+
     def stop_graph(self):
         '''
-        Kills the child processes and stops the graph
+        Stops the graph
         '''
         self.r.xadd('booter', {'command': 'stopGraph'})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
+        self.kill_nodes()
+
+
+    def kill_nodes(self):
+        '''
+        Kills child processes
+        '''
         logger.debug(self.children)
         if(self.children):
             for i in range(len(self.children)):
@@ -411,7 +431,12 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
+        try:
+            self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
+        except Exception as exc:
+            logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
+
 
     def parseCommands(self, command, file=None, rdb_filename=None, graph=None):
         '''
@@ -419,25 +444,31 @@ class Supervisor:
         Args:
             command: command to be parsed
         '''
-        if command == "startGraph" and file is not None:
-            logger.info("Start graph command received with file")
-            graph_dict = {}
-            try:
-                with open(file, 'r') as stream:
-                    graph_dict = yaml.safe_load(stream)
-                    graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
-            except yaml.YAMLError as exc:
-                logger.error(exc)
-                raise
-            self.load_graph(graph_dict,rdb_filename=rdb_filename)
-            self.start_graph()
-        elif command == "startGraph" and graph is not None:
-            logger.info("Start graph command received with graph dict")
-            self.load_graph(graph)
-            self.start_graph()
-        elif command == "startGraph":
-            logger.info("Start graph command received")
-            self.start_graph()
+        if command == "startGraph":
+            if self.children:
+                raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
+
+            if file is not None:
+                logger.info("Start graph command received with file")
+                graph_dict = {}
+                try:
+                    with open(file, 'r') as stream:
+                        graph_dict = yaml.safe_load(stream)
+                        graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
+                        self.graph_file = file
+                except FileNotFoundError as exc:
+                    raise GraphError(f"Could not find the graph at {file}", file) from exc
+                except yaml.YAMLError as exc:
+                    raise GraphError("Error parsing graph YAML file", file) from exc
+                self.load_graph(graph_dict,rdb_filename=rdb_filename)
+                self.start_graph()
+            elif graph is not None:
+                logger.info("Start graph command received with graph dict")
+                self.load_graph(graph)
+                self.start_graph()
+            else:
+                logger.info("Start graph command received")
+                self.start_graph()
         elif command == "stopGraph":
             logger.info("Stop graph command received")
             self.stop_graph()
@@ -448,37 +479,113 @@ class Supervisor:
             logger.warning("Invalid command")
 
 
+    def checkBooter(self):
+        '''
+        Checks status of booter nodes
+        '''
+        statuses = self.r.xrevrange('booter_status', '+', self.booter_status_id)
+        if len(statuses) > 0:
+            for entry in statuses:
+                if entry[1][b'status'].decode('utf-8') == 'graph failed':
+                    # if we have a 'graph failed', get messages starting from the error
+                    new_id = entry[0].decode('utf-8').split('-')
+                    self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
+                    raise BooterError(
+                        f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
+                        entry[1][b'machine'].decode('utf-8'),
+                        self.graph_file,
+                        entry[1][b'traceback'].decode('utf-8'))
+
+            new_id = statuses[0][0].decode('utf-8').split('-')
+            self.booter_status_id = new_id[0] + '-' + str(int(new_id[1]) + 1)
+
 def main():
-    supervisor = Supervisor()
+    try:
+        supervisor = Supervisor()
+    except RedisError as exc:
+        logger.error(exc.err_str)
+        sys.exit(0)
     last_id = '$'
+    logger.info('Listening for commands')
+    supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
     while(True):
         try:
+            supervisor.checkBooter()
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
                                  count=1,
-                                 block=50000)
+                                 block=5000)
             if cmd:
                 key,messages = cmd[0]
                 last_id,data = messages[0]
-                cmd = (data[b'commands']).decode("utf-8")
+                if b'commands' in data:
+                    cmd = (data[b'commands']).decode("utf-8")
 
-                if b'rdb_filename' in data:
-                    rdb_filename = data[b'rdb_filename'].decode("utf-8")
-                else:
-                    rdb_filename = None
+                    if b'rdb_filename' in data:
+                        rdb_filename = data[b'rdb_filename'].decode("utf-8")
+                    else:
+                        rdb_filename = None
 
-                if b'file' in data:
-                    file = data[b'file'].decode("utf-8")
-                    supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
-                elif b'graph' in data:
-                    graph = json.loads(data[b'graph'])
-                    supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                    if b'file' in data:
+                        file = data[b'file'].decode("utf-8")
+                        supervisor.parseCommands(cmd, file=file, rdb_filename=rdb_filename)
+                    elif b'graph' in data:
+                        graph = json.loads(data[b'graph'])
+                        supervisor.parseCommands(cmd, graph=graph, rdb_filename=rdb_filename)
+                    else:
+                        supervisor.parseCommands(cmd)
                 else:
-                    supervisor.parseCommands(cmd)
+                    supervisor.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
+                    logger.error("'commands' key not in supervisor_ipstream entry")
+                    supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
+
         except redis.exceptions.ConnectionError as exc:
             logger.error('Could not connect to Redis: ' + repr(exc))
             sys.exit(0)
-        except Exception:
-            logger.exception(f'Could not execute command')
+
+        except GraphError as exc:
+            # if the graph has an error, it was never executed, so log it
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
+            if supervisor.children:
+                status = supervisor.r.xrevrange("graph_status", '+', '-', count=2)
+                supervisor.r.xadd("graph_status",
+                    {'status': status[-1][1][b'status']})
+            else:
+                supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+            logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph)[1])[0]} graph")
+            logger.error(str(exc))
+
+        except NodeError as exc:
+            # if a node has an error, stop the graph
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
+            supervisor.r.xadd("supervisor_ipstream",
+                {'commands': 'stopGraph'})
+            logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+            logger.error(str(exc))
+
+        except BooterError as exc:
+            # if a booter has an error, stop the graph and kill all nodes
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': str(exc),
+                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+            supervisor.r.xadd("supervisor_ipstream",
+                {'commands': 'stopGraph'})
+            logger.error(f"Error with the {exc.machine} machine")
+            logger.error(str(exc))
+            
+        except Exception as exc:
+            supervisor.r.xadd("supervisor_status",
+                {"status": "Unhandled exception",
+                "message": str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc()})
+            logger.exception(f'Could not execute command. {repr(exc)}')
+            supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
 if __name__ == "__main__":
     main()

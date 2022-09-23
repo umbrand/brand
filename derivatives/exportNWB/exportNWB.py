@@ -210,12 +210,12 @@ def add_nwb_trial_info(nwbfile, stream, stream_data, var_params):
                 stream_data[var]['sync_timestamps'] <= trial.stop_time.values)]
             var_data_per_trial[
                 id] = np.nan if var_data_in_trial.size == 0 else var_data_in_trial[
-                    0]
+                    0].item()
 
         nwbfile.add_trial_column(
             name=stream + '_' + var,
             description=var_params[var]['nwb']['description'],
-            data=var_data_per_trial)
+            data=list(var_data_per_trial))
 
 
 def create_nwb_position(nwbfile, stream, stream_data, var_params):
@@ -296,26 +296,6 @@ def create_nwb_timeseries(nwbfile, stream, stream_data, var_params):
                             description=var_params[var]['nwb']['description'])
 
     nwbfile.add_acquisition(timeseries)
-
-
-def get_stream_source(graph_data, stream):
-    """
-    Returns the node sourcing a redis stream.
-    Parameters
-    ----------
-    graph_data : dict
-        supergraph dictionary
-    stream : str
-        name of the stream whose source to search
-    Returns
-    -------
-    str
-        name of the node sourcing stream
-    """
-    for node in graph_data['nodes']:
-        if stream in graph_data['nodes'][node]['redis_outputs']:
-            return graph_data['nodes'][node]['name']
-    return None
 
 
 def get_node_module(graph_data, node_name):
@@ -416,14 +396,14 @@ stream_dict = {
 }
 stream_to_del = []
 for stream in stream_dict:
-    stream_dict[stream]['source'] = get_stream_source(model_data, stream)
+    stream_dict[stream]['source'] = stream_params[stream]['source_node']
     if stream_dict[stream]['source'] is None:
         logging.error(f'Wrong graph! Source node not found! Stream: {stream}')
         stream_to_del.append(stream)
     else:
         if 'name' in stream_params[stream] and 'sync' in stream_params[stream]:
             stream_dict[stream]['stream_defn'] = {k: stream_params[stream][k]
-                for k in stream_params[stream] if k not in ['enable']}
+                for k in stream_params[stream] if k not in ['enable','source_node']}
         else:
             logging.warning(
                 f'Invalid NWB parameters in graph YAML. \'name\' and \'sync\' are required for each stream. Stream: {stream}'

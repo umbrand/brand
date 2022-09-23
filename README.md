@@ -30,12 +30,11 @@ BRAND follows the following directory structure (where `brand` corresponds to th
 ```
 |---brand
     |---derivatives
-    |---graphs
+    |---doc
     |---lib
         |---c
         |---python
         |---<packages>
-    |---nodes
     |---supervisor
 |---brand-modules
     |---<module-name>
@@ -149,7 +148,7 @@ source setup.sh
 supervisor [args]
 ```
  - `setup.sh` is a script that defines a series of helper functions that make the workflow easier. It also sets the conda environment. 
- - `supervisor` is the core process controlling the BRAND system
+ - `supervisor` is the core process controlling the BRAND system.
 
 Optionally, you can include arguments when running the `supervisor` to override its defaults. Below are the extra arguments that can be used:
 
@@ -169,8 +168,9 @@ Optionally, you can include arguments when running the `supervisor` to override 
     ```bash
     supervisor -i 192.168.0.101 --port 6379
     ```
+    Only one `supervisor` instance can run with a given `redis-server` instance. For [multi-machine graphs](#multi-machine-graphs), use `booter` instances to interface with the `supervisor`'s `redis-server` instance.
 
-2. Once the `supervisor` is running, it must receive a `startGraph` command through Redis to its `supervisor_ipstream` to start a graph. An example way to do this (which we suggest for testing) is to use `redis-cli`. You would have to open a separate terminal and first run the following command to open `redis-cli` (-h and -p flags are optional if you're running on default host/IP and port):
+2. Once the `supervisor` is running, it must receive a `startGraph` command through Redis to its `supervisor_ipstream` to start a graph. An example way to do this (which we suggest for testing) is to use `redis-cli`. You would have to open a separate terminal and first run the following command to open `redis-cli` (`-h` and `-p` flags are optional if you're running on default host/IP and port):
     ```bash
     redis-cli -h <host> -p <port>
     ```
@@ -189,6 +189,8 @@ Optionally, you can include arguments when running the `supervisor` to override 
     XADD supervisor_ipstream * commands stopGraphAndSaveNWB 
     ```
 
+At this time, `supervisor` can only execute one graph at a time. Check back in a future version of BRAND that will support running multiple graphs simultaneously.
+
 ### Supported `supervisor` commands
 
 Commands can be sent to the `supervisor` through Redis using the following syntax: `XADD supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]`. The following commands are currently implemented:
@@ -202,6 +204,8 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 * `supervisor_ipstream`: This stream is used to publish commands for the supervisor.
 * `graph_status`: This stream is used to publish the status of the current graph.
 * `supergraph_stream`: This stream is used to publish the metadata of the graph.
+* `supervisor_status`: This stream is used by the `supervisor` to publish its status outside of graph functionality. Any caught exceptions that are not BRAND exceptions are logged here.
+* `booter_status`: This stream is used by all `booter` nodes to publish their general statuses. Each entry should contain `machine` and `status` keys.
 * `<node_nickname>_state`: This set of streams are used to publish the status of nodes.
 * `<data_stream>`: These are arbitrary data streams through which nodes publish their data to Redis. There are currently no naming conventions for these streams nor any rules as to how many data streams a node can publish. 
 
@@ -224,6 +228,10 @@ You can check the status of the graph using the following Redis command (using `
 ```bash
 XREVRANGE graph_status + - COUNT 1
 ```
+
+#### *More details about the `graph failed` status:*
+
+In the event of a `graph failed` status, the stream entry will also contain `message` and `traceback` keys. The `message` key contains the error message printed to the `supervisor` console log. The `traceback` key contains the exception's full traceback, including the traceback from an exception that occurred on a `booter` machine (see [Multi-machine graphs](#multi-machine-graphs) section below). See more about the types of BRAND exceptions in the [BRAND Exceptions](#brand-exceptions) section below.
 
 ## Multi-machine graphs
 
@@ -250,7 +258,7 @@ Here's an example YAML entry for a node that will run on a machine named "brand"
 nodes:
   - name:         func_generator
     nickname:     func_generator
-    module:       .
+    module:       ../brand-modules/brand-test
     run_priority: 99
     machine:      brand  # this node will run on the machine named 'brand'
     parameters:
@@ -286,6 +294,37 @@ How to run a multi-machine graph (e.g. [testBooter.yaml](./graphs/testGraph/test
     XADD supervisor_ipstream * commands stopGraph
     ```
 If everything is working correctly, you should see that the `func_generator` node ran on the "brand" machine, and the `decoder` node ran on the "gpc" machine.
+
+## BRAND exceptions
+
+`supervisor` and `booter` are designed to run continuously, so they will catch almost any exception, log a hopefully helpful message to the console, and log the same message to a Redis stream along with a traceback. There are four BRAND-specific exceptions that `supervisor` and `booter` handle in controlled ways.
+
+### `GraphError`
+
+`GraphError`s are thrown if there are issues finding a graph, parsing its structure, or failing to begin parsing the graph for other reasons. `GraphError` exceptions are caught by:
+
+1. Adding a `graph failed` entry to the `graph_status` stream (see [graph failed](#more-details-about-the-graph-failed-status) section above)
+1. Rewriting the `graph_status` to what it was before the exception if another graph was already running or writing a `stopped/not initialized` status if not
+1. Logging the error in the console
+
+### `NodeError`
+
+`NodeError`s are thrown if there are issues finding a node's executable, the node's instantiation is incomplete, there are repeated nicknames, or the node fails to initialize. `NodeError` exceptions are caught by:
+
+1. Adding a `graph failed` entry to the `graph_status` stream (see [graph failed](#more-details-about-the-graph-failed-status) section above)
+1. Killing all nodes by sending a `stopGraph` command to `supervisor_ipstream`
+1. Logging the error in the console
+
+### `BooterError`
+
+`BooterError`s are thrown by `supervisor` if a `booter` throws any BRAND exception and are caught the same way as a [`NodeError`](#nodeerror).
+
+### `RedisError`
+
+`RedisError`s are thrown if `supervisor` is unable to create a `redis-server` instance. `RedisError` exceptions are caught by:
+
+1. Logging the error in the console
+1. Cleanly exiting
 
 ## Redis as a mechanism for IPC
 
