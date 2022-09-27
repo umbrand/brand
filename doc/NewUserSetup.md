@@ -64,9 +64,9 @@ conda env create -f Installs/<env>_env.yml
 
 Exporting a conda environment only exports packages that can be installed by `pip`. Packages that cannot be installed by pip need to be installed manually.
 
-## Set up SSH key for Git login
+## Set up SSH key for Git login (optional)
 
-Instructions from GitHub docs [[1]](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent) and [[2]](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account).
+These steps are required if you want to setup Git login with an SSH key instead of through HTTPS. Instructions adapted from GitHub docs: [[1]](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent) and [[2]](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account).
 
 Generate a new SSH key, replacing the below with your GitHub email:
 ```
@@ -105,6 +105,13 @@ Create a projects directory into which we will store BRAND, then clone the `dev`
 cd
 mkdir Projects
 cd Projects
+```
+If you want to clone the repo using HTTPS, run the following:
+```
+git clone -b dev https://github.com/snel-repo/realtime_rig_dev.git
+```
+If you prefer to clone using SSH, run the following (you must have setup an SSH key for this purpose following the previous optional steps):
+```
 git clone -b dev git@github.com:snel-repo/realtime_rig_dev.git
 ```
 
