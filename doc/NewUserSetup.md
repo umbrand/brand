@@ -43,7 +43,7 @@ When prompted, set the install directory to be `/home/<new_user>/lib/miniconda3`
 
 If prompted about whether to initialize miniconda, enter `yes`.
 
-Note that the following conda-related steps do not need to be run if you intend to install BRAND.
+*NOTE that the following conda-related steps do not need to be run if you intend to install BRAND. If so, skip to the [Installing BRAND](#installing-brand) section below.*
 
 ### Recreating an environment from a pre-existing one
 
