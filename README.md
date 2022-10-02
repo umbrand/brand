@@ -337,7 +337,7 @@ A stream within redis has the following organization:
 stream_key ID key value key value ...
 ```
 
-The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at N and increments for every simultaneously created entry within the same millisecond.
+The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at 0 and increments for every simultaneously created entry within the same millisecond.
 
 When a node wants to share data with others, it does so using a stream. There are several advantages to using a stream: 
 
