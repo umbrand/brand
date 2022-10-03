@@ -204,7 +204,7 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 
 * `supervisor_ipstream`: This stream is used to publish commands for the supervisor.
 * `graph_status`: This stream is used to publish the status of the current graph.
-* `supergraph_stream`: This stream is used to publish the metadata of the graph.
+* `supergraph_stream`: This stream is used to publish the metadata of the graph. Each entry should contain the key `data` and the value is a JSON string representing the supergraph.
 * `supervisor_status`: This stream is used by the `supervisor` to publish its status outside of graph functionality. Any caught exceptions that are not BRAND exceptions are logged here.
 * `booter_status`: This stream is used by all `booter` nodes to publish their general statuses. Each entry should contain `machine` and `status` keys.
 * `<node_nickname>_state`: This set of streams are used to publish the status of nodes.
