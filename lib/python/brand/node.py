@@ -104,7 +104,7 @@ class BRANDNode():
 
         return r
 
-    def getParametersFromSupergraph(self, complete_supergraph = False):
+    def getParametersFromSupergraph(self, complete_supergraph=False):
         """
         Read node parameters from Redis
 

@@ -374,7 +374,11 @@ At a minimum, a node must:
     * `NODE_INFO`: the node has information to share.
 5. Catch `SIGINT` to publish a `NODE_SHUTDOWN` status to the `<node_nickname>_state` stream, then close gracefully.
 
-If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above. 
+If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above.
+
+### Updating Node Parameters in Python
+
+The `BRANDNode` Python class within the `brand` library includes a helper function for updating node parameters from a new supergraph (published after calling the `supervisor`'s `updateParameters` command). The `BRANDNode.getParametersFromSupergraph` function returns a list whose length is the number of supergraphs that have been published since the node last checked for new supergraphs. Each element of the list returned by `BRANDNode.getParametersFromSupergraph` is a dictionary whose keys are the node's parameter names to be updated and values are the values for those parameters. The order of the listed supergraphs corresponds to the order of the supergraph's entries into `supergraph_stream` (i.e. the supergraph at index `0` was written before the supergraph at index `1`). The `BRANDNode.getParametersFromSupergraph` function can also return the complete supergraph as a JSON string by passing `True` to the function's optional `complete_supergraph` argument. If there are no new supergraphs, the function returns `None`.
 
 ## Performance Optimization
 
