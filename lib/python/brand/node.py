@@ -104,25 +104,45 @@ class BRANDNode():
 
         return r
 
-    def getParametersFromSupergraph(self):
+    def getParametersFromSupergraph(self, complete_supergraph = False):
         """
         Read node parameters from Redis
+
+        Parameters
+        ----------
+        complete_supergraph : (optional) boolean
+            False returns just the node's parameters.
+            True returns the complete supergraph
+            straight from the Redis xrange call.
+
+        Returns
+        -------
+        new_params : list of dict
+            Each list item will be a dictionary of the
+            node's parameters in that supergraph
         """
-        model_stream_entry = self.r.xrevrange(b'supergraph_stream', '+', '('+self.supergraph_id, 1)
+        model_stream_entries = self.r.xrange(b'supergraph_stream', '('+self.supergraph_id, '+')
 
-        if not model_stream_entry:
+        if not model_stream_entries:
             return None
-
-        self.supergraph_id, entry_dict = model_stream_entry[0]
+        
+        self.supergraph_id = model_stream_entries[-1][0]
         self.supergraph_id = self.supergraph_id.decode('utf-8')
 
-        model_data = json.loads(entry_dict[b'data'].decode())
+        if complete_supergraph:
+            return model_stream_entries
 
-        for node in model_data['nodes']:
-            if model_data['nodes'][node]['nickname'] == self.NAME:
-                return model_data['nodes'][node]['parameters']
+        new_params = [{} for i in model_stream_entries] # {} means the node was not listed in the corresponding supergraph
 
-        return {}
+        for i, entry in enumerate(model_stream_entries):
+
+            model_data = json.loads(entry[1][b'data'].decode())
+
+            for node in model_data['nodes']:
+                if model_data['nodes'][node]['nickname'] == self.NAME:
+                    new_params[i] = model_data['nodes'][node]['parameters']
+
+        return new_params
 
     def initializeParameters(self):
         """
@@ -136,7 +156,7 @@ class BRANDNode():
 
         #for parameter in node_parameters:
         #self.parameters[parameter['name']] = parameter['value']
-        for key,value in node_parameters.items():
+        for key,value in node_parameters[-1].items():
             self.parameters[key] = value
 
         #print(self.parameters)
