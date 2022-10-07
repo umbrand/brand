@@ -195,7 +195,8 @@ At this time, `supervisor` can only execute one graph at a time. Check back in a
 
 Commands can be sent to the `supervisor` through Redis using the following syntax: `XADD supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]`. The following commands are currently implemented:
 
-* `startGraph` [file <path_to_file>]: Start graph from YAML file path.
+* `startGraph [file <path_to_file>]`: Start graph from YAML file path.
+* `updateParameters [<nickname> '{"<parameter_name>":"<parameter_value>", ...}' ...]`: Updates the supergraph with specified parameter values for specified nodes. This can be executed anytime after having loaded a graph.
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
 * `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
 
@@ -203,7 +204,7 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 
 * `supervisor_ipstream`: This stream is used to publish commands for the supervisor.
 * `graph_status`: This stream is used to publish the status of the current graph.
-* `supergraph_stream`: This stream is used to publish the metadata of the graph.
+* `supergraph_stream`: This stream is used to publish the metadata of the graph. Each entry should contain the key `data` and the value is a JSON string representing the supergraph.
 * `supervisor_status`: This stream is used by the `supervisor` to publish its status outside of graph functionality. Any caught exceptions that are not BRAND exceptions are logged here.
 * `booter_status`: This stream is used by all `booter` nodes to publish their general statuses. Each entry should contain `machine` and `status` keys.
 * `<node_nickname>_state`: This set of streams are used to publish the status of nodes.
@@ -336,7 +337,7 @@ A stream within redis has the following organization:
 stream_key ID key value key value ...
 ```
 
-The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at N and increments for every simultaneously created entry within the same millisecond.
+The `ID` defaults to the millisecond timestamp of when the piece of information was collected. It has the form `MMMMMMMMM-N`, where N is a number >= 0. The idea is that if there are two entries at the same millisecond timestep, they can be uniquely identified with the N value. N begins at 0 and increments for every simultaneously created entry within the same millisecond.
 
 When a node wants to share data with others, it does so using a stream. There are several advantages to using a stream: 
 
