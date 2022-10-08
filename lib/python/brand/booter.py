@@ -132,6 +132,11 @@ class Booter():
                     if priority:  # if priority is not None or empty
                         chrt_args = ['chrt', '-f', str(int(priority))]
                         args = chrt_args + args
+                if 'cpu_affinity' in cfg:  # if affinity is specified
+                    affinity = cfg['cpu_affinity']
+                    if affinity:  # if affinity is not None or empty
+                        taskset_args = ['taskset', '-c', str(affinity)]
+                        args = taskset_args + args
                 p = subprocess.Popen(args)
                 self.children[node] = p
         
