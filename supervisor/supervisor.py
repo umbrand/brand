@@ -607,7 +607,8 @@ def main():
                     {'status': status[-1][1][b'status']})
             else:
                 supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
-            logger.error(f"Graph operation failed for {os.path.splitext(os.path.split(exc.graph)[1])[0]} graph")
+            graph = 'None' if exc.graph is None else exc.graph
+            logger.error(f"Graph operation failed for {graph} graph")
             logger.error(str(exc))
 
         except NodeError as exc:
