@@ -412,23 +412,19 @@ class Supervisor:
                     the new parameter value
         '''
 
-        # load the existing supergraph
-        model_draft = self.model
-
-        # fill in the new parameters
-        if model_draft:
+        # validate the new parameters
+        if self.model:
             for nickname in new_params:
                 nn_dec = nickname.decode("utf-8")
-                if nn_dec in model_draft["nodes"]:
+                if nn_dec in self.model["nodes"]:
+                    # validate correct JSON format
                     try:
-                        nickname_params = json.loads(new_params[nickname].decode())
+                        json.loads(new_params[nickname].decode())
                     except json.decoder.JSONDecodeError as exc:
                         raise GraphError(
                             "JSONDecodeError: Redis strings should be single quotes (\')"
                             " and strings for JSON keys/values should be double quotes (\")",
                             self.graph_file)
-                    for param, value in nickname_params.items():
-                        model_draft["nodes"][nn_dec]["parameters"][param] = value
                 else:
                     raise GraphError(
                         f"There is no {nn_dec} nickname in the supergraph, skipped all parameter updates",
@@ -439,14 +435,18 @@ class Supervisor:
                 self.graph_file)
         
         # if we make it out of the above loop without error, then the parameter update is valid, so overwrite the existing model
-        self.model = model_draft
+        for nickname in new_params:
+            nn_dec = nickname.decode("utf-8")
+            nickname_params = json.loads(new_params[nickname].decode())
+            for param, value in nickname_params.items():
+                self.model["nodes"][nn_dec]["parameters"][param] = value
 
         # write the new supergraph
         model_pub = json.dumps(self.model)
         payload = {
             "data": model_pub
         }
-        self.r.xadd("supergraph_stream",payload)
+        self.r.xadd("supergraph_stream", payload)
         logger.info("Supergraph updated successfully")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is running
@@ -607,7 +607,8 @@ def main():
                     {'status': status[-1][1][b'status']})
             else:
                 supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
-            logger.error(f"Failed to start {os.path.splitext(os.path.split(exc.graph)[1])[0]} graph")
+            graph = 'None' if exc.graph is None else exc.graph
+            logger.error(f"Graph operation failed for {graph} graph")
             logger.error(str(exc))
 
         except NodeError as exc:

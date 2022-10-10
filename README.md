@@ -215,6 +215,59 @@ The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, 
 XREVRANGE supergraph_stream + - COUNT 1
 ```
 
+### Supergraph Structure
+
+After loading a graph with a `startGraph` command to `supervisor`, `supervisor` publishes a supergraph to the `supergraph_stream` stream. The supergraph contains all node information and the parameters set for each node. Each entry to the `supergraph_stream` contains a supergraph of the following form in a JSON string:
+
+```json
+{
+    "redis_host": <redis host>,
+    "redis_port": <redis port>,
+    "graph_name": <graph name>,
+    "graph_loaded_ts": <timestamp upon startGraph in nanoseconds>,
+    "nodes": {
+        "<node 1 nickname>": {
+            "name": <node 1 name>,
+            "nickname": <node 1 nickname>,
+            "module": <node 1's source module as a relative path to the BRAND root directory>,
+            "binary": <full path to node 1's binary>,
+            "run_priority": <optional, node 1's realtime priority>,
+            "cpu_affinity": <optional, node 1's CPU affinity>,
+            "parameters": {
+                "<parameter 1 name>": <parameter 1 value>,
+                "<parameter 2 name>": <parameter 2 value>,
+                ...
+            }
+        },
+        "<node 2 nickname>": {
+            "name": <node 2 name>,
+            "nickname": <node 2 nickname>,
+            "module": <node 2's source module as a relative path to the BRAND root directory>,
+            "binary": <full path to node 2's binary>,
+            "run_priority": <optional, node 2's realtime priority>,
+            "cpu_affinity": <optional, node 2's CPU affinity>,
+            "parameters": {
+                "<parameter 1 name>": <parameter 1 value>,
+                "<parameter 2 name>": <parameter 2 value>,
+                ...
+            }
+        },
+        ...
+    },
+    "derivatives": {
+        "<derivative 1 name>": {
+            <unstructured derivative information>
+        },
+        "<derivative 2 name>": {
+            <unstructured derivative information>
+        }
+        ...
+    }
+}
+```
+
+Note the presence of derivatives in the graph YAML file and the supergraph is optional. The structure of a derivative's information should be defined in the derivative's documentation. Derivatives are a new feature to BRAND, so check back in the future for more documentation and functionality.
+
 ### Checking a graph's status
 
 The following are the status codes that are published on the `graph_status` stream:
@@ -374,7 +427,11 @@ At a minimum, a node must:
     * `NODE_INFO`: the node has information to share.
 5. Catch `SIGINT` to publish a `NODE_SHUTDOWN` status to the `<node_nickname>_state` stream, then close gracefully.
 
-If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above. 
+If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above.
+
+### Updating Node Parameters in Python
+
+The `BRANDNode` Python class within the `brand` library includes a helper function for updating node parameters from a new supergraph (published after calling the `supervisor`'s `updateParameters` command). The `BRANDNode.getParametersFromSupergraph` function returns a list whose length is the number of supergraphs that have been published since the node last checked for new supergraphs. Each element of the list returned by `BRANDNode.getParametersFromSupergraph` is a dictionary whose keys are the node's parameter names to be updated and values are the values for those parameters. The order of the listed supergraphs corresponds to the order of the supergraph's entries into `supergraph_stream` (i.e. the supergraph at index `0` was written before the supergraph at index `1`). The `BRANDNode.getParametersFromSupergraph` function can also return the complete supergraph as a JSON string by passing `True` to the function's optional `complete_supergraph` argument. If there are no new supergraphs, the function returns `None`.
 
 ## Performance Optimization
 
