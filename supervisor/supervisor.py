@@ -570,7 +570,7 @@ def main():
     try:
         supervisor = Supervisor()
     except RedisError as exc:
-        logger.error(exc.err_str)
+        logger.error(repr(exc))
         sys.exit(0)
     last_id = '$'
     logger.info('Listening for commands')
