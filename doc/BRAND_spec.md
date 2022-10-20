@@ -58,10 +58,10 @@ nodes:
 ## 5. Specification that node binary files must accept certain flags
 
 Each node binary file should parse the following flags upon for a successful execution from supervisor: 
-- i [optional]: Host or IP to bind to
-- n: Nickname of the node
-- [optional] p: Port to bind to
-- [optional] s: Redis socket to bind  
+- `-i`: Host or IP to bind to (optional)
+- `-n`: Nickname of the node
+- `-p`: Port to bind to (optional)
+- `-s`: Redis socket to bind (optional)
 
 Logic for Redis connection:
 - The node should always try to connect first to the Unix socket (if provided)
