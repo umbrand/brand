@@ -467,14 +467,27 @@ class Supervisor:
         save_path_nwb = os.path.join(self.save_path, 'NWB')
 
         # Generate NWB dataset
-        p_nwb = subprocess.Popen(['python',
+        p_nwb = subprocess.run(['python',
                             'derivatives/exportNWB/exportNWB.py',
                             self.rdb_filename,
                             self.host,
                             str(self.port),
                             save_path_nwb],
-                            stdout=subprocess.PIPE)
-        p_nwb.wait()
+                            capture_output=True)
+        
+        if len(p_nwb.stdout) > 0:
+            logger.debug(p_nwb.stdout.decode())
+
+        if p_nwb.returncode == 0:
+            logger.info(f"NWB data saved to file: {os.path.join(self.save_path, 'NWB', os.path.splitext(self.rdb_filename)[0]+'.nwb')}")
+        elif p_nwb.returncode > 0:
+            raise DerivativeError(
+                f"exportNWB returned exit code {p_nwb.returncode}.",
+                'exportNWB',
+                self.graph_file,
+                p_nwb)
+        elif p_nwb.returncode < 0:
+            logger.info(f"exportNWB was halted during execution with return code {p_nwb.returncode}, {signal.Signals(-p_nwb.returncode).name}")
 
     def flush_db(self):
         '''
@@ -628,8 +641,8 @@ def main():
         try:
             supervisor.checkBooter()
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
-                                 count=1,
-                                 block=5000)
+                                count=1,
+                                block=5000)
             if cmd:
                 key,messages = cmd[0]
                 last_id,data = messages[0]
@@ -681,6 +694,27 @@ def main():
                 {'commands': 'stopGraph'})
             logger.error(f"Error with the {exc.machine} machine")
             logger.error(str(exc))
+
+        except DerivativeError as exc:
+            # if a derivative has an error, then note that in the RDB
+            derivative_tb = 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\nSTDERR: ' + exc.process.stderr.decode('utf-8')
+
+            supervisor.r.xadd("graph_status",
+                {'status': supervisor.state[2],
+                'message': str(exc),
+                'traceback': 'Supervisor ' + traceback.format_exc() + '\n' + derivative_tb})
+            # rewrite previous graph_status
+            if supervisor.children:
+                status = supervisor.r.xrevrange("graph_status", '+', '-', count=2)
+                supervisor.r.xadd("graph_status",
+                    {'status': status[-1][1][b'status']})
+            else:
+                supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+
+            logger.error(f"Error with the {exc.derivative} derivative")
+            logger.error(str(exc))
+            if len(exc.process.stderr) > 0:
+                logger.debug(exc.process.stderr.decode('utf-8'))
             
         except Exception as exc:
             supervisor.r.xadd("supervisor_status",
