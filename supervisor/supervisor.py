@@ -1,4 +1,5 @@
 import argparse
+from copy import deepcopy
 import json
 import logging
 import os
@@ -18,6 +19,7 @@ from brand import (GraphError, NodeError, BooterError, DerivativeError, RedisErr
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
+DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', 'Data'))
 
 class Supervisor:
     def __init__(self):
@@ -28,10 +30,7 @@ class Supervisor:
         self.children = []
 
         self.BRAND_BASE_DIR = os.getcwd()
-        self.BRAND_MOD_DIR = os.path.join(self.BRAND_BASE_DIR,'../brand-modules/') # path to the brand modules directory
-
-        self.save_path = self.BRAND_BASE_DIR
-        self.save_path_rdb = self.save_path
+        self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR,'../brand-modules/')) # path to the brand modules directory
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
@@ -70,6 +69,7 @@ class Supervisor:
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
+        ap.add_argument("-d", "--data-dir", type=str, default=DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -102,6 +102,10 @@ class Supervisor:
         self.redis_affinity = args.redis_affinity
 
         logger.setLevel(args.log_level)
+
+        self.data_dir = args.data_dir
+        self.save_path = args.data_dir
+        self.save_path_rdb = args.data_dir
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -185,12 +189,12 @@ class Supervisor:
         logger.info(f"RDB file name set to {self.rdb_filename}")
 
 
-    def get_save_path(self, graph_dict):
+    def get_save_path(self, graph_dict:dict={}):
         """
         Get the path where the RDB and NWB files should be saved
         Parameters
         ----------
-        graph_dict : dict
+        graph_dict : (optional) dict
             Dictionary containing the supergraph parameters
         Returns
         -------
@@ -216,8 +220,7 @@ class Supervisor:
         # Make paths for saving files
         session_str = datetime.today().strftime(r'%Y-%m-%d')
         session_id = f'{session_str}'
-        save_path = os.path.join(self.BRAND_BASE_DIR, '..', 'Data',
-                                 str(participant_id), session_id, 'RawData')
+        save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
         return save_path
 
@@ -610,6 +613,13 @@ class Supervisor:
         elif cmd == "flushDb":
             logger.info("Flush DB command received")
             self.flush_db()
+        elif cmd == "setDataDir":
+            if b'path' in data:
+                logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
+                self.data_dir = data[b'path'].decode('utf-8')
+            else:
+                logger.info(f"Set data directory command received, setting to the default {DEFAULT_DATA_DIR}")
+                self.data_dir = DEFAULT_DATA_DIR
         else:
             logger.warning("Invalid command")
 
