@@ -584,6 +584,15 @@ class Supervisor:
         elif cmd == "stopGraphAndSaveNWB":
             logger.info("Stop graph and save NWB command received")
             self.stop_graph_and_save_nwb()
+        elif cmd == "saveRdb":
+            logger.info("Save RDB command received")
+            self.save_rdb()
+        elif cmd == "saveNwb":
+            logger.info("Save NWB command received")
+            self.save_nwb()
+        elif cmd == "flushDb":
+            logger.info("Flush DB command received")
+            self.flush_db()
         else:
             logger.warning("Invalid command")
 
