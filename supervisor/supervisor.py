@@ -1,5 +1,5 @@
 import argparse
-from copy import deepcopy
+import sh
 import json
 import logging
 import os
@@ -34,6 +34,9 @@ class Supervisor:
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
+        
+        git = sh.git.bake(_cwd=self.BRAND_BASE_DIR)
+        self.git_hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
 
         self.graph_file = None
         self.redis_pid = None
@@ -243,10 +246,12 @@ class Supervisor:
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
-        self.model["redis_host"] = self.host
-        self.model["redis_port"] = self.port
-        self.model["graph_name"] = self.graph_name
-        self.model["graph_loaded_ts"] = time.monotonic_ns()
+        model = {}
+        model["redis_host"] = self.host
+        model["redis_port"] = self.port
+        model["brand_hash"] = self.git_hash
+        model["graph_name"] = self.graph_name
+        model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
         self.save_path = self.get_save_path(graph_dict)
@@ -265,7 +270,7 @@ class Supervisor:
         logger.info(f'rdb filename: {self.rdb_filename}')
 
         # Load node information
-        self.model["nodes"] = {}
+        model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
 
         # catch key errors for nodes that are not in the graph
@@ -275,23 +280,39 @@ class Supervisor:
                 if bin_f is not None:
                     logger.info("%s is a valid node" % n["nickname"])
                     # Check for duplicate nicknames
-                    if n["nickname"] in self.model["nodes"]:
+                    if n["nickname"] in model["nodes"]:
                         raise NodeError(
                             f"Duplicate node nicknames found: {n['nickname']}",
                             self.graph_name,
                             n["nickname"])
                     # Loading the nodes and graph into self.model dict
-                    self.model["nodes"][n["nickname"]] = {}
-                    self.model["nodes"][n["nickname"]].update(n)
-                    self.model["nodes"][n["nickname"]]["binary"] = bin_f
+                    model["nodes"][n["nickname"]] = {}
+                    model["nodes"][n["nickname"]].update(n)
+                    model["nodes"][n["nickname"]]["binary"] = bin_f
+                    try:
+                        git = sh.git.bake(_cwd=os.path.split(bin_f)[0])
+                        model["nodes"][n["nickname"]]["git_hash"] = str(git('rev-parse', 'HEAD')).splitlines()[0]
+                    except sh.ErrorReturnCode: # not in a git repository
+                        model["nodes"][n["nickname"]]["git_hash"] = ''
 
             if "derivatives" in graph_dict:
-                self.model["derivatives"] = {}
+                model["derivatives"] = {}
                 derivatives = graph_dict['derivatives']
                 for a in derivatives:
                     a_name = list(a.keys())[0]
                     a_values = a[a_name]
-                    self.model["derivatives"][a_name] = a_values
+                    model["derivatives"][a_name] = a_values
+                    if 'script_path' in model["derivatives"][a_name]:
+                        script_path = os.path.join(self.BRAND_BASE_DIR, model["derivatives"][a_name]['script_path'])
+                        try:
+                            git = sh.git.bake(_cwd=os.path.split(script_path)[0])
+                            model["derivatives"][a_name]["git_hash"] = str(git('rev-parse', 'HEAD')).splitlines()[0]
+                        except sh.ErrorReturnCode: # not in a git repository
+                            model["derivatives"][a_name]["git_hash"] = ''
+                        except sh.ForkException: # cannot find derivative file
+                            raise GraphError(f'Could not find derivative script at {script_path}', self.graph_file)
+                    else:
+                        model["derivatives"][a_name]["git_hash"] = ''
 
         except KeyError as exc:
             if "nickname" in n:
@@ -311,6 +332,8 @@ class Supervisor:
                 self.graph_name,
                 name) from exc
 
+        # model is valid if we make it here
+        self.model = model
         model_pub = json.dumps(self.model)
         payload = {
             "data": model_pub
