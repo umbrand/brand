@@ -556,7 +556,7 @@ class Supervisor:
         '''
         cmd = (data[b'commands']).decode("utf-8")
 
-        if cmd == "startGraph":
+        if cmd in ["loadGraph", "startGraph"]:
             if self.children:
                 raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
@@ -566,7 +566,7 @@ class Supervisor:
                 rdb_filename = None
 
             if b'file' in data:
-                logger.info("Start graph command received with file")
+                logger.info(f"{cmd} command received with file")
                 file = data[b'file'].decode("utf-8")
                 graph_dict = {}
                 try:
@@ -579,14 +579,18 @@ class Supervisor:
                 except yaml.YAMLError as exc:
                     raise GraphError("Error parsing graph YAML file", file) from exc
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
-                self.start_graph()
+                if cmd == "startGraph":
+                    self.start_graph()
             elif b'graph' in data:
-                logger.info("Start graph command received with graph dict")
+                logger.info(f"{cmd} command received with graph dict")
                 self.load_graph(json.loads(data[b'graph']))
+                if cmd == "startGraph":
+                    self.start_graph()
+            elif cmd == "startGraph":
+                logger.info(f"{cmd} command received")
                 self.start_graph()
-            else:
-                logger.info("Start graph command received")
-                self.start_graph()
+            else: # command was loadGraph with insufficient inputs
+                raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
         elif cmd == "updateParameters":
             logger.info("Update parameters command received")
             new_params = {k:data[k] for k in data if k not in [b"commands"]}
