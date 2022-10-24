@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import sh
 import signal
 import subprocess
 import sys
@@ -14,7 +15,7 @@ import traceback
 import coloredlogs
 import redis
 
-from brand import NodeError
+from brand import (GraphError, NodeError)
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -108,11 +109,30 @@ class Booter():
         """
         # load node information
         self.model = graph
+
+        # check booter version is same as supervisor version
+        git = sh.git.bake(_cwd=self.brand_base_dir)
+        hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
+        if graph['brand_hash'] != hash:
+            raise GraphError(
+                f'Git hash for BRAND repository on {self.machine} machine does not match supergraph',
+                self.model['graph_name'])
+
         node_names = list(self.model['nodes'])
         for node, cfg in self.model['nodes'].items():
             # get paths to node executables
             filepath = self.get_node_executable(cfg['module'], cfg['name'])
             self.model['nodes'][node]['binary'] = filepath
+            try:
+                git = sh.git.bake(_cwd=os.path.split(filepath)[0])
+                hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
+            except sh.ErrorReturnCode: # not in a git repository
+                hash = ''
+            if cfg['git_hash'] != hash:
+                raise NodeError(
+                    f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
+                    self.model['graph_name'],
+                    cfg['nickname'])
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
     def start_graph(self):
@@ -209,7 +229,7 @@ class Booter():
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
 
-            except NodeError as exc:
+            except (GraphError, NodeError) as exc:
                 # if a node has an error, stop the graph and kill all nodes
                 self.r.xadd("booter_status",
                     {'machine': self.machine,
@@ -218,7 +238,10 @@ class Booter():
                     'traceback': 'Booter ' + self.machine + ' ' + traceback.format_exc()})
                 self.r.xadd("booter_status",
                     {'machine': self.machine, 'status': 'Listening for commands'})
-                self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+                if exc is NodeError:
+                    self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+                else:
+                    self.logger.error(f"Error with the {exc.graph} graph")
                 self.logger.error(str(exc))
 
             except Exception as exc:

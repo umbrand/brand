@@ -1,8 +1,8 @@
 import argparse
-import sh
 import json
 import logging
 import os
+import sh
 import signal
 import subprocess
 import sys
