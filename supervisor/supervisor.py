@@ -14,7 +14,7 @@ import redis
 import yaml
 from redis import Redis
 
-from brand import (GraphError, NodeError, BooterError, RedisError)
+from brand import (GraphError, NodeError, BooterError, DerivativeError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -451,6 +451,46 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is running
 
+    def save_rdb(self):
+        '''
+        Saves an RDB file of the current database
+        '''
+        # Save rdb file
+        self.r.save()
+        logger.info(f"RDB data saved to file: {self.rdb_filename}")
+
+    def save_nwb(self):
+        '''
+        Saves an NWB file from the most recent supergraph
+        '''
+        # Make path for saving NWB file
+        save_path_nwb = os.path.join(self.save_path, 'NWB')
+
+        # Generate NWB dataset
+        p_nwb = subprocess.Popen(['python',
+                            'derivatives/exportNWB/exportNWB.py',
+                            self.rdb_filename,
+                            self.host,
+                            str(self.port),
+                            save_path_nwb],
+                            stdout=subprocess.PIPE)
+        p_nwb.wait()
+
+    def flush_db(self):
+        '''
+        Flushes the RDB
+        '''
+        # Flush database
+        self.r.flushdb()
+
+        # Set new rdb filename (to avoid overwriting what we just saved)
+        self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f"New RDB file name set to {self.rdb_filename}")
+
+        # New RDB, so need to reset graph status
+        self.r.xadd("graph_status", {'status': self.state[5]})
+
     def stop_graph_and_save_nwb(self):
         '''
         Stops the graph
@@ -477,7 +517,7 @@ class Supervisor:
         self.r.flushdb()
 
         # Set new rdb filename (to avoid overwriting what we just saved)
-        self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', self.rdb_filename)
         logger.info(f"New RDB file name set to {self.rdb_filename}")
 
