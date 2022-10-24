@@ -614,6 +614,9 @@ class Supervisor:
                     self.start_graph()
             elif cmd == "startGraph":
                 logger.info(f"{cmd} command received")
+                if not self.model:
+                    raise GraphError("No graph provided with startGraph command and no graph previously loaded",
+                    self.graph_file)
                 self.start_graph()
             else: # command was loadGraph with insufficient inputs
                 raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
