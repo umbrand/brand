@@ -26,9 +26,14 @@ all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis redis
 $(SUBDIRS): hiredis redis
 	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
 
-# make targets for all relevant paths under nodes/
+# make targets for all relevant paths under ../brand-modules/*/nodes/
 $(MODULES_SUBDIRS): hiredis redis
+	@git -C $@ rev-parse; IS_GIT=$$?; \
+	if [ $$IS_GIT = 0 ]; then \
+		echo -n $$(git -C $@ rev-parse HEAD) > $@/git_hash.o; \
+	fi
 	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$@
+
 
 # Linking to hiredis seems to have a bug, where make
 # attempt to link to an so filename with the full ver.

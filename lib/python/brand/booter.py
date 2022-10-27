@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sh
+from sh import git
 import signal
 import subprocess
 import sys
@@ -111,8 +112,7 @@ class Booter():
         self.model = graph
 
         # check booter version is same as supervisor version
-        git = sh.git.bake(_cwd=self.brand_base_dir)
-        hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
+        hash = str(git('-C', self.brand_base_dir, 'rev-parse', 'HEAD')).splitlines()[0]
         if graph['brand_hash'] != hash:
             raise GraphError(
                 f'Git hash for BRAND repository on {self.machine} machine does not match supergraph',
@@ -124,15 +124,28 @@ class Booter():
             filepath = self.get_node_executable(cfg['module'], cfg['name'])
             self.model['nodes'][node]['binary'] = filepath
             try:
-                git = sh.git.bake(_cwd=os.path.split(filepath)[0])
-                hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
+                # read Git hash for the compiled binary
+                with open(os.path.join(os.path.split(filepath)[0], 'git_hash.o'), 'r') as f:
+                    hash = f.read().splitlines()[0]
+                
+                # read Git hash from the repository
+                git_hash_from_repo = str(git('-C', os.path.split(filepath)[0], 'rev-parse', 'HEAD')).splitlines()[0]
+
+                # check repository hash is same as compiled hash
+                if git_hash_from_repo != hash:
+                    self.logger.warning(f"Git hash for {cfg['nickname']} node nickname binary does not match the repository's Git hash, remake")
+
             except sh.ErrorReturnCode: # not in a git repository
+                pass
+            except FileNotFoundError: # git hash file not found
                 hash = ''
+
             if cfg['git_hash'] != hash:
                 raise NodeError(
                     f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
                     self.model['graph_name'],
                     cfg['nickname'])
+                    
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
     def start_graph(self):

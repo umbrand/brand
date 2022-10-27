@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sh
+from sh import git
 import signal
 import subprocess
 import sys
@@ -35,8 +36,7 @@ class Supervisor:
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
         
-        git = sh.git.bake(_cwd=self.BRAND_BASE_DIR)
-        self.git_hash = str(git('rev-parse', 'HEAD')).splitlines()[0]
+        self.git_hash = str(git('-C', self.BRAND_BASE_DIR, 'rev-parse', 'HEAD')).splitlines()[0]
 
         self.graph_file = None
         self.redis_pid = None
@@ -290,9 +290,20 @@ class Supervisor:
                     model["nodes"][n["nickname"]].update(n)
                     model["nodes"][n["nickname"]]["binary"] = bin_f
                     try:
-                        git = sh.git.bake(_cwd=os.path.split(bin_f)[0])
-                        model["nodes"][n["nickname"]]["git_hash"] = str(git('rev-parse', 'HEAD')).splitlines()[0]
-                    except sh.ErrorReturnCode: # not in a git repository
+                        # read Git hash for the compiled binary
+                        with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
+                            model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
+                        
+                        # read Git hash from the repository
+                        git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
+                        
+                        # check repository hash is same as compiled hash
+                        if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
+                            logger.warning(f"Git hash for {n['nickname']} node nickname binary does not match the repository's Git hash, remake")
+
+                    except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written
+                        pass
+                    except FileNotFoundError: # git hash file not found
                         model["nodes"][n["nickname"]]["git_hash"] = ''
 
             if "derivatives" in graph_dict:
@@ -305,8 +316,8 @@ class Supervisor:
                     if 'script_path' in model["derivatives"][a_name]:
                         script_path = os.path.join(self.BRAND_BASE_DIR, model["derivatives"][a_name]['script_path'])
                         try:
-                            git = sh.git.bake(_cwd=os.path.split(script_path)[0])
-                            model["derivatives"][a_name]["git_hash"] = str(git('rev-parse', 'HEAD')).splitlines()[0]
+                            # for now, just grab Git hash information from the repository 
+                            model["derivatives"][a_name]["git_hash"] = str(git('-C', os.path.split(script_path)[0], 'rev-parse', 'HEAD')).splitlines()[0]
                         except sh.ErrorReturnCode: # not in a git repository
                             model["derivatives"][a_name]["git_hash"] = ''
                         except sh.ForkException: # cannot find derivative file
