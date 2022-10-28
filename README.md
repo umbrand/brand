@@ -222,6 +222,7 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 * `saveNwb`: Converts the present database streams to an NWB file, if configured as described in `stopGraphAndSaveNWB`.
 * `flushDb`: **USE WITH CAUTION** Flushes the database.
 * `setDataDir [path <path_to_data_directory>]`: Sets the root directory for storing data (i.e. from `saveRdb` and `saveNwb` commands).
+* `make`: Makes all binaries on the `supervisor` and `booter` machines.
 
 ### Redis streams used with the `supervisor`
 
