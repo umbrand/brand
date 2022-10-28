@@ -124,7 +124,7 @@ class Booter():
             filepath = self.get_node_executable(cfg['module'], cfg['name'])
             self.model['nodes'][node]['binary'] = filepath
             try:
-                # read Git hash for the compiled binary
+                # read Git hash for the node
                 with open(os.path.join(os.path.split(filepath)[0], 'git_hash.o'), 'r') as f:
                     hash = f.read().splitlines()[0]
                 
@@ -133,9 +133,9 @@ class Booter():
 
                 # check repository hash is same as compiled hash
                 if git_hash_from_repo != hash:
-                    self.logger.warning(f"Git hash for {cfg['nickname']} node nickname binary does not match the repository's Git hash, remake")
+                    self.logger.warning(f"Git hash for {cfg['nickname']} node nickname does not match the repository's Git hash, remake")
 
-            except sh.ErrorReturnCode: # not in a git repository
+            except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
                 pass
             except FileNotFoundError: # git hash file not found
                 hash = ''

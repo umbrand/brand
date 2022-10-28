@@ -1,39 +1,69 @@
 export ROOT ?= $(shell pwd)
 include $(ROOT)/setenv.mk
 
-# Get all directories in nodes/ that contain a Makefile
-SUBDIR_BASE_PATH=nodes
-SUBDIRS=$(notdir $(shell dirname $(wildcard $(SUBDIR_BASE_PATH)/*/Makefile)))
+# Get all directories in nodes/ and derivatives/
+SUBDIRS_NODES=$(wildcard nodes/*)
+SUBDIRS_DERIVS=$(wildcard derivatives/*)
 
 # make some clean targets for all subdirs
-CLEANDIRS = $(SUBDIRS:%=clean-%)
+CLEANDIRS_NODES = $(SUBDIRS_NODES:%=clean-%)
+CLEANDIRS_DERIVS = $(SUBDIRS_DERIVS:%=clean-%)
 
-# Get all directories in ../brand-modules/*/nodes/ that contain a Makefile
-MODULES_SUBDIR_BASE_PATH=../brand-modules
-MODULES_SUBDIRS=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/*/Makefile))
+# Get all directories in ../brand-modules/*/nodes/ and ../brand-modules/*/derivatives/
+MODULES_BASE_PATH=../brand-modules
+MODULES_NODES=$(wildcard $(MODULES_BASE_PATH)/*/nodes/*)
+MODULES_DERIVS=$(wildcard $(MODULES_BASE_PATH)/*/derivatives/*)
 
 # make some clean targets for all subdirs
-MODULES_CLEANDIRS = $(MODULES_SUBDIRS:%=clean-%)
+MODULES_CLEANDIRS_NODES = $(MODULES_NODES:%=clean-%)
+MODULES_CLEANDIRS_DERIVS = $(MODULES_DERIVS:%=clean-%)
 
-all: $(SUBDIRS) $(MODULES_SUBDIRS) hiredis redis
+all: $(SUBDIRS_NODES) $(SUBDIRS_DERIVS) $(MODULES_NODES) $(MODULES_DERIVS) hiredis redis
 
-.PHONY: subdirs $(SUBDIRS)
-.PHONY: subdirs $(CLEANDIRS)
-.PHONY: modules_subdirs $(MODULES_SUBDIRS)
-.PHONY: modules_subdirs $(MODULES_CLEANDIRS)
+.PHONY: subdirs $(SUBDIRS_NODES)
+.PHONY: subdirs $(SUBDIRS_DERIVS)
+.PHONY: subdirs $(CLEANDIRS_NODES)
+.PHONY: subdirs $(CLEANDIRS_DERIVS)
+.PHONY: modules $(MODULES_NODES)
+.PHONY: modules $(MODULES_DERIVS)
+.PHONY: modules $(MODULES_CLEANDIRS_NODES)
+.PHONY: modules $(MODULES_CLEANDIRS_DERIVS)
 
-# make targets for all relevant paths under nodes/
-$(SUBDIRS): hiredis redis
-	$(MAKE) -C $(SUBDIR_BASE_PATH)/$@
+# function that tests if a path $(1) is in a Git repository, and writes the Git hash to git_hash.o if so
+write_git_hash = @\
+	git -C $(1) rev-parse; \
+	IS_GIT=$$?; \
+	if [ $$IS_GIT = 0 ]; then \
+		echo -n $$(git -C $(1) rev-parse HEAD) > $(1)/git_hash.o; \
+	fi
+
+# function that tests if a Makefile exists in a path $(1), and runs make if so
+test_and_make = @\
+	test -s $(1)/Makefile; \
+	MAKE_EXISTS=$$?; \
+	if [ $$MAKE_EXISTS = 0 ]; then \
+		$(MAKE) -C $(1); \
+	fi
+
+# make targets for all paths under nodes/
+$(SUBDIRS_NODES): hiredis redis
+	$(call write_git_hash,$@)
+	$(call test_and_make,$@)
+
+# make targets for all paths under derivatives/
+$(SUBDIRS_DERIVS): hiredis redis
+	$(call write_git_hash,$@)
+	$(call test_and_make,$@)
 
 # make targets for all relevant paths under ../brand-modules/*/nodes/
-$(MODULES_SUBDIRS): hiredis redis
-	@git -C $@ rev-parse; IS_GIT=$$?; \
-	if [ $$IS_GIT = 0 ]; then \
-		echo -n $$(git -C $@ rev-parse HEAD) > $@/git_hash.o; \
-	fi
-	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$@
+$(MODULES_NODES): hiredis redis
+	$(call write_git_hash,$@)
+	$(call test_and_make,$@)
 
+# make targets for all relevant paths under ../brand-modules/*/derivatives/
+$(MODULES_DERIVS): hiredis redis
+	$(call write_git_hash,$@)
+	$(call test_and_make,$@)
 
 # Linking to hiredis seems to have a bug, where make
 # attempt to link to an so filename with the full ver.
@@ -54,13 +84,19 @@ redis-test:
 
 clean-all: clean clean-hiredis
 
-clean: $(CLEANDIRS) $(MODULES_CLEANDIRS)
+clean: $(CLEANDIRS_NODES) $(CLEANDIRS_DERIVS) $(MODULES_CLEANDIRS_NODES) $(MODULES_CLEANDIRS_DERIVS)
 
-$(CLEANDIRS):
-	$(MAKE) -C $(SUBDIR_BASE_PATH)/$(@:clean-%=%) clean
+$(CLEANDIRS_NODES):
+	$(MAKE) -C $(@:clean-%=%) clean
 
-$(MODULES_CLEANDIRS):
-	$(MAKE) -C $(MODULES_SUBDIR_BASE_PATH)/$(@:clean-%=%) clean
+$(CLEANDIRS_DERIVS):
+	$(MAKE) -C $(@:clean-%=%) clean
+
+$(MODULES_CLEANDIRS_NODES):
+	$(MAKE) -C $(@:clean-%=%) clean
+
+$(MODULES_CLEANDIRS_DERIVS):
+	$(MAKE) -C $(@:clean-%=%) clean
 
 clean-hiredis:
 	$(MAKE) -C $(HIREDIS_PATH) clean
