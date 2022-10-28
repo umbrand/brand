@@ -35,5 +35,12 @@ class DerivativeError(Exception):
         self.graph = graph
         self.process = process
 
+class CommandError(Exception):
+    def __init__(self, message='', process='', command='', details=''):
+        super().__init__(message)
+        self.process = process
+        self.command = command
+        self.details = details
+
 class RedisError(Exception):
     pass

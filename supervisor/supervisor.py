@@ -16,7 +16,7 @@ import redis
 import yaml
 from redis import Redis
 
-from brand import (GraphError, NodeError, BooterError, DerivativeError, RedisError)
+from brand import (GraphError, NodeError, BooterError, DerivativeError, CommandError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -323,7 +323,7 @@ class Supervisor:
                             # read Git hash for the derivative
                             with open(os.path.join(os.path.split(script_path)[0], 'git_hash.o'), 'r') as f:
                                 model["derivatives"][a_name]["git_hash"] = f.read().splitlines()[0]
-                                
+
                             # read Git hash from the repository
                             git_hash_from_repo = str(git('-C', os.path.split(script_path)[0], 'rev-parse', 'HEAD')).splitlines()[0]
                         
@@ -331,7 +331,7 @@ class Supervisor:
                             if git_hash_from_repo != model["derivatives"][a_name]["git_hash"]:
                                 logger.warning(f"Git hash for {a_name} derivative does not match the repository's Git hash, remake")
                             
-                        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written
+                        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
                             pass
                         except FileNotFoundError: # git_hash.o file not found
                             model["derivatives"][a_name]["git_hash"] = ''
@@ -403,7 +403,6 @@ class Supervisor:
                         args = taskset_args + args
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
-                self.r.xadd("graph_status", {'status': self.state[3]})
                 logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
@@ -588,6 +587,30 @@ class Supervisor:
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
 
+    def make(self):
+        '''
+        Makes all nodes and derivatives
+        '''
+        # validate graph is not running
+        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
+        if self.get_graph_status(graph_status) == self.state[3]:
+            raise CommandError('Make cannot run while a graph is running', 'supervisor', 'make')
+
+        # Run make
+        p_make = subprocess.run(['make'],
+                            capture_output=True)
+
+        if p_make.returncode == 0:
+            logger.info(f"Make completed successfully")
+        elif p_make.returncode > 0:
+            raise CommandError(
+                f"Make returned exit code {p_make.returncode}.",
+                'supervisor',
+                'make',
+                'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
+        elif p_make.returncode < 0:
+            logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
+
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
@@ -671,6 +694,9 @@ class Supervisor:
             else:
                 logger.info(f"Set data directory command received, setting to the default {DEFAULT_DATA_DIR}")
                 self.data_dir = DEFAULT_DATA_DIR
+        elif cmd == "make":
+            logger.info("Make command received")
+            self.make()
         else:
             logger.warning("Invalid command")
 
@@ -781,11 +807,22 @@ def main():
             if len(exc.process.stderr) > 0:
                 logger.debug(exc.process.stderr.decode('utf-8'))
             
+        except CommandError as exc:
+            # if a command has an error, then note that in the RDB
+            supervisor.r.xadd("supervisor_status",
+                {"status": "Command error",
+                "message": str(exc),
+                "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
+            
+            logger.error(f"Could not execute {exc.command} command.")
+            logger.error(str(exc))
+            supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
+            
         except Exception as exc:
             supervisor.r.xadd("supervisor_status",
                 {"status": "Unhandled exception",
                 "message": str(exc),
-                'traceback': 'Supervisor ' + traceback.format_exc()})
+                "traceback": "Supervisor " + traceback.format_exc()})
             logger.exception(f'Could not execute command. {repr(exc)}')
             supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
