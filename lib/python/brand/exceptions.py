@@ -19,14 +19,15 @@ class NodeError(Exception):
         return f"NodeError(message={str(self)}, graph={self.graph}, node={self.node})"
 
 class BooterError(Exception):
-    def __init__(self, message='', machine='', graph='', booter_tb=''):
+    def __init__(self, message='', machine='', graph='', booter_tb='', source_exc=''):
         super().__init__(message)
         self.machine = machine
         self.graph = graph
         self.booter_tb = booter_tb
+        self.source_exc = source_exc
     
     def __repr__(self):
-        return f"BooterError(message={str(self)}, machine={self.machine}, graph={self.graph}, booter_tb={self.booter_tb})"
+        return f"BooterError(message={str(self)}, machine={self.machine}, graph={self.graph}, booter_tb={self.booter_tb}, source_exc={self.source_exc})"
 
 class DerivativeError(Exception):
     def __init__(self, message='', derivative='', graph='', process:subprocess.CompletedProcess=subprocess.CompletedProcess([], 0)):

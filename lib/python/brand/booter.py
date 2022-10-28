@@ -16,7 +16,7 @@ import traceback
 import coloredlogs
 import redis
 
-from brand import (GraphError, NodeError)
+from brand import (GraphError, NodeError, CommandError)
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -200,6 +200,26 @@ class Booter():
                                       f' pid {p.pid}')
         self.children = {}
 
+    def make(self):
+        '''
+        Makes all nodes and derivatives
+        '''
+        # Run make
+        p_make = subprocess.run(['make'],
+                                capture_output=True)
+
+        if p_make.returncode == 0:
+            self.r.xadd("booter_status", {"machine": self.machine, "status": "Make completed successfully"})
+            self.logger.info(f"Make completed successfully")
+        elif p_make.returncode > 0:
+            raise CommandError(
+                f"Make returned exit code {p_make.returncode}.",
+                f'booter {self.machine}',
+                'make',
+                'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
+        elif p_make.returncode < 0:
+            self.logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
+
     def parse_command(self, entry):
         """
         Parse an entry from the 'booter' stream and run the corresponding
@@ -217,6 +237,8 @@ class Booter():
             self.start_graph()
         elif command == 'stopGraph':
             self.stop_graph()
+        elif command == 'make':
+            self.make()
 
     def run(self):
         """
@@ -242,19 +264,21 @@ class Booter():
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
 
-            except (GraphError, NodeError) as exc:
+            except (GraphError, NodeError, CommandError) as exc:
                 # if a node has an error, stop the graph and kill all nodes
                 self.r.xadd("booter_status",
                     {'machine': self.machine,
-                    'status': 'graph failed',
+                    'status': exc.__class__.__name__,
                     'message': str(exc),
                     'traceback': 'Booter ' + self.machine + ' ' + traceback.format_exc()})
                 self.r.xadd("booter_status",
                     {'machine': self.machine, 'status': 'Listening for commands'})
                 if exc is NodeError:
                     self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
-                else:
+                elif exc is GraphError:
                     self.logger.error(f"Error with the {exc.graph} graph")
+                elif exc is CommandError:
+                    self.logger.error(f"Error with the {exc.command} command")
                 self.logger.error(str(exc))
 
             except Exception as exc:

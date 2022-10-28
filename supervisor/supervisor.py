@@ -597,8 +597,9 @@ class Supervisor:
             raise CommandError('Make cannot run while a graph is running', 'supervisor', 'make')
 
         # Run make
+        self.r.xadd('booter', {'command': 'make'})
         p_make = subprocess.run(['make'],
-                            capture_output=True)
+                                capture_output=True)
 
         if p_make.returncode == 0:
             logger.info(f"Make completed successfully")
@@ -708,14 +709,16 @@ class Supervisor:
         statuses = self.r.xrange('booter_status', '('+self.booter_status_id, '+')
         if len(statuses) > 0:
             for entry in statuses:
-                if entry[1][b'status'].decode('utf-8') == 'graph failed':
-                    # if we have a 'graph failed', get messages starting from the error
+                status = entry[1][b'status'].decode('utf-8')
+                if status in ['NodeError', 'GraphError', 'CommandError']:
+                    # get messages starting from the error
                     self.booter_status_id = entry[0].decode('utf-8')
                     raise BooterError(
                         f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
                         entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
-                        entry[1][b'traceback'].decode('utf-8'))
+                        entry[1][b'traceback'].decode('utf-8'),
+                        status)
 
             self.booter_status_id = statuses[-1][0].decode('utf-8')
 
@@ -776,13 +779,20 @@ def main():
             logger.error(str(exc))
 
         except BooterError as exc:
-            # if a booter has an error, stop the graph and kill all nodes
-            supervisor.r.xadd("graph_status",
-                {'status': supervisor.state[2],
-                'message': str(exc),
-                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
-            supervisor.r.xadd("supervisor_ipstream",
-                {'commands': 'stopGraph'})
+            # if a booter has a CommandError, report it
+            if exc.source_exc == 'CommandError':
+                supervisor.r.xadd("supervisor_status",
+                    {'status': exc.source_exc,
+                    'message': str(exc),
+                    'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+            # if a booter has a different error, stop the graph and kill all nodes
+            else:
+                supervisor.r.xadd("graph_status",
+                    {'status': supervisor.state[2],
+                    'message': str(exc),
+                    'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+                supervisor.r.xadd("supervisor_ipstream",
+                    {'commands': 'stopGraph'})
             logger.error(f"Error with the {exc.machine} machine")
             logger.error(str(exc))
 

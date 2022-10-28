@@ -32,16 +32,22 @@ all: $(SUBDIRS_NODES) $(SUBDIRS_DERIVS) $(MODULES_NODES) $(MODULES_DERIVS) hired
 # function that tests if a path $(1) is in a Git repository, and writes the Git hash to git_hash.o if so
 write_git_hash = @\
 	git -C $(1) rev-parse; \
-	IS_GIT=$$?; \
-	if [ $$IS_GIT = 0 ]; then \
+	if [ $$? = 0 ]; then \
+		test -s $(1)/git_hash.o; \
+		if [ $$? = 0 ]; then \
+			rm -f $(1)/git_hash.o; \
+		fi; \
 		echo -n $$(git -C $(1) rev-parse HEAD) > $(1)/git_hash.o; \
 	fi
 
 # function that tests if a Makefile exists in a path $(1), and runs make if so
 test_and_make = @\
 	test -s $(1)/Makefile; \
-	MAKE_EXISTS=$$?; \
-	if [ $$MAKE_EXISTS = 0 ]; then \
+	if [ $$? = 0 ]; then \
+		test -s $(1)/$$(basename $(1)).bin; \
+		if [ $$? = 0 ]; then \
+			rm -f $(1)/$$(basename $(1)).bin; \
+		fi; \
 		$(MAKE) -C $(1); \
 	fi
 
@@ -76,8 +82,8 @@ hiredis: redis
 
 redis:
 	$(MAKE) -C $(REDIS_PATH) redis-server redis-cli
-	mv $(REDIS_PATH)/src/redis-server $(BIN_PATH)
-	mv $(REDIS_PATH)/src/redis-cli $(BIN_PATH)
+	mv -f $(REDIS_PATH)/src/redis-server $(BIN_PATH)
+	mv -f $(REDIS_PATH)/src/redis-cli $(BIN_PATH)
 
 redis-test:
 	$(MAKE) -C $(REDIS_PATH) test
