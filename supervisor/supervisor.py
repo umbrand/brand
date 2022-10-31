@@ -644,9 +644,9 @@ class Supervisor:
             data: contains the command to run in data[b'commands']
                 and other information needed to execute the command
         '''
-        cmd = (data[b'commands']).decode("utf-8")
+        cmd = (data[b'commands']).decode("utf-8").lower()
 
-        if cmd in ["loadGraph", "startGraph"]:
+        if cmd in ["loadgraph", "startgraph"]:
             if self.children:
                 raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
@@ -669,41 +669,41 @@ class Supervisor:
                 except yaml.YAMLError as exc:
                     raise GraphError("Error parsing graph YAML file", file) from exc
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
-                if cmd == "startGraph":
+                if cmd == "startgraph":
                     self.start_graph()
             elif b'graph' in data:
                 logger.info(f"{cmd} command received with graph dict")
                 self.load_graph(json.loads(data[b'graph']))
-                if cmd == "startGraph":
+                if cmd == "startgraph":
                     self.start_graph()
-            elif cmd == "startGraph":
+            elif cmd == "startgraph":
                 logger.info(f"{cmd} command received")
                 if not self.model:
-                    raise GraphError("No graph provided with startGraph command and no graph previously loaded",
+                    raise GraphError("No graph provided with startGgraph command and no graph previously loaded",
                     self.graph_file)
                 self.start_graph()
             else: # command was loadGraph with insufficient inputs
                 raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
-        elif cmd == "updateParameters":
+        elif cmd == "updateparameters":
             logger.info("Update parameters command received")
             new_params = {k:data[k] for k in data if k not in [b"commands"]}
             self.update_params(new_params)
-        elif cmd == "stopGraph":
+        elif cmd == "stopgraph":
             logger.info("Stop graph command received")
             self.stop_graph()
-        elif cmd == "stopGraphAndSaveNWB":
+        elif cmd == "stopgraphandsavenwb":
             logger.info("Stop graph and save NWB command received")
             self.stop_graph_and_save_nwb()
-        elif cmd == "saveRdb":
+        elif cmd == "saverdb":
             logger.info("Save RDB command received")
             self.save_rdb()
-        elif cmd == "saveNwb":
+        elif cmd == "savenwb":
             logger.info("Save NWB command received")
             self.save_nwb()
-        elif cmd == "flushDb":
+        elif cmd == "flushdb":
             logger.info("Flush DB command received")
             self.flush_db()
-        elif cmd == "setDataDir":
+        elif cmd == "setdatadir":
             if b'path' in data:
                 logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
                 self.data_dir = data[b'path'].decode('utf-8')
