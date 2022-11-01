@@ -219,10 +219,10 @@ Commands can be sent to the `supervisor` through Redis using the following synta
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
 * `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
 * `saveRdb`: Dumps the database to disk as a `.rdb` file.
-* `saveNwb`: Converts the present database streams to an NWB file, if configured as described in `stopGraphAndSaveNWB`.
+* `saveNwb`: Converts the present database streams to an NWB file, if configured as described in `stopGraphAndSaveNWB`. There must not be a running graph to execute the `saveNwb` command.
 * `flushDb`: **USE WITH CAUTION** Flushes the database.
 * `setDataDir [path <path_to_data_directory>]`: Sets the root directory for storing data (i.e. from `saveRdb` and `saveNwb` commands).
-* `make`: Makes all binaries on the `supervisor` and `booter` machines.
+* `make`: Makes all binaries on the `supervisor` and `booter` machines. There must not be a running graph to execute the `make` command.
 
 ### Redis streams used with the `supervisor`
 

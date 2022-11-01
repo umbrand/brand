@@ -528,6 +528,11 @@ class Supervisor:
         '''
         Saves an NWB file from the most recent supergraph
         '''
+        # validate graph is not running
+        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
+        if self.get_graph_status(graph_status) == self.state[3]:
+            raise CommandError('saveNwb cannot run while a graph is running', 'supervisor', 'saveNwb')
+
         # Make path for saving NWB file
         save_path_nwb = os.path.join(self.save_path, 'NWB')
 
