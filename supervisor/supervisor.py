@@ -709,12 +709,18 @@ class Supervisor:
             logger.info("Flush DB command received")
             self.flush_db()
         elif cmd == "setdatadir":
+            rel_path = os.path.relpath(self.save_path, self.data_dir)
             if b'path' in data:
                 logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
                 self.data_dir = data[b'path'].decode('utf-8')
             else:
                 logger.info(f"Set data directory command received, setting to the default {DEFAULT_DATA_DIR}")
                 self.data_dir = DEFAULT_DATA_DIR
+            self.save_path = os.path.join(self.data_dir, rel_path)
+            self.save_path_rdb = os.path.join(self.save_path, 'RDB')
+            if not os.path.exists(self.save_path_rdb):
+                os.makedirs(self.save_path_rdb)
+            self.r.config_set('dir', self.save_path_rdb)
         elif cmd == "make":
             logger.info("Make command received")
             self.make()
