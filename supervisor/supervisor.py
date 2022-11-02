@@ -157,6 +157,16 @@ class Supervisor:
         return current_status
 
 
+    def check_graph_not_running(self, cmd=''):
+        '''
+        Checks that a graph is not currently executing, generating an exception if it is
+        '''
+        # validate graph is not running
+        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
+        if self.get_graph_status(graph_status) == self.state[3]:
+            raise CommandError(f'Cannot run {cmd} command while a graph is running', 'supervisor', cmd)
+
+
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
         if self.redis_priority:
@@ -528,10 +538,7 @@ class Supervisor:
         '''
         Saves an NWB file from the most recent supergraph
         '''
-        # validate graph is not running
-        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
-        if self.get_graph_status(graph_status) == self.state[3]:
-            raise CommandError('saveNwb cannot run while a graph is running', 'supervisor', 'saveNwb')
+        self.check_graph_not_running(cmd='saveNwb')
 
         # Make path for saving NWB file
         save_path_nwb = os.path.join(self.save_path, 'NWB')
@@ -611,10 +618,7 @@ class Supervisor:
         '''
         Makes all nodes and derivatives
         '''
-        # validate graph is not running
-        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
-        if self.get_graph_status(graph_status) == self.state[3]:
-            raise CommandError('Make cannot run while a graph is running', 'supervisor', 'make')
+        self.check_graph_not_running(cmd='make')
 
         # Run make
         self.r.xadd('booter', {'command': 'make'})
