@@ -2,6 +2,8 @@ import argparse
 import json
 import logging
 import os
+import sh
+from sh import git
 import signal
 import subprocess
 import sys
@@ -14,10 +16,11 @@ import redis
 import yaml
 from redis import Redis
 
-from brand import (GraphError, NodeError, BooterError, RedisError)
+from brand import (GraphError, NodeError, BooterError, DerivativeError, CommandError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
+DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', 'Data'))
 
 class Supervisor:
     def __init__(self):
@@ -28,13 +31,12 @@ class Supervisor:
         self.children = []
 
         self.BRAND_BASE_DIR = os.getcwd()
-        self.BRAND_MOD_DIR = os.path.join(self.BRAND_BASE_DIR,'../brand-modules/') # path to the brand modules directory
-
-        self.save_path = self.BRAND_BASE_DIR
-        self.save_path_rdb = self.save_path
+        self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR,'../brand-modules/')) # path to the brand modules directory
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
+        
+        self.git_hash = str(git('-C', self.BRAND_BASE_DIR, 'rev-parse', 'HEAD')).splitlines()[0]
 
         self.graph_file = None
         self.redis_pid = None
@@ -70,6 +72,7 @@ class Supervisor:
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
+        ap.add_argument("-d", "--data-dir", type=str, default=DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -102,6 +105,10 @@ class Supervisor:
         self.redis_affinity = args.redis_affinity
 
         logger.setLevel(args.log_level)
+
+        self.data_dir = args.data_dir
+        self.save_path = args.data_dir
+        self.save_path_rdb = args.data_dir
 
         self.graph_file = args.graph
         graph_dict = {}
@@ -150,6 +157,16 @@ class Supervisor:
         return current_status
 
 
+    def check_graph_not_running(self, cmd=''):
+        '''
+        Checks that a graph is not currently executing, generating an exception if it is
+        '''
+        # validate graph is not running
+        graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
+        if self.get_graph_status(graph_status) == self.state[3]:
+            raise CommandError(f'Cannot run {cmd} command while a graph is running', 'supervisor', cmd)
+
+
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
         if self.redis_priority:
@@ -185,12 +202,12 @@ class Supervisor:
         logger.info(f"RDB file name set to {self.rdb_filename}")
 
 
-    def get_save_path(self, graph_dict):
+    def get_save_path(self, graph_dict:dict={}):
         """
         Get the path where the RDB and NWB files should be saved
         Parameters
         ----------
-        graph_dict : dict
+        graph_dict : (optional) dict
             Dictionary containing the supergraph parameters
         Returns
         -------
@@ -216,8 +233,7 @@ class Supervisor:
         # Make paths for saving files
         session_str = datetime.today().strftime(r'%Y-%m-%d')
         session_id = f'{session_str}'
-        save_path = os.path.join(self.BRAND_BASE_DIR, '..', 'Data',
-                                 str(participant_id), session_id, 'RawData')
+        save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
         return save_path
 
@@ -240,10 +256,12 @@ class Supervisor:
 
         self.r.xadd("graph_status", {'status': self.state[0]}) #status 1 means graph is running
 
-        self.model["redis_host"] = self.host
-        self.model["redis_port"] = self.port
-        self.model["graph_name"] = self.graph_name
-        self.model["graph_loaded_ts"] = time.monotonic_ns()
+        model = {}
+        model["redis_host"] = self.host
+        model["redis_port"] = self.port
+        model["brand_hash"] = self.git_hash
+        model["graph_name"] = self.graph_name
+        model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
         self.save_path = self.get_save_path(graph_dict)
@@ -262,7 +280,7 @@ class Supervisor:
         logger.info(f'rdb filename: {self.rdb_filename}')
 
         # Load node information
-        self.model["nodes"] = {}
+        model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
 
         # catch key errors for nodes that are not in the graph
@@ -272,23 +290,64 @@ class Supervisor:
                 if bin_f is not None:
                     logger.info("%s is a valid node" % n["nickname"])
                     # Check for duplicate nicknames
-                    if n["nickname"] in self.model["nodes"]:
+                    if n["nickname"] in model["nodes"]:
                         raise NodeError(
                             f"Duplicate node nicknames found: {n['nickname']}",
                             self.graph_name,
                             n["nickname"])
                     # Loading the nodes and graph into self.model dict
-                    self.model["nodes"][n["nickname"]] = {}
-                    self.model["nodes"][n["nickname"]].update(n)
-                    self.model["nodes"][n["nickname"]]["binary"] = bin_f
+                    model["nodes"][n["nickname"]] = {}
+                    model["nodes"][n["nickname"]].update(n)
+                    model["nodes"][n["nickname"]]["binary"] = bin_f
+                    try:
+                        # read Git hash for the node
+                        with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
+                            model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
+                        
+                        # read Git hash from the repository
+                        git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
+                        
+                        # check repository hash is same as git_hash
+                        if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
+                            logger.warning(f"Git hash for {n['nickname']} node nickname does not match the repository's Git hash, remake")
+
+                    except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
+                        pass
+                    except FileNotFoundError: # git_hash.o file not found
+                        model["nodes"][n["nickname"]]["git_hash"] = ''
 
             if "derivatives" in graph_dict:
-                self.model["derivatives"] = {}
+                model["derivatives"] = {}
                 derivatives = graph_dict['derivatives']
                 for a in derivatives:
                     a_name = list(a.keys())[0]
                     a_values = a[a_name]
-                    self.model["derivatives"][a_name] = a_values
+                    model["derivatives"][a_name] = a_values
+                    if 'script_path' in model["derivatives"][a_name]:
+                        script_path = os.path.join(self.BRAND_BASE_DIR, model["derivatives"][a_name]['script_path'])
+
+                        if not os.path.exists(script_path):
+                            raise GraphError(f'Could not find derivative at {script_path}', self.graph_file)
+
+                        try:
+                            # read Git hash for the derivative
+                            with open(os.path.join(os.path.split(script_path)[0], 'git_hash.o'), 'r') as f:
+                                model["derivatives"][a_name]["git_hash"] = f.read().splitlines()[0]
+
+                            # read Git hash from the repository
+                            git_hash_from_repo = str(git('-C', os.path.split(script_path)[0], 'rev-parse', 'HEAD')).splitlines()[0]
+                        
+                            # check repository hash is same as git_hash
+                            if git_hash_from_repo != model["derivatives"][a_name]["git_hash"]:
+                                logger.warning(f"Git hash for {a_name} derivative does not match the repository's Git hash, remake")
+                            
+                        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
+                            pass
+                        except FileNotFoundError: # git_hash.o file not found
+                            model["derivatives"][a_name]["git_hash"] = ''
+
+                    else:
+                        model["derivatives"][a_name]["git_hash"] = ''
 
         except KeyError as exc:
             if "nickname" in n:
@@ -308,6 +367,8 @@ class Supervisor:
                 self.graph_name,
                 name) from exc
 
+        # model is valid if we make it here
+        self.model = model
         model_pub = json.dumps(self.model)
         payload = {
             "data": model_pub
@@ -333,7 +394,22 @@ class Supervisor:
             node_stream_name = node_info["nickname"]
             if ('machine' not in node_info
                     or node_info["machine"] == self.machine):
+
                 binary = node_info["binary"]
+
+                # validate binary version
+                try:
+                    # read Git hash for the node
+                    with open(os.path.join(os.path.split(binary)[0], 'git_hash.o'), 'r') as f:
+                        hash = f.read().splitlines()[0]
+                except FileNotFoundError: # git hash file not found
+                    hash = ''
+                if hash != self.model["nodes"][node_info["nickname"]]["git_hash"]:
+                    raise NodeError(
+                        f'Git hash for {node_info["nickname"]} node nickname does not match supergraph',
+                        self.model['graph_name'],
+                        node_info['nickname'])
+                        
                 logger.info("Binary for %s is %s" % (node,binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
                 args = [binary, '-n', node_stream_name]
@@ -352,7 +428,6 @@ class Supervisor:
                         args = taskset_args + args
                 proc = subprocess.Popen(args)
                 logger.info("Child process created with pid: %s" % proc.pid)
-                self.r.xadd("graph_status", {'status': self.state[3]})
                 logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
@@ -451,6 +526,61 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
         self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is running
 
+    def save_rdb(self):
+        '''
+        Saves an RDB file of the current database
+        '''
+        # Save rdb file
+        self.r.save()
+        logger.info(f"RDB data saved to file: {self.rdb_filename}")
+
+    def save_nwb(self):
+        '''
+        Saves an NWB file from the most recent supergraph
+        '''
+        self.check_graph_not_running(cmd='saveNwb')
+
+        # Make path for saving NWB file
+        save_path_nwb = os.path.join(self.save_path, 'NWB')
+
+        # Generate NWB dataset
+        p_nwb = subprocess.run(['python',
+                            'derivatives/exportNWB/exportNWB.py',
+                            self.rdb_filename,
+                            self.host,
+                            str(self.port),
+                            save_path_nwb],
+                            capture_output=True)
+        
+        if len(p_nwb.stdout) > 0:
+            logger.debug(p_nwb.stdout.decode())
+
+        if p_nwb.returncode == 0:
+            logger.info(f"NWB data saved to file: {os.path.join(self.save_path, 'NWB', os.path.splitext(self.rdb_filename)[0]+'.nwb')}")
+        elif p_nwb.returncode > 0:
+            raise DerivativeError(
+                f"exportNWB returned exit code {p_nwb.returncode}.",
+                'exportNWB',
+                self.graph_file,
+                p_nwb)
+        elif p_nwb.returncode < 0:
+            logger.info(f"exportNWB was halted during execution with return code {p_nwb.returncode}, {signal.Signals(-p_nwb.returncode).name}")
+
+    def flush_db(self):
+        '''
+        Flushes the RDB
+        '''
+        # Flush database
+        self.r.flushdb()
+
+        # Set new rdb filename (to avoid overwriting what we just saved)
+        self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.r.config_set('dbfilename', self.rdb_filename)
+        logger.info(f"New RDB file name set to {self.rdb_filename}")
+
+        # New RDB, so need to reset graph status
+        self.r.xadd("graph_status", {'status': self.state[5]})
+
     def stop_graph_and_save_nwb(self):
         '''
         Stops the graph
@@ -477,12 +607,34 @@ class Supervisor:
         self.r.flushdb()
 
         # Set new rdb filename (to avoid overwriting what we just saved)
-        self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+        self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.r.config_set('dbfilename', self.rdb_filename)
         logger.info(f"New RDB file name set to {self.rdb_filename}")
 
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
+
+    def make(self):
+        '''
+        Makes all nodes and derivatives
+        '''
+        self.check_graph_not_running(cmd='make')
+
+        # Run make
+        self.r.xadd('booter', {'command': 'make'})
+        p_make = subprocess.run(['make'],
+                                capture_output=True)
+
+        if p_make.returncode == 0:
+            logger.info(f"Make completed successfully")
+        elif p_make.returncode > 0:
+            raise CommandError(
+                f"Make returned exit code {p_make.returncode}.",
+                'supervisor',
+                'make',
+                'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
+        elif p_make.returncode < 0:
+            logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
 
     def terminate(self, sig, frame):
@@ -501,9 +653,9 @@ class Supervisor:
             data: contains the command to run in data[b'commands']
                 and other information needed to execute the command
         '''
-        cmd = (data[b'commands']).decode("utf-8")
+        cmd = (data[b'commands']).decode("utf-8").lower()
 
-        if cmd == "startGraph":
+        if cmd in ["loadgraph", "startgraph"]:
             if self.children:
                 raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
@@ -513,7 +665,7 @@ class Supervisor:
                 rdb_filename = None
 
             if b'file' in data:
-                logger.info("Start graph command received with file")
+                logger.info(f"{cmd} command received with file")
                 file = data[b'file'].decode("utf-8")
                 graph_dict = {}
                 try:
@@ -526,24 +678,56 @@ class Supervisor:
                 except yaml.YAMLError as exc:
                     raise GraphError("Error parsing graph YAML file", file) from exc
                 self.load_graph(graph_dict,rdb_filename=rdb_filename)
-                self.start_graph()
+                if cmd == "startgraph":
+                    self.start_graph()
             elif b'graph' in data:
-                logger.info("Start graph command received with graph dict")
+                logger.info(f"{cmd} command received with graph dict")
                 self.load_graph(json.loads(data[b'graph']))
+                if cmd == "startgraph":
+                    self.start_graph()
+            elif cmd == "startgraph":
+                logger.info(f"{cmd} command received")
+                if not self.model:
+                    raise GraphError("No graph provided with startGgraph command and no graph previously loaded",
+                    self.graph_file)
                 self.start_graph()
-            else:
-                logger.info("Start graph command received")
-                self.start_graph()
-        elif cmd == "updateParameters":
+            else: # command was loadGraph with insufficient inputs
+                raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
+        elif cmd == "updateparameters":
             logger.info("Update parameters command received")
             new_params = {k:data[k] for k in data if k not in [b"commands"]}
             self.update_params(new_params)
-        elif cmd == "stopGraph":
+        elif cmd == "stopgraph":
             logger.info("Stop graph command received")
             self.stop_graph()
-        elif cmd == "stopGraphAndSaveNWB":
+        elif cmd == "stopgraphandsavenwb":
             logger.info("Stop graph and save NWB command received")
             self.stop_graph_and_save_nwb()
+        elif cmd == "saverdb":
+            logger.info("Save RDB command received")
+            self.save_rdb()
+        elif cmd == "savenwb":
+            logger.info("Save NWB command received")
+            self.save_nwb()
+        elif cmd == "flushdb":
+            logger.info("Flush DB command received")
+            self.flush_db()
+        elif cmd == "setdatadir":
+            rel_path = os.path.relpath(self.save_path, self.data_dir)
+            if b'path' in data:
+                logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
+                self.data_dir = data[b'path'].decode('utf-8')
+            else:
+                logger.info(f"Set data directory command received, setting to the default {DEFAULT_DATA_DIR}")
+                self.data_dir = DEFAULT_DATA_DIR
+            self.save_path = os.path.join(self.data_dir, rel_path)
+            self.save_path_rdb = os.path.join(self.save_path, 'RDB')
+            if not os.path.exists(self.save_path_rdb):
+                os.makedirs(self.save_path_rdb)
+            self.r.config_set('dir', self.save_path_rdb)
+        elif cmd == "make":
+            logger.info("Make command received")
+            self.make()
         else:
             logger.warning("Invalid command")
 
@@ -555,14 +739,16 @@ class Supervisor:
         statuses = self.r.xrange('booter_status', '('+self.booter_status_id, '+')
         if len(statuses) > 0:
             for entry in statuses:
-                if entry[1][b'status'].decode('utf-8') == 'graph failed':
-                    # if we have a 'graph failed', get messages starting from the error
+                status = entry[1][b'status'].decode('utf-8')
+                if status in ['NodeError', 'GraphError', 'CommandError']:
+                    # get messages starting from the error
                     self.booter_status_id = entry[0].decode('utf-8')
                     raise BooterError(
                         f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
                         entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
-                        entry[1][b'traceback'].decode('utf-8'))
+                        entry[1][b'traceback'].decode('utf-8'),
+                        status)
 
             self.booter_status_id = statuses[-1][0].decode('utf-8')
 
@@ -579,8 +765,8 @@ def main():
         try:
             supervisor.checkBooter()
             cmd = supervisor.r.xread({"supervisor_ipstream": last_id},
-                                 count=1,
-                                 block=5000)
+                                count=1,
+                                block=5000)
             if cmd:
                 key,messages = cmd[0]
                 last_id,data = messages[0]
@@ -623,21 +809,60 @@ def main():
             logger.error(str(exc))
 
         except BooterError as exc:
-            # if a booter has an error, stop the graph and kill all nodes
+            # if a booter has a CommandError, report it
+            if exc.source_exc == 'CommandError':
+                supervisor.r.xadd("supervisor_status",
+                    {'status': exc.source_exc,
+                    'message': str(exc),
+                    'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+            # if a booter has a different error, stop the graph and kill all nodes
+            else:
+                supervisor.r.xadd("graph_status",
+                    {'status': supervisor.state[2],
+                    'message': str(exc),
+                    'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+                supervisor.r.xadd("supervisor_ipstream",
+                    {'commands': 'stopGraph'})
+            logger.error(f"Error with the {exc.machine} machine")
+            logger.error(str(exc))
+
+        except DerivativeError as exc:
+            # if a derivative has an error, then note that in the RDB
+            derivative_tb = 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\nSTDERR: ' + exc.process.stderr.decode('utf-8')
+
             supervisor.r.xadd("graph_status",
                 {'status': supervisor.state[2],
                 'message': str(exc),
-                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
-            supervisor.r.xadd("supervisor_ipstream",
-                {'commands': 'stopGraph'})
-            logger.error(f"Error with the {exc.machine} machine")
+                'traceback': 'Supervisor ' + traceback.format_exc() + '\n' + derivative_tb})
+            # rewrite previous graph_status
+            if supervisor.children:
+                status = supervisor.r.xrevrange("graph_status", '+', '-', count=2)
+                supervisor.r.xadd("graph_status",
+                    {'status': status[-1][1][b'status']})
+            else:
+                supervisor.r.xadd("graph_status", {'status': supervisor.state[5]})
+
+            logger.error(f"Error with the {exc.derivative} derivative")
             logger.error(str(exc))
+            if len(exc.process.stderr) > 0:
+                logger.debug(exc.process.stderr.decode('utf-8'))
+            
+        except CommandError as exc:
+            # if a command has an error, then note that in the RDB
+            supervisor.r.xadd("supervisor_status",
+                {"status": "Command error",
+                "message": str(exc),
+                "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
+            
+            logger.error(f"Could not execute {exc.command} command.")
+            logger.error(str(exc))
+            supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
             
         except Exception as exc:
             supervisor.r.xadd("supervisor_status",
                 {"status": "Unhandled exception",
                 "message": str(exc),
-                'traceback': 'Supervisor ' + traceback.format_exc()})
+                "traceback": "Supervisor " + traceback.format_exc()})
             logger.exception(f'Could not execute command. {repr(exc)}')
             supervisor.r.xadd("supervisor_status", {"status": "Listening for commands"})
 

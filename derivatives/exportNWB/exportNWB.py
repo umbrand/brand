@@ -45,7 +45,8 @@ numeric_level = getattr(logging, loglevel.upper(), None)
 if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
-                    level=numeric_level)
+                    level=numeric_level,
+                    stream=sys.stdout)
 
 
 #############################################################
