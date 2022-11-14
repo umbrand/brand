@@ -36,9 +36,6 @@ redis_port = sys.argv[3]
 save_filename = os.path.splitext(rdb_file)[0]
 save_filepath = sys.argv[4]
 
-devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),
-                            '../Data/devices.yaml')
-
 # set up logging
 loglevel = 'INFO'
 numeric_level = getattr(logging, loglevel.upper(), None)
@@ -374,6 +371,9 @@ except IndexError as e:
 
 entry_id, entry_dict = model_stream_entry
 model_data = json.loads(entry_dict[b'data'].decode())
+
+graph_meta = model_data['derivatives']['exportNWB']['parameters']
+devices_path = graph_meta['devices_file']
 
 # Get graph name
 graph_name = model_data['graph_name']
