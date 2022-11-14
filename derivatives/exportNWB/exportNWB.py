@@ -381,6 +381,7 @@ graph_name = model_data['graph_name']
 # Get timing keys
 sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
 time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
+sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz'].encode()
 
 ## Get exportnwb_io
 stream_params = model_data['derivatives']['exportNWB']['parameters']['streams']
@@ -629,7 +630,7 @@ for stream in stream_dict:
                 sync_data = json.loads(entry[1][sync_key])
                 time_data['sync_timestamps'][entry_count + ind] = float(
                     sync_data[sync_name]
-                ) / 1000  # get blocked sync timestamp in ms, convert to seconds
+                ) / sync_timing_hz  # get blocked sync timestamp in ms, convert to seconds
                 time_data['monotonic_ts'][entry_count + ind] = np.frombuffer(
                     entry[1][time_key], dtype=np.uint64)
                 time_data['redis_ts'][entry_count + ind] = float(
@@ -640,7 +641,7 @@ for stream in stream_dict:
                     if sync in sync_name:
                         continue
                     time_data[sync][entry_count +
-                                    ind] = float(entry[sync]) / 1000
+                                    ind] = float(entry[sync]) / sync_timing_hz
 
                 for var in stream_data:
                     if 'nwb' not in strm['config'][strm['stream_defn'][var]]:
