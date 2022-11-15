@@ -80,15 +80,15 @@ def add_stream_sync_timeseries(nwbfile, stream, time_data):
         k: time_data[k]
         for k in time_data if k != 'sync_timestamps'
     }
-    column_order_string = ', '.join(
+    column_order_string = ','.join(
         [k for k in time_data.keys() if k != 'sync_timestamps'])
 
     sync_timeseries = TimeSeries(
-        name=f'{stream}_sync',
+        name=f'{stream}_ts',
         data=np.stack(list(time_data_stack.values()), axis=1),
         unit='seconds',
         timestamps=time_data['sync_timestamps'],
-        comments=f'Column order: {column_order_string}',
+        comments=f'columns=[{column_order_string}]',
         description=f'Syncing timestamps for the {stream} stream')
 
     nwbfile.add_acquisition(sync_timeseries)
@@ -381,7 +381,7 @@ graph_name = model_data['graph_name']
 # Get timing keys
 sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
 time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
-sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz'].encode()
+sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
 
 ## Get exportnwb_io
 stream_params = model_data['derivatives']['exportNWB']['parameters']['streams']
