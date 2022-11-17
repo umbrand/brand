@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sh
 from sh import git
 import signal
@@ -142,6 +143,19 @@ class Supervisor:
                 name)
         return filepath
 
+    def search_node_yaml_file(self, module, name) -> str:
+        '''Search the node YAML file and return the path
+        Args:
+            module: module name
+            name: node name
+        '''
+        filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
+            f'{name}.yaml')
+        filepath = os.path.abspath(filepath)
+        if os.path.exists(filepath):
+            return filepath
+        else:
+            return None
 
     def get_graph_status(self,state)->str:
         '''
@@ -281,6 +295,7 @@ class Supervisor:
 
         # Load node information
         model["nodes"] = {}
+        model["streams"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
 
         # catch key errors for nodes that are not in the graph
@@ -315,6 +330,35 @@ class Supervisor:
                         pass
                     except FileNotFoundError: # git_hash.o file not found
                         model["nodes"][n["nickname"]]["git_hash"] = ''
+
+                # if there's a node YAML file
+                yaml_f = self.search_node_yaml_file(n["moduule"], n["name"])
+                if yaml_f is not None:
+                    with open(yaml_f, 'r') as f:
+                        node_yaml = yaml.safe_load(f)
+                    # if we have stream definitions, load them into the model
+                    if 'RedisStreams' in node_yaml and 'Outputs' in node_yaml['RedisStreams']:
+                        stream_dict = node_yaml['RedisStreams']['Outputs']
+                        for s, s_info in stream_dict.items():
+                            model['streams'][s] = s_info
+                            model['streams'][s]['source_nickname'] = n["nickname"]
+
+            # parse '$' characters in stream definitions 
+            # for now, assume '$' will only come in key definitions
+            for s, s_info in model['streams'].items():
+                if isinstance(s_info, dict): # else is str
+                    for k, k_info in s_info.items():
+                        if isinstance(k_info, str) and '$' in k_info:
+                            # NEED TO FIX ISSUE WHERE $ WILL FIND SECOND INSTANCES OF $$ idx_double = set([i.start() for i in re.finditer('$$', k_info)])
+                            idx_single = set([i.start() for i in re.finditer('$', k_info)])
+                            idx_dollar = idx_single | idx_double
+                            idx_dot = [i.start() for i in re.finditer('.', k_info)].append(len(k_info))
+                            for i in idx_single:
+                                param = k_info[i:].split('.', 1)[0]
+                                
+                                model['streams'][s][k] = model['nodes'][s_info['nickname']]
+
+            # parse '$$' characters in stream definitions
 
             if "derivatives" in graph_dict:
                 model["derivatives"] = {}
