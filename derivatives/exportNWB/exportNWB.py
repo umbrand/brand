@@ -373,7 +373,11 @@ entry_id, entry_dict = model_stream_entry
 model_data = json.loads(entry_dict[b'data'].decode())
 
 graph_meta = model_data['derivatives']['exportNWB']['parameters']
-devices_path = graph_meta['devices_file']
+if 'devices_file' in graph_meta:
+    devices_path = graph_meta['devices_file']
+else:
+    devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),
+                            '../Data/devices.yaml')
 
 # Get graph name
 graph_name = model_data['graph_name']
@@ -381,7 +385,10 @@ graph_name = model_data['graph_name']
 # Get timing keys
 sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
 time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
-sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
+if 'sync_timing_hz' in model_data['derivatives']['exportNWB']['parameters']:
+    sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
+else:
+    sync_timing_hz = 1000
 
 ## Get exportnwb_io
 stream_params = model_data['derivatives']['exportNWB']['parameters']['streams']
