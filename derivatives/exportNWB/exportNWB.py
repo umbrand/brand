@@ -641,7 +641,7 @@ for stream in stream_dict:
                     if sync in sync_name:
                         continue
                     time_data[sync][entry_count +
-                                    ind] = float(entry[sync]) / sync_timing_hz
+                                    ind] = float(sync_data[sync]) / sync_timing_hz
 
                 for var in stream_data:
                     if 'nwb' not in strm['config'][strm['stream_defn'][var]]:
