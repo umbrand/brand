@@ -12,7 +12,7 @@ export BRAND_BASE_DIR # save brand base dir to the environment
 conda activate rt
 
 # Make aliases for booter and supervisor
-alias booter='sudo -E env "PATH=$PATH" python -m brand.booter'
+alias booter='sudo -E env "PATH=$PATH" python supervisor/booter.py'
 alias supervisor='sudo -E env "PATH=$PATH" python supervisor/supervisor.py'
 
 export PATH=$(pwd)/bin:$PATH
