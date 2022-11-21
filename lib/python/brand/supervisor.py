@@ -145,20 +145,6 @@ class Supervisor:
                 name)
         return filepath
 
-    def search_node_yaml_file(self, module, name) -> str:
-        '''Search the node YAML file and return the path
-        Args:
-            module: module name
-            name: node name
-        '''
-        filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
-            f'{name}.yaml')
-        filepath = os.path.abspath(filepath)
-        if os.path.exists(filepath):
-            return filepath
-        else:
-            return None
-
     def get_graph_status(self,state)->str:
         '''
         Utility function to get the graph status
@@ -297,7 +283,6 @@ class Supervisor:
 
         # Load node information
         model["nodes"] = {}
-        model["streams"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
 
         # catch key errors for nodes that are not in the graph
