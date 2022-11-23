@@ -297,9 +297,9 @@ class Supervisor:
                 if ('machine' not in n or n["machine"] == self.machine):
                     if not os.path.exists(bin_f):
                         raise NodeError(
-                            f'{name} executable was not found at {bin_f}',
+                            f'{n["name"]} executable was not found at {bin_f}',
                             self.graph_name,
-                            name)
+                            n["name"])
                     try:
                         # read Git hash for the node
                         with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
