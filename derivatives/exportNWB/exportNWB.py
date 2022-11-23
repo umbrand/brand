@@ -11,6 +11,7 @@ Requires first input be the RDB dump and the second be the graph YAML
 
 import json
 import logging
+import numbers
 import os
 import signal
 import sys
@@ -26,7 +27,8 @@ from redis import ConnectionError, Redis
 # Initialize script
 ###############################################
 NAME = 'exportNWB'
-BATCH_SIZE = 1000  # max number of samples to grab from redis at a time
+BATCH_SIZE = 1000 # max number of samples to grab from Redis at a time
+DEFAULT_SYNC_RATE = 1000 # the default rate in Hz for data generators, used to calculate times at which entries are made
 
 rdb_file = sys.argv[1]
 
@@ -337,14 +339,6 @@ else:
 # Get graph name
 graph_name = model_data['graph_name']
 
-# Get timing keys
-sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
-time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
-if 'sync_timing_hz' in model_data['derivatives']['exportNWB']['parameters']:
-    sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
-else:
-    sync_timing_hz = 1000
-
 ## Get exportnwb_io
 if 'streams' in model_data:
     stream_dict = model_data['streams']
@@ -358,7 +352,7 @@ for stream in stream_dict:
         stream_dict[stream]['sync'] = exportnwb_dict[stream]['sync']
     else:
         logging.warning(
-            f'Invalid NWB parameters in graph YAML. \'name\' and \'sync\' are required for each stream. Stream: {stream}'
+            f'Invalid NWB parameters in graph YAML. \'sync\' is required for each stream. Stream: {stream}'
         )
         stream_dict[stream]['enable_nwb'] = False
         
@@ -374,6 +368,39 @@ for stream in stream_dict:
         stream_dict[stream]['enable_nwb'] = False
     
     stream_dict[stream]['last_id'] = b'(0'
+
+# Get timing keys
+sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
+time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
+if 'sync_timing_hz' in model_data['derivatives']['exportNWB']['parameters']:
+    sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
+else:
+    sync_timing_hz = {}
+
+sync_dict = {}
+for sync in set([s for _, stream in stream_dict.items() for s in stream['sync']]):
+    if isinstance(sync_timing_hz, dict):
+        if sync in sync_timing_hz:
+            if isinstance(sync_timing_hz, numbers.Number):
+                sync_dict[sync] = sync_timing_hz[sync]
+            else:
+                sync_dict[sync] = DEFAULT_SYNC_RATE
+                logging.warning(f'Unsupported \'sync_timing_hz\' parameter. It should be a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
+        elif 'default_sync_rate' in sync_timing_hz:
+            if isinstance(sync_timing_hz['default_sync_rate'], numbers.Number):
+                sync_dict[sync] = sync_timing_hz['default_sync_rate']
+            else:
+                sync_dict[sync] = DEFAULT_SYNC_RATE
+                logging.warning(f'Unsupported \'default_sync_rate\' parameter. It should be a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
+        else:
+            sync_dict[sync] = DEFAULT_SYNC_RATE
+            logging.warning(f'Sync rate undefined. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
+    elif isinstance(sync_timing_hz, numbers.Number):
+        sync_dict[sync] = sync_timing_hz
+    else:
+        sync_dict[sync] = DEFAULT_SYNC_RATE
+        logging.warning(f'Unsupported \'sync_timing_hz\' parameter. It should be either a \'dict\' or a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
+    pass
 
 
 # find 'Trial', 'Trial_Info', and 'Spike_Times' streams
@@ -562,7 +589,7 @@ for stream in stream_dict:
                 sync_data = json.loads(entry[1][sync_key])
                 time_data['sync_timestamps'][entry_count + ind] = float(
                     sync_data[sync_name]
-                ) / sync_timing_hz  # get blocked sync timestamp in ms, convert to seconds
+                ) / sync_dict[sync_name]  # get blocked sync timestamp in ms, convert to seconds
                 time_data['monotonic_ts'][entry_count + ind] = np.frombuffer(
                     entry[1][time_key], dtype=np.uint64)
                 time_data['redis_ts'][entry_count + ind] = float(
@@ -570,10 +597,10 @@ for stream in stream_dict:
 
                 # get other sync signals for this entry
                 for sync in sync_data:
-                    if sync in sync_name:
+                    if sync == sync_name:
                         continue
                     time_data[sync][entry_count +
-                                    ind] = float(sync_data[sync]) / sync_timing_hz
+                                    ind] = float(sync_data[sync]) / sync_dict[sync]
 
                 for var in stream_data:
                     if 'nwb' not in strm[var]:
