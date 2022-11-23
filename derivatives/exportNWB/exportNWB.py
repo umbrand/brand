@@ -11,7 +11,6 @@ Requires first input be the RDB dump and the second be the graph YAML
 
 import json
 import logging
-import numbers
 import os
 import signal
 import sys
@@ -27,8 +26,7 @@ from redis import ConnectionError, Redis
 # Initialize script
 ###############################################
 NAME = 'exportNWB'
-BATCH_SIZE = 1000 # max number of samples to grab from Redis at a time
-DEFAULT_SYNC_RATE = 1000 # the default rate in Hz for data generators, used to calculate times at which entries are made
+BATCH_SIZE = 1000  # max number of samples to grab from redis at a time
 
 rdb_file = sys.argv[1]
 
@@ -298,6 +296,51 @@ def create_nwb_timeseries(nwbfile, stream, stream_data, var_params):
     nwbfile.add_acquisition(timeseries)
 
 
+def get_node_module(graph_data, node_name):
+    """
+    Get the module name from the node name in a yaml file
+    Parameters
+    ----------
+    graph_data : dict
+        supergraph dictionary
+    node_name : str
+        Name of the node to use
+    Returns
+    -------
+    str
+        Module name for node
+    """
+    for node in graph_data['nodes']:
+        if graph_data['nodes'][node]['name'] == node_name:
+            return graph_data['nodes'][node]['module']
+
+
+def get_stream_configuration(yaml_path, stream):
+    """
+    Return information about a stream, as
+    defined by the node's yaml file
+    Parameters
+    ----------
+    yaml_path : str
+        path of the node YAML file
+    stream    : str
+        name of the stream we're inspecting
+    Returns:
+    dict
+        a dictionary with stream configuration 
+    """
+    with open(yaml_path, 'r') as f:
+        yamlData = yaml.safe_load(f)
+    inputs_and_outputs = yamlData['RedisStreams']
+    if inputs_and_outputs is not None:
+        for io in inputs_and_outputs.keys():
+            if inputs_and_outputs[
+                    io] is not None and stream in inputs_and_outputs[io].keys(
+                    ):
+                return inputs_and_outputs[io][stream]
+    return {}
+
+
 ###############################################
 # Connect to redis
 ###############################################
@@ -339,69 +382,70 @@ else:
 # Get graph name
 graph_name = model_data['graph_name']
 
-## Get exportnwb_io
-if 'streams' in model_data:
-    stream_dict = model_data['streams']
-else:
-    logging.info('No streams in supergraph. Exiting.')
-    sys.exit(1)
-exportnwb_dict = model_data['derivatives']['exportNWB']['parameters']['streams']
-
-for stream in stream_dict:
-    if 'sync' in exportnwb_dict[stream]:
-        stream_dict[stream]['sync'] = exportnwb_dict[stream]['sync']
-    else:
-        logging.warning(
-            f'Invalid NWB parameters in graph YAML. \'sync\' is required for each stream. Stream: {stream}'
-        )
-        stream_dict[stream]['enable_nwb'] = False
-        
-    if 'enable_nwb' in stream_dict[stream] and 'type_nwb' in stream_dict[stream]:
-        if 'enable' in exportnwb_dict[stream]:
-            stream_dict[stream]['enable_nwb'] = exportnwb_dict[stream]['enable']
-        else:
-            logging.info(f'Using default NWB enable. Stream: {stream}')
-    else:
-        logging.warning(
-            f'Invalid NWB parameters in node YAML. \'enable_nwb\' and \'type_nwb\' are required. Stream: {stream}'
-        )
-        stream_dict[stream]['enable_nwb'] = False
-    
-    stream_dict[stream]['last_id'] = b'(0'
-
 # Get timing keys
 sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
 time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
 if 'sync_timing_hz' in model_data['derivatives']['exportNWB']['parameters']:
     sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
 else:
-    sync_timing_hz = {}
+    sync_timing_hz = 1000
 
-sync_dict = {}
-for sync in set([s for _, stream in stream_dict.items() for s in stream['sync']]):
-    if isinstance(sync_timing_hz, dict):
-        if sync in sync_timing_hz:
-            if isinstance(sync_timing_hz, numbers.Number):
-                sync_dict[sync] = sync_timing_hz[sync]
-            else:
-                sync_dict[sync] = DEFAULT_SYNC_RATE
-                logging.warning(f'Unsupported \'sync_timing_hz\' parameter. It should be a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
-        elif 'default_sync_rate' in sync_timing_hz:
-            if isinstance(sync_timing_hz['default_sync_rate'], numbers.Number):
-                sync_dict[sync] = sync_timing_hz['default_sync_rate']
-            else:
-                sync_dict[sync] = DEFAULT_SYNC_RATE
-                logging.warning(f'Unsupported \'default_sync_rate\' parameter. It should be a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
-        else:
-            sync_dict[sync] = DEFAULT_SYNC_RATE
-            logging.warning(f'Sync rate undefined. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
-    elif isinstance(sync_timing_hz, numbers.Number):
-        sync_dict[sync] = sync_timing_hz
+## Get exportnwb_io
+stream_params = model_data['derivatives']['exportNWB']['parameters']['streams']
+
+stream_dict = {
+    k: {
+        'source': None,
+        'source_yaml': None,
+        'config': {},
+        'stream_defn': {},
+        'last_id': b'-'
+    }
+    for k in stream_params
+}
+stream_to_del = []
+for stream in stream_dict:
+    stream_dict[stream]['source'] = stream_params[stream]['source_node']
+    if stream_dict[stream]['source'] is None:
+        logging.error(f'Wrong graph! Source node not found! Stream: {stream}')
+        stream_to_del.append(stream)
     else:
-        sync_dict[sync] = DEFAULT_SYNC_RATE
-        logging.warning(f'Unsupported \'sync_timing_hz\' parameter. It should be either a \'dict\' or a number. Using \'exportNWB\' default sync rate of {DEFAULT_SYNC_RATE} Hz. Sync: {sync}')
-    pass
+        if 'name' in stream_params[stream] and 'sync' in stream_params[stream]:
+            stream_dict[stream]['stream_defn'] = {k: stream_params[stream][k]
+                for k in stream_params[stream] if k not in ['enable','source_node']}
+        else:
+            logging.warning(
+                f'Invalid NWB parameters in graph YAML. \'name\' and \'sync\' are required for each stream. Stream: {stream}'
+            )
+            stream_dict[stream]['config']['enable_nwb'] = False
 
+        stream_dict[stream]['source'] = stream_dict[stream]['source'].rsplit(
+            '.', 1)[0]  # gets node name even if filetype included in name
+        stream_dict[stream]['source_yaml'] = os.path.join(
+            os.getenv('BRAND_BASE_DIR'),
+            get_node_module(model_data, stream_dict[stream]['source']),
+            'nodes', stream_dict[stream]['source'],
+            stream_dict[stream]['source'] + '.yaml')
+        stream_dict[stream]['config'] = get_stream_configuration(
+            stream_dict[stream]['source_yaml'], stream_dict[stream]['stream_defn']['name'])
+
+        if 'enable_nwb' in stream_dict[stream][
+                'config'] and 'type_nwb' in stream_dict[stream]['config']:
+            if 'enable' in stream_params[stream]:
+                stream_dict[stream]['config'][
+                    'enable_nwb'] = stream_params[stream]['enable']
+            else:
+                logging.info(f'Using default NWB enable. Stream: {stream}')
+        else:
+            logging.warning(
+                f'Invalid NWB parameters in node YAML. \'enable_nwb\' and \'type_nwb\' are required. Stream: {stream}'
+            )
+            stream_dict[stream]['config']['enable_nwb'] = False
+
+
+# remove streams not in the graph
+for stream in stream_to_del:
+    del (stream_dict[stream])
 
 # find 'Trial', 'Trial_Info', and 'Spike_Times' streams
 trial_stream = None
@@ -409,16 +453,19 @@ trial_info_stream = None
 spike_times_streams = []
 for stream in stream_dict:
     # if the stream is of type 'Trial'
-    if stream_dict[stream]['enable_nwb'] and stream_dict[stream]['type_nwb'] == 'Trial':
+    if stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream][
+            'config']['type_nwb'] == 'Trial':
         if trial_stream == None:
             trial_stream = stream
         else:
             logging.error(
                 f'Multiple Trial streams, only one allowed! Stream: {stream}')
     # if the stream is of type 'Trial_Info'
-    elif stream_dict[stream]['enable_nwb'] and stream_dict[stream]['type_nwb'] == 'TrialInfo':
+    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream][
+            'config']['type_nwb'] == 'TrialInfo':
         trial_info_stream = stream
-    elif stream_dict[stream]['enable_nwb'] and stream_dict[stream]['type_nwb'] == 'SpikeTimes':
+    elif stream_dict[stream]['config']['enable_nwb'] and stream_dict[stream][
+            'config']['type_nwb'] == 'SpikeTimes':
         spike_times_streams.append(stream)
 
 # guarantee there is a 'Trial' stream if we have a 'Trial_Info' stream
@@ -518,7 +565,7 @@ nwb_funcs = {
 # loop through streams to extract data
 for stream in stream_dict:
     # checks the ENABLE_NWB parameter is set to true
-    if stream_dict[stream]['enable_nwb']:
+    if stream_dict[stream]['config']['enable_nwb']:
 
         strm = stream_dict[stream]  # shortcut to use later
 
@@ -529,7 +576,7 @@ for stream in stream_dict:
         ###################################
         stream_len = r.xlen(stream)
         entry_count = 0  # counter for stream entries
-        sync_name = strm['sync'][0]
+        sync_name = strm['stream_defn']['sync'][0]
 
         # stream_data:
         #   data:               store extracted data
@@ -542,21 +589,22 @@ for stream in stream_dict:
             k: {
                 'data':
                 np.empty((stream_len *
-                          strm[k]['samp_per_stream'],
-                          strm[k]['chan_per_stream']),
+                          strm['config'][strm['stream_defn'][k]]['samp_per_stream'],
+                          strm['config'][strm['stream_defn'][k]]['chan_per_stream']),
                          dtype=object
-                         if strm[k]['sample_type'] == 'str' 
-                         else strm[k]['sample_type']),  # ugly, but need to handle strings
+                         if strm['config'][strm['stream_defn'][k]]['sample_type']
+                         == 'str' else strm['config'][strm['stream_defn'][k]]
+                         ['sample_type']),  # ugly, but need to handle strings
                 'sync_timestamps':
                 np.empty(stream_len *
-                         strm[k]['samp_per_stream'],
+                         strm['config'][strm['stream_defn'][k]]['samp_per_stream'],
                          dtype=np.double),
                 'sample_count':
                 0
             }
-            for k in strm
-            if (k not in ['enable_nwb', 'type_nwb', 'source_nickname', 'sync', 'last_id']
-                and 'nwb' in strm[k])
+            for k in strm['stream_defn']
+            if (k not in ['sync', 'name']
+                and 'nwb' in strm['config'][strm['stream_defn'][k]])
         }
 
         # time_data:
@@ -576,8 +624,8 @@ for stream in stream_dict:
         }  # redis timestamp
         time_data.update({
             k: np.empty(stream_len, dtype=np.double)
-            for k in strm['sync']
-            if k != strm['sync'][0]
+            for k in strm['stream_defn']['sync']
+            if k != strm['stream_defn']['sync'][0]
         })
 
         while entry_count < stream_len:
@@ -589,7 +637,7 @@ for stream in stream_dict:
                 sync_data = json.loads(entry[1][sync_key])
                 time_data['sync_timestamps'][entry_count + ind] = float(
                     sync_data[sync_name]
-                ) / sync_dict[sync_name]  # get blocked sync timestamp in ms, convert to seconds
+                ) / sync_timing_hz  # get blocked sync timestamp in ms, convert to seconds
                 time_data['monotonic_ts'][entry_count + ind] = np.frombuffer(
                     entry[1][time_key], dtype=np.uint64)
                 time_data['redis_ts'][entry_count + ind] = float(
@@ -597,21 +645,22 @@ for stream in stream_dict:
 
                 # get other sync signals for this entry
                 for sync in sync_data:
-                    if sync == sync_name:
+                    if sync in sync_name:
                         continue
                     time_data[sync][entry_count +
-                                    ind] = float(sync_data[sync]) / sync_dict[sync]
+                                    ind] = float(sync_data[sync]) / sync_timing_hz
 
                 for var in stream_data:
-                    if 'nwb' not in strm[var]:
+                    if 'nwb' not in strm['config'][strm['stream_defn'][var]]:
                         continue
-                    var_config = strm[var]
+                    var_config = strm['config'][strm['stream_defn'][var]]
                     batch_idx = list(
                         range(
                             stream_data[var]['sample_count'],
                             stream_data[var]['sample_count'] +
                             var_config['samp_per_stream']))
-                    if strm[var]['sample_type'] == 'str':
+                    if strm['config'][strm['stream_defn'][var]][
+                            'sample_type'] == 'str':
                         stream_data[var]['data'][batch_idx, :] = entry[1][
                             var.encode()].decode('utf-8')
                     else:
@@ -626,7 +675,12 @@ for stream in stream_dict:
                     stream_data[var]['sample_count'] += var_config[
                         'samp_per_stream']
 
-            strm['last_id'] = b'('+stream_read[-1][0] # get the last entry id
+            last_id = stream_read[-1][0].decode('utf-8').split(
+                '-'
+            )  # get the last entry id, change from byte to string, split by the '-' in the middle
+            strm['last_id'] = last_id[0] + '-' + str(
+                int(last_id[1]) +
+                1)  # increment the sequence number, recombine
             entry_count += len(stream_read)
 
         #####################################
@@ -634,11 +688,11 @@ for stream in stream_dict:
         #####################################
         add_stream_sync_timeseries(nwbfile, stream, time_data)
 
-        nwb_funcs[strm['type_nwb']](
+        nwb_funcs[strm['config']['type_nwb']](
             nwbfile, stream, stream_data, {
-                k: strm[k]
-                for k in strm
-                if k not in ['enable_nwb', 'type_nwb', 'source_nickname', 'sync', 'last_id']
+                k: strm['config'][strm['stream_defn'][k]]
+                for k in strm['config']
+                if k not in ['enable_nwb', 'type_nwb']
             })
 
         logging.info(f'Export completed. Stream: {stream}')
