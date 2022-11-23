@@ -138,11 +138,6 @@ class Supervisor:
         filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
                                 f'{name}.bin')
         filepath = os.path.abspath(filepath)
-        if not os.path.exists(filepath):
-            raise NodeError(
-                f'{name} executable was not found at {filepath}',
-                self.graph_name,
-                name)
         return filepath
 
     def get_graph_status(self,state)->str:
@@ -288,19 +283,23 @@ class Supervisor:
         # catch key errors for nodes that are not in the graph
         try:
             for n in nodes:
+                # Check for duplicate nicknames
+                if n["nickname"] in model["nodes"]:
+                    raise NodeError(
+                        f"Duplicate node nicknames found: {n['nickname']}",
+                        self.graph_name,
+                        n["nickname"])
+                # Loading the nodes and graph into self.model dict
+                model["nodes"][n["nickname"]] = {}
+                model["nodes"][n["nickname"]].update(n)
                 bin_f = self.search_node_bin_file(n["module"],n["name"])
-                if bin_f is not None:
-                    logger.info("%s is a valid node" % n["nickname"])
-                    # Check for duplicate nicknames
-                    if n["nickname"] in model["nodes"]:
+                model["nodes"][n["nickname"]]["binary"] = bin_f
+                if ('machine' not in n or n["machine"] == self.machine):
+                    if not os.path.exists(bin_f):
                         raise NodeError(
-                            f"Duplicate node nicknames found: {n['nickname']}",
+                            f'{name} executable was not found at {bin_f}',
                             self.graph_name,
-                            n["nickname"])
-                    # Loading the nodes and graph into self.model dict
-                    model["nodes"][n["nickname"]] = {}
-                    model["nodes"][n["nickname"]].update(n)
-                    model["nodes"][n["nickname"]]["binary"] = bin_f
+                            name)
                     try:
                         # read Git hash for the node
                         with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
@@ -317,6 +316,9 @@ class Supervisor:
                         pass
                     except FileNotFoundError: # git_hash.o file not found
                         model["nodes"][n["nickname"]]["git_hash"] = ''
+                        logger.warning(f"Could not log Git hash for {n['nickname']} nickname, node not found on Supervisor machine")
+
+                logger.info("%s is a valid node" % n["nickname"])
 
             if "derivatives" in graph_dict:
                 model["derivatives"] = {}

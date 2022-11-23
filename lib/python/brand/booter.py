@@ -166,10 +166,10 @@ class Booter():
 
         node_names = list(self.model['nodes'])
         for node, cfg in self.model['nodes'].items():
-            # get paths to node executables
-            filepath = self.get_node_executable(cfg['module'], cfg['name'])
-            self.model['nodes'][node]['binary'] = filepath
             if 'machine' in cfg and cfg['machine'] == self.machine:
+                # get paths to node executables
+                filepath = self.get_node_executable(cfg['module'], cfg['name'])
+                self.model['nodes'][node]['binary'] = filepath
                 self.validate_node_hash(os.path.split(filepath)[0], cfg)
                     
         self.logger.info(f'Loaded graph with nodes: {node_names}')
