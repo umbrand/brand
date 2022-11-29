@@ -300,23 +300,27 @@ class Supervisor:
                             f'{n["name"]} executable was not found at {bin_f}',
                             self.graph_name,
                             n["name"])
-                    try:
-                        # read Git hash for the node
-                        with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
-                            model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
-                        
-                        # read Git hash from the repository
-                        git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
-                        
-                        # check repository hash is same as git_hash
-                        if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
-                            logger.warning(f"Git hash for {n['nickname']} node nickname does not match the repository's Git hash, remake")
+                try:
+                    # read Git hash for the node
+                    with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
+                        model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
+                    
+                    # read Git hash from the repository
+                    git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
+                    
+                    # check repository hash is same as git_hash
+                    if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
+                        logger.warning(f"Git hash for {n['nickname']} node nickname does not match the repository's Git hash, remake")
 
-                    except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
-                        pass
-                    except FileNotFoundError: # git_hash.o file not found
-                        model["nodes"][n["nickname"]]["git_hash"] = ''
-                        logger.warning(f"Could not log Git hash for {n['nickname']} nickname, node not found on Supervisor machine")
+                except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
+                    pass
+                except FileNotFoundError: # git_hash.o file not found
+                    model["nodes"][n["nickname"]]["git_hash"] = ''
+                    logger.warning(f"Could not log Git hash for {n['nickname']} nickname, could not find compiled git_hash.o file")
+                except Exception as e: # unknown reason
+                    model["nodes"][n["nickname"]]["git_hash"] = ''
+                    logger.warning(f"Could not log Git hash for {n['nickname']} nickname for an unknown reason")
+                    logger.warning(repr(e))
 
                 logger.info("%s is a valid node" % n["nickname"])
 
