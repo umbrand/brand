@@ -143,7 +143,7 @@ class Booter():
         except FileNotFoundError: # git hash file not found
             hash = ''
 
-        if cfg['git_hash'] != hash:
+        if cfg['git_hash'] != '' and cfg['git_hash'] != hash:
             raise NodeError(
                 f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
                 self.model['graph_name'],
