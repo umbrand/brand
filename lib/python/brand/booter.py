@@ -6,6 +6,8 @@ import argparse
 import json
 import logging
 import os
+import sh
+from sh import git
 import signal
 import subprocess
 import sys
@@ -14,7 +16,7 @@ import traceback
 import coloredlogs
 import redis
 
-from brand import NodeError
+from .exceptions import (GraphError, NodeError, CommandError)
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -97,6 +99,56 @@ class Booter():
                 name)
         return filepath
 
+    def validate_brand_hash(self):
+        """
+        Validates that the BRAND core
+        hash running this booter
+        matches the supergraph's hash
+        """
+        # check booter version is same as supervisor version
+        hash = str(git('-C', self.brand_base_dir, 'rev-parse', 'HEAD')).splitlines()[0]
+        if self.model['brand_hash'] != hash:
+            raise GraphError(
+                f'Git hash for BRAND repository on {self.machine} machine does not match supergraph',
+                self.model['graph_name'])
+
+    def validate_node_hash(self, nodepath, cfg):
+        """
+        Validates that the local compiled
+        node hash matches the node's hash
+        in the supergraph
+
+        Parameters
+        ----------
+        nodepath : str
+            The path to the node
+        cfg : dict
+            The node's configuration in the 
+            supergraph
+        """
+        try:
+            # read Git hash for the node
+            with open(os.path.join(nodepath, 'git_hash.o'), 'r') as f:
+                hash = f.read().splitlines()[0]
+            
+            # read Git hash from the repository
+            git_hash_from_repo = str(git('-C', nodepath, 'rev-parse', 'HEAD')).splitlines()[0]
+
+            # check repository hash is same as compiled hash
+            if git_hash_from_repo != hash:
+                self.logger.warning(f"Git hash for {cfg['nickname']} node nickname does not match the repository's Git hash, remake")
+
+        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
+            pass
+        except FileNotFoundError: # git hash file not found
+            hash = ''
+
+        if cfg['git_hash'] != '' and cfg['git_hash'] != hash:
+            raise NodeError(
+                f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
+                self.model['graph_name'],
+                cfg['nickname'])
+
     def load_graph(self, graph: dict):
         """
         Load a new supergraph into Booter
@@ -108,11 +160,18 @@ class Booter():
         """
         # load node information
         self.model = graph
+
+        # validate BRAND hash
+        self.validate_brand_hash()
+
         node_names = list(self.model['nodes'])
         for node, cfg in self.model['nodes'].items():
-            # get paths to node executables
-            filepath = self.get_node_executable(cfg['module'], cfg['name'])
-            self.model['nodes'][node]['binary'] = filepath
+            if 'machine' in cfg and cfg['machine'] == self.machine:
+                # get paths to node executables
+                filepath = self.get_node_executable(cfg['module'], cfg['name'])
+                self.model['nodes'][node]['binary'] = filepath
+                self.validate_node_hash(os.path.split(filepath)[0], cfg)
+                    
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
     def start_graph(self):
@@ -167,6 +226,26 @@ class Booter():
                                       f' pid {p.pid}')
         self.children = {}
 
+    def make(self):
+        '''
+        Makes all nodes and derivatives
+        '''
+        # Run make
+        p_make = subprocess.run(['make'],
+                                capture_output=True)
+
+        if p_make.returncode == 0:
+            self.r.xadd("booter_status", {"machine": self.machine, "status": "Make completed successfully"})
+            self.logger.info(f"Make completed successfully")
+        elif p_make.returncode > 0:
+            raise CommandError(
+                f"Make returned exit code {p_make.returncode}.",
+                f'booter {self.machine}',
+                'make',
+                'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
+        elif p_make.returncode < 0:
+            self.logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
+
     def parse_command(self, entry):
         """
         Parse an entry from the 'booter' stream and run the corresponding
@@ -184,6 +263,8 @@ class Booter():
             self.start_graph()
         elif command == 'stopGraph':
             self.stop_graph()
+        elif command == 'make':
+            self.make()
 
     def run(self):
         """
@@ -209,16 +290,21 @@ class Booter():
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
 
-            except NodeError as exc:
+            except (GraphError, NodeError, CommandError) as exc:
                 # if a node has an error, stop the graph and kill all nodes
                 self.r.xadd("booter_status",
                     {'machine': self.machine,
-                    'status': 'graph failed',
+                    'status': exc.__class__.__name__,
                     'message': str(exc),
                     'traceback': 'Booter ' + self.machine + ' ' + traceback.format_exc()})
                 self.r.xadd("booter_status",
                     {'machine': self.machine, 'status': 'Listening for commands'})
-                self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+                if exc is NodeError:
+                    self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+                elif exc is GraphError:
+                    self.logger.error(f"Error with the {exc.graph} graph")
+                elif exc is CommandError:
+                    self.logger.error(f"Error with the {exc.command} command")
                 self.logger.error(str(exc))
 
             except Exception as exc:
@@ -242,48 +328,39 @@ class Booter():
         sys.exit(0)
 
 
-def parse_booter_args():
-    """
-    Parse command-line arguments for Booter
+    def parse_booter_args():
+        """
+        Parse command-line arguments for Booter
 
-    Returns
-    -------
-    args : Namespace
-        Booter arguments
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-m",
-                    "--machine",
-                    required=True,
-                    type=str,
-                    help="machine on which this booter is running")
-    ap.add_argument("-i",
-                    "--host",
-                    required=False,
-                    type=str,
-                    default=DEFAULT_REDIS_IP,
-                    help="ip address of the redis server"
-                    f" (default: {DEFAULT_REDIS_IP})")
-    ap.add_argument("-p",
-                    "--port",
-                    required=False,
-                    type=int,
-                    default=DEFAULT_REDIS_PORT,
-                    help="port of the redis server"
-                    f" (default: {DEFAULT_REDIS_PORT})")
-    ap.add_argument("-l",
-                    "--log-level",
-                    default=logging.INFO,
-                    type=lambda x: getattr(logging, x),
-                    help="Configure the logging level")
-    args = ap.parse_args()
-    return args
-
-
-if __name__ == '__main__':
-    # parse command line arguments
-    args = parse_booter_args()
-    kwargs = vars(args)
-    # Run Booter
-    booter = Booter(**kwargs)
-    booter.run()
+        Returns
+        -------
+        args : Namespace
+            Booter arguments
+        """
+        ap = argparse.ArgumentParser()
+        ap.add_argument("-m",
+                        "--machine",
+                        required=True,
+                        type=str,
+                        help="machine on which this booter is running")
+        ap.add_argument("-i",
+                        "--host",
+                        required=False,
+                        type=str,
+                        default=DEFAULT_REDIS_IP,
+                        help="ip address of the redis server"
+                        f" (default: {DEFAULT_REDIS_IP})")
+        ap.add_argument("-p",
+                        "--port",
+                        required=False,
+                        type=int,
+                        default=DEFAULT_REDIS_PORT,
+                        help="port of the redis server"
+                        f" (default: {DEFAULT_REDIS_PORT})")
+        ap.add_argument("-l",
+                        "--log-level",
+                        default=logging.INFO,
+                        type=lambda x: getattr(logging, x),
+                        help="Configure the logging level")
+        args = ap.parse_args()
+        return args

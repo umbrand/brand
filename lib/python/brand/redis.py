@@ -3,27 +3,26 @@ import numpy as np
 
 def xread_count(r, stream, count, startid=0, block=None) -> list:
     """
-        Block and read multiple entries from a single stream
+    Block and read multiple entries from a single stream
 
-        Parameters
-        ----------
-        r : redis.Redis
-            instance of the redis.Redis interface
-        stream : bytes
-            Name of the stream
-        count : int
-            Number of items to return
-        startid : int
-            The starting ID to be used for XREAD. This ID indicates the last ID
-            already seen.
-        block : int, optional
-            Number of milliseconds to wait in each XREAD call, by default None
-
-        Returns
-        -------
-        out : list
-            List of entries for each stream
-        """
+    Parameters
+    ----------
+    r : redis.Redis
+        instance of the redis.Redis interface
+    stream : bytes
+        Name of the stream
+    count : int
+        Number of items to return
+    startid : int
+        The starting ID to be used for XREAD. This ID indicates the last ID
+        already seen.
+    block : int, optional
+        Number of milliseconds to wait in each XREAD call, by default None
+    Returns
+    -------
+    out : list
+        List of entries for each stream
+    """
     entry_id = startid
     n_samples = count
 
@@ -49,26 +48,25 @@ def xread_sync(self,
                count=1,
                block=None) -> list:
     """
-        Read and sync entries from multiple streams
+    Read and sync entries from multiple streams
 
-        Parameters
-        ----------
-        streams : bytes
-            dict of stream names to stream IDs, where IDs indicate the last ID
-            already seen.
-        sync_field : bytes
-            Field in each stream containing a value that should match in the
-            synchronized data
-        count : int
-            Number of items to return
-        block : int, optional
-            Number of milliseconds to wait in each XREAD call, by default None
-
-        Returns
-        -------
-        out : list
-            List of entries for each stream
-        """
+    Parameters
+    ----------
+    streams : bytes
+        dict of stream names to stream IDs, where IDs indicate the last ID
+        already seen.
+    sync_field : bytes
+        Field in each stream containing a value that should match in the
+        synchronized data
+    count : int
+        Number of items to return
+    block : int, optional
+        Number of milliseconds to wait in each XREAD call, by default None
+    Returns
+    -------
+    out : list
+        List of entries for each stream
+    """
     # Data type of the sync field
     dtype = np.dtype(sync_dtype)
 

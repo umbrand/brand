@@ -36,16 +36,14 @@ redis_port = sys.argv[3]
 save_filename = os.path.splitext(rdb_file)[0]
 save_filepath = sys.argv[4]
 
-devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),
-                            '../Data/devices.yaml')
-
 # set up logging
 loglevel = 'INFO'
 numeric_level = getattr(logging, loglevel.upper(), None)
 if not isinstance(numeric_level, int):
     raise ValueError('Invalid log level: %s' % loglevel)
 logging.basicConfig(format=f'[{NAME}] %(levelname)s: %(message)s',
-                    level=numeric_level)
+                    level=numeric_level,
+                    stream=sys.stdout)
 
 
 #############################################################
@@ -82,15 +80,15 @@ def add_stream_sync_timeseries(nwbfile, stream, time_data):
         k: time_data[k]
         for k in time_data if k != 'sync_timestamps'
     }
-    column_order_string = ', '.join(
+    column_order_string = ','.join(
         [k for k in time_data.keys() if k != 'sync_timestamps'])
 
     sync_timeseries = TimeSeries(
-        name=f'{stream}_sync',
+        name=f'{stream}_ts',
         data=np.stack(list(time_data_stack.values()), axis=1),
         unit='seconds',
         timestamps=time_data['sync_timestamps'],
-        comments=f'Column order: {column_order_string}',
+        comments=f'columns=[{column_order_string}]',
         description=f'Syncing timestamps for the {stream} stream')
 
     nwbfile.add_acquisition(sync_timeseries)
@@ -374,12 +372,23 @@ except IndexError as e:
 entry_id, entry_dict = model_stream_entry
 model_data = json.loads(entry_dict[b'data'].decode())
 
+graph_meta = model_data['derivatives']['exportNWB']['parameters']
+if 'devices_file' in graph_meta:
+    devices_path = graph_meta['devices_file']
+else:
+    devices_path = os.path.join(os.getenv('BRAND_BASE_DIR'),
+                            '../Data/devices.yaml')
+
 # Get graph name
 graph_name = model_data['graph_name']
 
 # Get timing keys
 sync_key = model_data['derivatives']['exportNWB']['parameters']['sync_key'].encode()
 time_key = model_data['derivatives']['exportNWB']['parameters']['time_key'].encode()
+if 'sync_timing_hz' in model_data['derivatives']['exportNWB']['parameters']:
+    sync_timing_hz = model_data['derivatives']['exportNWB']['parameters']['sync_timing_hz']
+else:
+    sync_timing_hz = 1000
 
 ## Get exportnwb_io
 stream_params = model_data['derivatives']['exportNWB']['parameters']['streams']
@@ -628,7 +637,7 @@ for stream in stream_dict:
                 sync_data = json.loads(entry[1][sync_key])
                 time_data['sync_timestamps'][entry_count + ind] = float(
                     sync_data[sync_name]
-                ) / 1000  # get blocked sync timestamp in ms, convert to seconds
+                ) / sync_timing_hz  # get blocked sync timestamp in ms, convert to seconds
                 time_data['monotonic_ts'][entry_count + ind] = np.frombuffer(
                     entry[1][time_key], dtype=np.uint64)
                 time_data['redis_ts'][entry_count + ind] = float(
@@ -639,7 +648,7 @@ for stream in stream_dict:
                     if sync in sync_name:
                         continue
                     time_data[sync][entry_count +
-                                    ind] = float(entry[sync]) / 1000
+                                    ind] = float(sync_data[sync]) / sync_timing_hz
 
                 for var in stream_data:
                     if 'nwb' not in strm['config'][strm['stream_defn'][var]]:

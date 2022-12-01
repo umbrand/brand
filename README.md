@@ -152,11 +152,29 @@ supervisor [args]
 
 Optionally, you can include arguments when running the `supervisor` to override its defaults. Below are the extra arguments that can be used:
 
-- `-i` / `--ip`: IP address to bind the server node to (default: `127.0.0.1`)
-- `-p` / `--port`: Port number to bind the server node to (default: `6379`)
-- `-c`/ `--cfg`: Path to the Redis config file used to start the server (default: `supervisor/redis.supervisor.conf`)
-- `-m` / `--machine`: ID of the machine on which the supervisor is running (default: none)
-- `-g` / `--graph`: Name of the graph YAML file to pre-load (default: none)
+```
+usage: supervisor.py [-h] [-g GRAPH] [-i HOST] [-p PORT] [-s SOCKET] [-c CFG] [-m MACHINE] [-r REDIS_PRIORITY] [-a REDIS_AFFINITY] [-l LOG_LEVEL] [-d DATA_DIR]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -g GRAPH, --graph GRAPH
+                        path to graph file
+  -i HOST, --host HOST  ip address to bind redis server to
+  -p PORT, --port PORT  port to bind redis server to
+  -s SOCKET, --socket SOCKET
+                        unix socket to bind redis server to
+  -c CFG, --cfg CFG     cfg file for redis server
+  -m MACHINE, --machine MACHINE
+                        machine on which this supervisor is running
+  -r REDIS_PRIORITY, --redis-priority REDIS_PRIORITY
+                        priority to use for the redis server
+  -a REDIS_AFFINITY, --redis-affinity REDIS_AFFINITY
+                        cpu affinity to use for the redis server
+  -l LOG_LEVEL, --log-level LOG_LEVEL
+                        supervisor logging level
+  -d DATA_DIR, --data-dir DATA_DIR
+                        root data directory for supervisor's save path
+```
 
 ### Using the `supervisor`
 
@@ -166,7 +184,7 @@ Optionally, you can include arguments when running the `supervisor` to override 
     ```
     Example usage:
     ```bash
-    supervisor -i 192.168.0.101 --port 6379
+    supervisor -i 192.168.30.6 --port 6379
     ```
     Only one `supervisor` instance can run with a given `redis-server` instance. For [multi-machine graphs](#multi-machine-graphs), use `booter` instances to interface with the `supervisor`'s `redis-server` instance.
 
@@ -195,10 +213,16 @@ At this time, `supervisor` can only execute one graph at a time. Check back in a
 
 Commands can be sent to the `supervisor` through Redis using the following syntax: `XADD supervisor_ipstream * commands <command_name> [<arg_key> <arg_value>]`. The following commands are currently implemented:
 
-* `startGraph [file <path_to_file>]`: Start graph from YAML file path.
+* `startGraph [file <path_to_file>] [graph <graph_json>]`: Start graph from YAML file path or from JSON string. If `file` nor `graph` are provided, it runs the previously loaded graph.
+* `loadGraph [file <path_to_file>] [graph <graph_json>]`: Load graph from YAML file path or from JSON string.
 * `updateParameters [<nickname> '{"<parameter_name>":"<parameter_value>", ...}' ...]`: Updates the supergraph with specified parameter values for specified nodes. This can be executed anytime after having loaded a graph.
 * `stopGraph`: Stop graph, by stopping the processes for each running node.
 * `stopGraphAndSaveNWB`: Stop graph, save `.rdb` file, generate NWB file, and flush the Redis database. Requires following the [NWB Export Guidelines](./doc/ExportNwbGuidelines.md). `stopGraphAndSaveNWB` is suggested for running independent session blocks.
+* `saveRdb`: Dumps the database to disk as a `.rdb` file.
+* `saveNwb`: Converts the present database streams to an NWB file, if configured as described in `stopGraphAndSaveNWB`. There must not be a running graph to execute the `saveNwb` command.
+* `flushDb`: **USE WITH CAUTION** Flushes the database.
+* `setDataDir [path <path_to_data_directory>]`: Sets the root directory for storing data (i.e. from `saveRdb` and `saveNwb` commands).
+* `make`: Makes all binaries on the `supervisor` and `booter` machines. There must not be a running graph to execute the `make` command.
 
 ### Redis streams used with the `supervisor`
 
@@ -214,6 +238,64 @@ The above streams can be checked using Redis stream commands (e.g. `XREVRANGE`, 
 ```bash
 XREVRANGE supergraph_stream + - COUNT 1
 ```
+
+### Supergraph Structure
+
+After loading a graph with a `startGraph` command to `supervisor`, `supervisor` publishes a supergraph to the `supergraph_stream` stream. The supergraph contains all node information and the parameters set for each node. Each entry to the `supergraph_stream` contains a supergraph of the following form in a JSON string:
+
+```json
+{
+    "redis_host": <redis host>,
+    "redis_port": <redis port>,
+    "brand_hash": <Git commit hash for the core BRAND repository>,
+    "graph_name": <graph name>,
+    "graph_loaded_ts": <timestamp upon startGraph in nanoseconds>,
+    "nodes": {
+        "<node 1 nickname>": {
+            "name": <node 1 name>,
+            "nickname": <node 1 nickname>,
+            "module": <node 1's source module as a relative path to the BRAND root directory>,
+            "binary": <full path to node 1's binary>,
+            "git_hash": <Git commit hash for node 1>,
+            "run_priority": <optional, node 1's realtime priority>,
+            "cpu_affinity": <optional, node 1's CPU affinity>,
+            "parameters": {
+                "<parameter 1 name>": <parameter 1 value>,
+                "<parameter 2 name>": <parameter 2 value>,
+                ...
+            }
+        },
+        "<node 2 nickname>": {
+            "name": <node 2 name>,
+            "nickname": <node 2 nickname>,
+            "module": <node 2's source module as a relative path to the BRAND root directory>,
+            "binary": <full path to node 2's binary>,
+            "git_hash": <Git commit hash for node 2>,
+            "run_priority": <optional, node 2's realtime priority>,
+            "cpu_affinity": <optional, node 2's CPU affinity>,
+            "parameters": {
+                "<parameter 1 name>": <parameter 1 value>,
+                "<parameter 2 name>": <parameter 2 value>,
+                ...
+            }
+        },
+        ...
+    },
+    "derivatives": {
+        "<derivative 1 name>": {
+            <unstructured derivative information>
+        },
+        "<derivative 2 name>": {
+            <unstructured derivative information>
+        }
+        ...
+    }
+}
+```
+
+`make` will write a `git_hash.o` file to each node and derivative, which `supervisor` will write into the supergraph to easily track the exact code version used. When the `startGraph` command is sent, `booter` machines (see [Multi-machine graphs](#multi-machine-graphs) below) will generate a `GraphError` exception if the BRAND repository hashes do not match. Both `supervisor` and `booter` machines will generate a `NodeError` exception if the value in the local `git_hash.o` does not match the supergraph's Git hash for a node when `startGraph` is called. A warning will be printed in `supervisor` or `booter`'s console if the supergraph's Git hash for a node or derivative does not match the repository's hash. If a node is not located in a Git repository and does not have a `git_hash.o` file, then its Git hash in the supergraph will be an empty string.
+
+Note the presence of derivatives in the graph YAML file and the supergraph is optional. The structure of a derivative's information should be defined in the derivative's documentation. Derivatives are a new feature to BRAND, so check back in the future for more documentation and functionality.
 
 ### Checking a graph's status
 
@@ -320,6 +402,10 @@ If everything is working correctly, you should see that the `func_generator` nod
 
 `BooterError`s are thrown by `supervisor` if a `booter` throws any BRAND exception and are caught the same way as a [`NodeError`](#nodeerror).
 
+### `DerivativeError`
+
+`DerivativeError`s are thrown by `supervisor` if a derivative fails to exit gracefully. The error messages are printed and logged to the `graph_status` stream, but no other action is taken. Currently, this is only implemented for the `exportNWB` derivative, so check back later for more derivative features!
+
 ### `RedisError`
 
 `RedisError`s are thrown if `supervisor` is unable to create a `redis-server` instance. `RedisError` exceptions are caught by:
@@ -374,7 +460,11 @@ At a minimum, a node must:
     * `NODE_INFO`: the node has information to share.
 5. Catch `SIGINT` to publish a `NODE_SHUTDOWN` status to the `<node_nickname>_state` stream, then close gracefully.
 
-If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above. 
+If developing a node in Python, we suggest to implement it as a class that inherits from the `BRANDNode` class within the installed `brand` library, since it already implements the above.
+
+### Updating Node Parameters in Python
+
+The `BRANDNode` Python class within the `brand` library includes a helper function for updating node parameters from a new supergraph (published after calling the `supervisor`'s `updateParameters` command). The `BRANDNode.getParametersFromSupergraph` function returns a list whose length is the number of supergraphs that have been published since the node last checked for new supergraphs. Each element of the list returned by `BRANDNode.getParametersFromSupergraph` is a dictionary whose keys are the node's parameter names to be updated and values are the values for those parameters. The order of the listed supergraphs corresponds to the order of the supergraph's entries into `supergraph_stream` (i.e. the supergraph at index `0` was written before the supergraph at index `1`). The `BRANDNode.getParametersFromSupergraph` function can also return the complete supergraph as a JSON string by passing `True` to the function's optional `complete_supergraph` argument. If there are no new supergraphs, the function returns `None`.
 
 ## Performance Optimization
 
