@@ -16,7 +16,7 @@ import traceback
 import coloredlogs
 import redis
 
-from brand import (GraphError, NodeError, CommandError)
+from .exceptions import (GraphError, NodeError, CommandError)
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -143,7 +143,7 @@ class Booter():
         except FileNotFoundError: # git hash file not found
             hash = ''
 
-        if cfg['git_hash'] != hash:
+        if cfg['git_hash'] != '' and cfg['git_hash'] != hash:
             raise NodeError(
                 f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
                 self.model['graph_name'],
@@ -166,10 +166,10 @@ class Booter():
 
         node_names = list(self.model['nodes'])
         for node, cfg in self.model['nodes'].items():
-            # get paths to node executables
-            filepath = self.get_node_executable(cfg['module'], cfg['name'])
-            self.model['nodes'][node]['binary'] = filepath
             if 'machine' in cfg and cfg['machine'] == self.machine:
+                # get paths to node executables
+                filepath = self.get_node_executable(cfg['module'], cfg['name'])
+                self.model['nodes'][node]['binary'] = filepath
                 self.validate_node_hash(os.path.split(filepath)[0], cfg)
                     
         self.logger.info(f'Loaded graph with nodes: {node_names}')
@@ -328,48 +328,39 @@ class Booter():
         sys.exit(0)
 
 
-def parse_booter_args():
-    """
-    Parse command-line arguments for Booter
+    def parse_booter_args():
+        """
+        Parse command-line arguments for Booter
 
-    Returns
-    -------
-    args : Namespace
-        Booter arguments
-    """
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-m",
-                    "--machine",
-                    required=True,
-                    type=str,
-                    help="machine on which this booter is running")
-    ap.add_argument("-i",
-                    "--host",
-                    required=False,
-                    type=str,
-                    default=DEFAULT_REDIS_IP,
-                    help="ip address of the redis server"
-                    f" (default: {DEFAULT_REDIS_IP})")
-    ap.add_argument("-p",
-                    "--port",
-                    required=False,
-                    type=int,
-                    default=DEFAULT_REDIS_PORT,
-                    help="port of the redis server"
-                    f" (default: {DEFAULT_REDIS_PORT})")
-    ap.add_argument("-l",
-                    "--log-level",
-                    default=logging.INFO,
-                    type=lambda x: getattr(logging, x),
-                    help="Configure the logging level")
-    args = ap.parse_args()
-    return args
-
-
-if __name__ == '__main__':
-    # parse command line arguments
-    args = parse_booter_args()
-    kwargs = vars(args)
-    # Run Booter
-    booter = Booter(**kwargs)
-    booter.run()
+        Returns
+        -------
+        args : Namespace
+            Booter arguments
+        """
+        ap = argparse.ArgumentParser()
+        ap.add_argument("-m",
+                        "--machine",
+                        required=True,
+                        type=str,
+                        help="machine on which this booter is running")
+        ap.add_argument("-i",
+                        "--host",
+                        required=False,
+                        type=str,
+                        default=DEFAULT_REDIS_IP,
+                        help="ip address of the redis server"
+                        f" (default: {DEFAULT_REDIS_IP})")
+        ap.add_argument("-p",
+                        "--port",
+                        required=False,
+                        type=int,
+                        default=DEFAULT_REDIS_PORT,
+                        help="port of the redis server"
+                        f" (default: {DEFAULT_REDIS_PORT})")
+        ap.add_argument("-l",
+                        "--log-level",
+                        default=logging.INFO,
+                        type=lambda x: getattr(logging, x),
+                        help="Configure the logging level")
+        args = ap.parse_args()
+        return args
