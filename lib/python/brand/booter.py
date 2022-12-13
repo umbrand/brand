@@ -108,9 +108,9 @@ class Booter():
         # check booter version is same as supervisor version
         hash = str(git('-C', self.brand_base_dir, 'rev-parse', 'HEAD')).splitlines()[0]
         if self.model['brand_hash'] != hash:
-            raise GraphError(
-                f'Git hash for BRAND repository on {self.machine} machine does not match supergraph',
-                self.model['graph_name'])
+            self.logger.warning('Git hash for BRAND repository on '
+                                f'{self.machine} machine does not match'
+                                ' supergraph')
 
     def validate_node_hash(self, nodepath, cfg):
         """
@@ -144,10 +144,9 @@ class Booter():
             hash = ''
 
         if cfg['git_hash'] != '' and cfg['git_hash'] != hash:
-            raise NodeError(
-                f'Git hash for {cfg["nickname"]} node nickname on {self.machine} machine does not match supergraph',
-                self.model['graph_name'],
-                cfg['nickname'])
+            self.logger.warning(
+                f'Git hash for {cfg["nickname"]} node nickname on '
+                f'{self.machine} machine does not match supergraph')
 
     def load_graph(self, graph: dict):
         """
