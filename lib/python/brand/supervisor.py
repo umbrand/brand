@@ -417,11 +417,9 @@ class Supervisor:
                 except FileNotFoundError: # git hash file not found
                     hash = ''
                 if hash != self.model["nodes"][node_info["nickname"]]["git_hash"]:
-                    raise NodeError(
-                        f'Git hash for {node_info["nickname"]} node nickname does not match supergraph',
-                        self.model['graph_name'],
-                        node_info['nickname'])
-                        
+                    logging.warning(f'Git hash for {node_info["nickname"]} '
+                                    'node nickname does not match supergraph')
+
                 logger.info("Binary for %s is %s" % (node,binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
                 args = [binary, '-n', node_stream_name]
