@@ -834,7 +834,16 @@ class Supervisor:
 
             except DerivativeError as exc:
                 # if a derivative has an error, then note that in the RDB
-                derivative_tb = 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\nSTDERR: ' + exc.process.stderr.decode('utf-8')
+                derivative_tb = ''
+                if exc.process.stdout is None:
+                    derivative_tb += 'STDOUT: None\n'
+                else:
+                    derivative_tb += 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\n'
+                    
+                if exc.process.stderr is None:
+                    derivative_tb += 'STDERR: None\n'
+                else:
+                    derivative_tb += 'STDERR: ' + exc.process.stderr.decode('utf-8') + '\n'
 
                 self.r.xadd("graph_status",
                     {'status': self.state[2],
@@ -850,7 +859,7 @@ class Supervisor:
 
                 logger.error(f"Error with the {exc.derivative} derivative")
                 logger.error(str(exc))
-                if len(exc.process.stderr) > 0:
+                if exc.process.stderr is not None and len(exc.process.stderr) > 0:
                     logger.debug(exc.process.stderr.decode('utf-8'))
                 
             except CommandError as exc:
