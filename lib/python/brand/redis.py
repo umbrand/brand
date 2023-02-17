@@ -111,7 +111,7 @@ def xread_sync(self,
                                      block=block,
                                      count=1)
                 entry_ids[i_min], entry_data[i_min] = replies[0][1][0]
-                sync_val = entry_data[i_s][sync_field][:dtype.itemsize]
+                sync_val = entry_data[i_min][sync_field][:dtype.itemsize]
                 t0[i_min] = np.frombuffer(sync_val, dtype=dtype)[0]
 
         # save the output
