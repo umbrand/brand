@@ -479,8 +479,8 @@ class Supervisor:
                     # check if it terminated
                     proc.communicate(timeout=15)
                 except subprocess.TimeoutExpired:
-                    logging.error(f"Could not stop '{node}' "
-                                  f"(pid: {proc.pid}) using SIGINT")
+                    self.logger.warning(f"Could not stop '{node}' "
+                                        f"(pid: {proc.pid}) using SIGINT")
                     # if not, send SIGKILL
                     proc.kill()
                     try:
