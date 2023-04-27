@@ -31,14 +31,14 @@ class Supervisor:
         self.model = {}
         self.r = None
         self.parent = None
-        self.children = []
+        self.children = {}
 
         self.BRAND_BASE_DIR = os.getcwd()
         self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR,'../brand-modules/')) # path to the brand modules directory
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
-        
+
         self.git_hash = str(git('-C', self.BRAND_BASE_DIR, 'rev-parse', 'HEAD')).splitlines()[0]
 
         self.graph_file = None
@@ -304,10 +304,10 @@ class Supervisor:
                     # read Git hash for the node
                     with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
                         model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
-                    
+
                     # read Git hash from the repository
                     git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
-                    
+
                     # check repository hash is same as git_hash
                     if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
                         logger.warning(f"Git hash for {n['nickname']} node nickname does not match the repository's Git hash, remake")
@@ -344,11 +344,11 @@ class Supervisor:
 
                             # read Git hash from the repository
                             git_hash_from_repo = str(git('-C', os.path.split(script_path)[0], 'rev-parse', 'HEAD')).splitlines()[0]
-                        
+
                             # check repository hash is same as git_hash
                             if git_hash_from_repo != model["derivatives"][a_name]["git_hash"]:
                                 logger.warning(f"Git hash for {a_name} derivative does not match the repository's Git hash, remake")
-                            
+
                         except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
                             pass
                         except FileNotFoundError: # git_hash.o file not found
@@ -437,12 +437,13 @@ class Supervisor:
                         taskset_args = ['taskset', '-c', str(affinity)]
                         args = taskset_args + args
                 proc = subprocess.Popen(args)
+                proc.name = node
                 logger.info("Child process created with pid: %s" % proc.pid)
                 logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
-                self.children.append(proc.pid)
-        
+                self.children[node] = proc
+
         self.checkBooter()
 
         # status 3 means graph is running and publishing data
@@ -458,26 +459,57 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
 
-
     def kill_nodes(self):
         '''
         Kills child processes
         '''
-        logger.debug(self.children)
-        if(self.children):
-            for i in range(len(self.children)):
+        for node, proc in self.children.items():
+            try:
+                # check if process exists
+                os.kill(proc.pid, 0)
+            except OSError:
+                self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                                    " isn't running and may have crashed")
+                self.children[node] = None
+            else:
+                # process is running
+                # send SIGINT
+                proc.send_signal(signal.SIGINT)
                 try:
-                    # check if process exists
-                    os.kill(self.children[i], 0)
-                except OSError:
-                    logger.warning(f"Child process with pid {self.children[i]} isn't running (may have crashed)")
+                    # check if it terminated
+                    proc.communicate(timeout=15)
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Could not stop '{node}' "
+                                        f"(pid: {proc.pid}) using SIGINT")
+                    # if not, send SIGKILL
+                    proc.kill()
+                    try:
+                        # check if it terminated
+                        proc.communicate(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        pass  # delay error message until after the loop
+                    else:
+                        self.logger.info(f"Killed '{node}' "
+                                         f"(pid: {proc.pid}) using SIGKILL")
+                        self.children[node] = None
                 else:
-                    os.kill(self.children[i], signal.SIGINT)
-                    logger.info("Killed the child process with pid %d" % self.children[i])
-            self.children = []
-        else:
-            logger.info("No child processes to kill")
-    
+                    self.logger.info(f"Stopped '{node}' "
+                                     f"(pid: {proc.pid}) using SIGINT")
+                    self.children[node] = None
+        # remove killed processes from self.children
+        self.children = {
+            n: p
+            for n, p in self.children.items() if p is not None
+        }
+        # raise an error if nodes are still running
+        if self.children:
+            running_nodes = [
+                f'{node} ({p.pid})' for node, p in self.children.items()
+            ]
+            message = ', '.join(running_nodes)
+            self.logger.exception('Could not kill these nodes: '
+                                  f'{message}')
+
     def update_params(self, new_params):
         '''
         Updates parameters from an input dictionary
@@ -518,7 +550,7 @@ class Supervisor:
             raise GraphError(
                 "Could not update graph parameters since no graph has been loaded yet",
                 self.graph_file)
-        
+
         # if we make it out of the above loop without error, then the parameter update is valid, so overwrite the existing model
         for nickname in new_params:
             nn_dec = nickname.decode("utf-8")
@@ -561,7 +593,7 @@ class Supervisor:
                             str(self.port),
                             save_path_nwb],
                             capture_output=True)
-        
+
         if len(p_nwb.stdout) > 0:
             logger.debug(p_nwb.stdout.decode())
 
@@ -839,7 +871,7 @@ class Supervisor:
                     derivative_tb += 'STDOUT: None\n'
                 else:
                     derivative_tb += 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\n'
-                    
+
                 if exc.process.stderr is None:
                     derivative_tb += 'STDERR: None\n'
                 else:
@@ -861,18 +893,18 @@ class Supervisor:
                 logger.error(str(exc))
                 if exc.process.stderr is not None and len(exc.process.stderr) > 0:
                     logger.debug(exc.process.stderr.decode('utf-8'))
-                
+
             except CommandError as exc:
                 # if a command has an error, then note that in the RDB
                 self.r.xadd("supervisor_status",
                     {"status": "Command error",
                     "message": str(exc),
                     "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
-                
+
                 logger.error(f"Could not execute {exc.command} command.")
                 logger.error(str(exc))
                 self.r.xadd("supervisor_status", {"status": "Listening for commands"})
-                
+
             except Exception as exc:
                 self.r.xadd("supervisor_status",
                     {"status": "Unhandled exception",

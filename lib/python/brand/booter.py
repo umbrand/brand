@@ -130,7 +130,7 @@ class Booter():
             # read Git hash for the node
             with open(os.path.join(nodepath, 'git_hash.o'), 'r') as f:
                 hash = f.read().splitlines()[0]
-            
+
             # read Git hash from the repository
             git_hash_from_repo = str(git('-C', nodepath, 'rev-parse', 'HEAD')).splitlines()[0]
 
@@ -170,7 +170,7 @@ class Booter():
                 filepath = self.get_node_executable(cfg['module'], cfg['name'])
                 self.model['nodes'][node]['binary'] = filepath
                 self.validate_node_hash(os.path.split(filepath)[0], cfg)
-                    
+
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
     def start_graph(self):
@@ -197,7 +197,7 @@ class Booter():
                         args = taskset_args + args
                 p = subprocess.Popen(args)
                 self.children[node] = p
-        
+
         self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
 
     def stop_graph(self):
@@ -210,20 +210,57 @@ class Booter():
         else:
             graph = 'None'
         self.r.xadd("booter_status", {"machine": self.machine, "status": f"{graph} graph stopped successfully"})
-    
+
     def kill_nodes(self):
-        """
-        Kills the nodes running on this machine
-        """
-        for node, p in self.children.items():
-            p.send_signal(signal.SIGINT)
+        '''
+        Kills child processes
+        '''
+        for node, proc in self.children.items():
             try:
-                p.wait(timeout=15)
-                self.logger.info(f'Killed the {node} process with pid {p.pid}')
-            except Exception:
-                self.logger.exception(f'Could not kill the {node} node with'
-                                      f' pid {p.pid}')
-        self.children = {}
+                # check if process exists
+                os.kill(proc.pid, 0)
+            except OSError:
+                self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                                    " isn't running and may have crashed")
+                self.children[node] = None
+            else:
+                # process is running
+                # send SIGINT
+                proc.send_signal(signal.SIGINT)
+                try:
+                    # check if it terminated
+                    proc.communicate(timeout=15)
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Could not stop '{node}' "
+                                        f"(pid: {proc.pid}) using SIGINT")
+                    # if not, send SIGKILL
+                    proc.kill()
+                    try:
+                        # check if it terminated
+                        proc.communicate(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        pass  # delay error message until after the loop
+                    else:
+                        self.logger.info(f"Killed '{node}' "
+                                         f"(pid: {proc.pid}) using SIGKILL")
+                        self.children[node] = None
+                else:
+                    self.logger.info(f"Stopped '{node}' "
+                                     f"(pid: {proc.pid}) using SIGINT")
+                    self.children[node] = None
+        # remove killed processes from self.children
+        self.children = {
+            n: p
+            for n, p in self.children.items() if p is not None
+        }
+        # raise an error if nodes are still running
+        if self.children:
+            running_nodes = [
+                f'{node} ({p.pid})' for node, p in self.children.items()
+            ]
+            message = ', '.join(running_nodes)
+            self.logger.exception('Could not kill these nodes: '
+                                  f'{message}')
 
     def make(self):
         '''
