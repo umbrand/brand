@@ -6,17 +6,18 @@ import argparse
 import json
 import logging
 import os
-import sh
-from sh import git
 import signal
 import subprocess
 import sys
 import traceback
 
 import coloredlogs
+import psutil
 import redis
+import sh
+from sh import git
 
-from .exceptions import (GraphError, NodeError, CommandError)
+from .exceptions import CommandError, GraphError, NodeError
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -181,10 +182,16 @@ class Booter():
         for node, cfg in self.model['nodes'].items():
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 node_stream_name = cfg["nickname"]
-                args = [
+                # run nodes as the current user, not root
+                sudo_args = [
+                    'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                    f"PATH={os.environ['PATH']}"
+                ] if 'SUDO_USER' in os.environ else []
+                args = sudo_args + [
                     cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
                     str(port)
                 ]
+                # root permissions are needed to set real-time priority
                 if 'run_priority' in cfg:  # if priority is specified
                     priority = cfg['run_priority']
                     if priority:  # if priority is not None or empty
@@ -196,6 +203,7 @@ class Booter():
                         taskset_args = ['taskset', '-c', str(affinity)]
                         args = taskset_args + args
                 p = subprocess.Popen(args)
+                self.logger.debug(' '.join(args))
                 self.children[node] = p
 
         self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
@@ -215,6 +223,21 @@ class Booter():
         '''
         Kills child processes
         '''
+
+        def kill_proc_tree(pid, sig=signal.SIGTERM, include_parent=True):
+            """
+            Kill a process tree (including grandchildren) with signal "sig"
+            """
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            if include_parent:
+                children.append(parent)
+            for p in children:
+                try:
+                    p.send_signal(sig)
+                except psutil.NoSuchProcess:
+                    pass
+
         for node, proc in self.children.items():
             try:
                 # check if process exists
@@ -226,7 +249,7 @@ class Booter():
             else:
                 # process is running
                 # send SIGINT
-                proc.send_signal(signal.SIGINT)
+                kill_proc_tree(proc.pid, signal.SIGINT)
                 try:
                     # check if it terminated
                     proc.communicate(timeout=15)
@@ -234,7 +257,7 @@ class Booter():
                     self.logger.warning(f"Could not stop '{node}' "
                                         f"(pid: {proc.pid}) using SIGINT")
                     # if not, send SIGKILL
-                    proc.kill()
+                    kill_proc_tree(proc.pid, signal.SIGKILL)
                     try:
                         # check if it terminated
                         proc.communicate(timeout=15)

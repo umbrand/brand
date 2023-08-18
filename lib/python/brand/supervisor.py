@@ -2,9 +2,6 @@ import argparse
 import json
 import logging
 import os
-import re
-import sh
-from sh import git
 import signal
 import subprocess
 import sys
@@ -13,11 +10,15 @@ import traceback
 from datetime import datetime
 
 import coloredlogs
+import psutil
 import redis
+import sh
 import yaml
 from redis import Redis
+from sh import git
 
-from .exceptions import (GraphError, NodeError, BooterError, DerivativeError, CommandError, RedisError)
+from .exceptions import (BooterError, CommandError, DerivativeError,
+                         GraphError, NodeError, RedisError)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -422,10 +423,16 @@ class Supervisor:
 
                 logger.info("Binary for %s is %s" % (node,binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
-                args = [binary, '-n', node_stream_name]
+                # run nodes as the current user, not root
+                sudo_args = [
+                    'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                    f"PATH={os.environ['PATH']}"
+                ] if 'SUDO_USER' in os.environ else []
+                args = sudo_args + [binary, '-n', node_stream_name]
                 args += ['-i', host, '-p', str(port)]
                 if self.unixsocket:
                     args += ['-s', self.unixsocket]
+                # root permissions are needed to set real-time priority
                 if 'run_priority' in node_info:  # if priority is specified
                     priority = node_info['run_priority']
                     if priority:  # if priority is not None or empty
@@ -463,6 +470,21 @@ class Supervisor:
         '''
         Kills child processes
         '''
+
+        def kill_proc_tree(pid, sig=signal.SIGTERM, include_parent=True):
+            """
+            Kill a process tree (including grandchildren) with signal "sig"
+            """
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            if include_parent:
+                children.append(parent)
+            for p in children:
+                try:
+                    p.send_signal(sig)
+                except psutil.NoSuchProcess:
+                    pass
+
         for node, proc in self.children.items():
             try:
                 # check if process exists
@@ -474,7 +496,7 @@ class Supervisor:
             else:
                 # process is running
                 # send SIGINT
-                proc.send_signal(signal.SIGINT)
+                kill_proc_tree(proc.pid, signal.SIGINT)
                 try:
                     # check if it terminated
                     proc.communicate(timeout=15)
@@ -482,7 +504,7 @@ class Supervisor:
                     self.logger.warning(f"Could not stop '{node}' "
                                         f"(pid: {proc.pid}) using SIGINT")
                     # if not, send SIGKILL
-                    proc.kill()
+                    kill_proc_tree(proc.pid, signal.SIGKILL)
                     try:
                         # check if it terminated
                         proc.communicate(timeout=15)
