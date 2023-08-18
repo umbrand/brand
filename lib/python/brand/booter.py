@@ -229,7 +229,7 @@ class Booter():
             Kill a process tree (including grandchildren) with signal "sig"
             """
             parent = psutil.Process(pid)
-            children = parent.children(recursive=True)
+            children = parent.children(recursive=False)
             if include_parent:
                 children.append(parent)
             for p in children:
