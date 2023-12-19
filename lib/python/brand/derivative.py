@@ -102,9 +102,9 @@ class RunDerivatives(Thread):
         if (self.steps is not None):
             steps = []
             for deriv in model['derivatives']:
-                if ('step' in deriv) and (deriv['step'] not in steps):
-                    steps.append(deriv['step'])
-                elif ('step' not in deriv) and (-1 not in steps):
+                if ('autorun_step' in deriv) and (deriv['autorun_step'] not in steps):
+                    steps.append(deriv['autorun_step'])
+                elif ('autorun_step' not in deriv) and (-1 not in steps):
                     steps.append(-1)
 
             steps.sort()
@@ -158,7 +158,7 @@ class RunDerivatives(Thread):
             # Only report the error for the autorun set to True derivatives 
             # on this machine. 
             if deriv['autorun'] and (deriv['machine'] == self.machine):
-                if (deriv['step'] > step):
+                if (deriv['autorun_step'] > step):
                     nickname = deriv['nickname']
                     logging.warning(f"Previous step failed, derivative {nickname} never started.")
                     self.failure_state = True
@@ -258,6 +258,13 @@ class RunDerivativeStep(Thread):
         self.redis_port = port 
         # Connect to redis.
         self.redis_conn = self.connect_to_redis()
+
+        # get latest Redis ID in DERIVATIVES_STATUS_STREAM
+        latest_entry = self.redis_conn.xrevrange(DERIVATIVES_STATUS_STREAM, '+', '-', count=1)
+        if len(latest_entry) > 0:
+            self.latest_id = latest_entry[0][0]
+        else:
+            self.latest_id = 0
 
         self.step = step
 
@@ -462,11 +469,37 @@ class RunDerivativeStep(Thread):
                 if proc is not None:
                     self.running_children[deriv['nickname']] = proc
 
+    def check_all_derivatives(self):
+        """Check that all derivatives in this step have finished,
+        including those on other booters."""
+
+        step_derivatives = [deriv
+                            for deriv in self.model['derivatives']
+                                if 'autorun_step' in deriv
+                                    and deriv['autorun_step'] == self.step]
+
+        while step_derivatives:
+            derivative_status = self.redis_conn.xread(
+                {DERIVATIVES_STATUS_STREAM: self.latest_id},
+                block=0
+            )
+            for entry in derivative_status[0][1]:
+                nickname = entry[1][b'nickname'].decode('utf-8')
+                if nickname in step_derivatives:
+                    # if the derivative is completed, remove it from the list
+                    if entry[1][b'status'] == b'completed':
+                        step_derivatives.remove(nickname)
+
+
     def run(self):
         # start all the derivatives
         self.start_current_step()
 
         self.wait_for_children()
+
+        # check that all derivatives on all booters
+        # are finished before exiting the step
+        self.check_all_derivatives()
 
         # Close up process.
         logging.info(f"Step {self.step} {'Failed' if self.failure_state else 'Completed'}.")

@@ -1,25 +1,29 @@
 import argparse
+import coloredlogs
 import json
 import logging
 import os
+import psutil
+import redis
+import sh
 import signal
 import subprocess
 import sys
 import time
 import traceback
+import yaml
+
 from datetime import datetime
 
-import coloredlogs
-import psutil
-import redis
-import sh
-import yaml
 from redis import Redis
+
 from sh import git
 
+from threading import Event
+
+from .derivative import RunDerivatives
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
-
 from .redis import RedisLoggingHandler
 
 logger = logging.getLogger(__name__)
@@ -33,7 +37,7 @@ class Supervisor:
         self.model = {}
         self.r = None
         self.parent = None
-        self.children = {}
+        self.child_nodes = {}
 
         self.BRAND_BASE_DIR = os.getcwd()
         self.BRAND_ROOT_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR, '..')) # path to the brand root directory
@@ -418,15 +422,39 @@ class Supervisor:
                 logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
                 logger.info("Parent Running on: %d" % os.getppid())
-                self.children[node] = proc
+                self.child_nodes[node] = proc
 
         self.checkBooter()
 
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
 
+    def start_autorun_derivatives(self):
+        """Autorun derivatives come in two categories. First, there are 
+        parellel derivatives that can be started immediately. Second, there are 
+        serial derivatives (default) which will be run in a blocking fashion. """
+    
+        ## Tell booter to also run derivatives for its machine.
+        self.r.xadd("booter", {"command": "runParallelDerivatives"})
+        self.derivative_stop_event = Event()
+        self.derivative_thread = RunDerivatives(machine=self.machine, 
+                                                model=self.model,
+                                                host=self.host,
+                                                port=self.port,
+                                                brand_base_dir=self.BRAND_BASE_DIR,
+                                                stop_event=self.derivative_stop_event)
+        self.derivative_thread.start()
+        
+    def kill_autorun_derivatives(self):
+        if self.derivative_thread is not None:
+            self.derivative_stop_event.set()
+            self.derivative_stop_event = None
+            self.derivative_thread = None
+            logging.info(f"Derivative Steps killed.")
+        else:
+            raise CommandError("Derivative Steps not running.", 'supervisor', 'killAutorunDerivatives')
 
-    def stop_graph(self):
+    def stop_graph(self, do_save=False, do_derivatives=False):
         '''
         Stops the graph
         '''
@@ -434,6 +462,29 @@ class Supervisor:
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
+
+        if do_save:
+            # Save the .rdb file.
+            self.r.xadd("supervisor_status", {"status": "Saving rdb"})
+            logger.info("Saving RDB file...")
+            self.r.save()
+            save_filepath = os.path.join(self.save_path_rdb, self.rdb_filename)
+            logger.info(f"RDB file saved as {save_filepath}")
+
+            # Store info about the save.
+            last_save_info = {
+                "filepath": save_filepath,
+                "timestamp": self.r.lastsave().timestamp(),
+            }
+            self.r.xadd("last_saved_rdb", last_save_info)
+
+            # Set new rdb filename (to avoid overwriting what we just saved)
+            self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+            self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
+
+        if do_derivatives:
+            # Run derivatives.
+            self.start_autorun_derivatives()
 
     def kill_nodes(self):
         '''
@@ -454,14 +505,14 @@ class Supervisor:
                 except psutil.NoSuchProcess:
                     pass
 
-        for node, proc in self.children.items():
+        for node, proc in self.child_nodes.items():
             try:
                 # check if process exists
                 os.kill(proc.pid, 0)
             except OSError:
                 self.logger.warning(f"'{node}' (pid: {proc.pid})"
                                     " isn't running and may have crashed")
-                self.children[node] = None
+                self.child_nodes[node] = None
             else:
                 # process is running
                 # send SIGINT
@@ -482,20 +533,20 @@ class Supervisor:
                     else:
                         self.logger.info(f"Killed '{node}' "
                                          f"(pid: {proc.pid}) using SIGKILL")
-                        self.children[node] = None
+                        self.child_nodes[node] = None
                 else:
                     self.logger.info(f"Stopped '{node}' "
                                      f"(pid: {proc.pid}) using SIGINT")
-                    self.children[node] = None
+                    self.child_nodes[node] = None
         # remove killed processes from self.children
-        self.children = {
+        self.child_nodes = {
             n: p
-            for n, p in self.children.items() if p is not None
+            for n, p in self.child_nodes.items() if p is not None
         }
         # raise an error if nodes are still running
-        if self.children:
+        if self.child_nodes:
             running_nodes = [
-                f'{node} ({p.pid})' for node, p in self.children.items()
+                f'{node} ({p.pid})' for node, p in self.child_nodes.items()
             ]
             message = ', '.join(running_nodes)
             self.logger.exception('Could not kill these nodes: '
@@ -689,7 +740,7 @@ class Supervisor:
         cmd = (data[b'commands']).decode("utf-8").lower()
 
         if cmd in ["loadgraph", "startgraph"]:
-            if self.children:
+            if self.child_nodes:
                 raise GraphError("Graph already running, run stopGraph before initiating another graph", self.graph_file)
 
             if b'rdb_filename' in data:
@@ -816,7 +867,7 @@ class Supervisor:
                     {'status': self.state[2],
                     'message': str(exc),
                     'traceback': 'Supervisor ' + traceback.format_exc()})
-                if self.children:
+                if self.child_nodes:
                     status = self.r.xrevrange("graph_status", '+', '-', count=2)
                     self.r.xadd("graph_status",
                         {'status': status[-1][1][b'status']})
@@ -873,7 +924,7 @@ class Supervisor:
                     'message': str(exc),
                     'traceback': 'Supervisor ' + traceback.format_exc() + '\n' + derivative_tb})
                 # rewrite previous graph_status
-                if self.children:
+                if self.child_nodes:
                     status = self.r.xrevrange("graph_status", '+', '-', count=2)
                     self.r.xadd("graph_status",
                         {'status': status[-1][1][b'status']})
