@@ -20,9 +20,10 @@ from sh import git
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
 
+from .redis import RedisLoggingHandler
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
-DEFAULT_DATA_DIR = os.path.abspath(os.path.join(os.getcwd(), '..', 'Data'))
 
 class Supervisor:
     def __init__(self):
@@ -35,7 +36,9 @@ class Supervisor:
         self.children = {}
 
         self.BRAND_BASE_DIR = os.getcwd()
-        self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR,'../brand-modules/')) # path to the brand modules directory
+        self.BRAND_ROOT_DIR = os.path.abspath(os.path.join(self.BRAND_BASE_DIR, '..')) # path to the brand root directory
+        self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'brand-modules')) # path to the brand modules directory
+        self.DEFAULT_DATA_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'Data')) # path to the default brand data directory
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
@@ -52,9 +55,14 @@ class Supervisor:
         graph_dict = self.parse_args()
 
         self.start_redis_server()
+
+        self.redis_log_handler = RedisLoggingHandler(self.r, 'supervisor')
+        self.logger.addHandler(self.redis_log_handler)
+
         self.r.xadd("graph_status", {'status': self.state[5]})
 
-        if self.graph_file is not None: self.load_graph(graph_dict)
+        if self.graph_file is not None:
+            self.load_graph(graph_dict)
 
 
     def handler(signal_received,self):
@@ -76,7 +84,7 @@ class Supervisor:
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
-        ap.add_argument("-d", "--data-dir", type=str, default=DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
+        ap.add_argument("-d", "--data-dir", type=str, default=self.DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -163,7 +171,21 @@ class Supervisor:
         graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
         if self.get_graph_status(graph_status) == self.state[3]:
             raise CommandError(f'Cannot run {cmd} command while a graph is running', 'supervisor', cmd)
+        
+    def update_rdb_save_configs(self, rdb_save_path=None, rdb_filename=None):
+        if rdb_save_path:
+            # Set rdb save directory
+            if not os.path.exists(rdb_save_path):
+                os.makedirs(rdb_save_path)
+            self.r.config_set('dir', rdb_save_path)
+            self.model["rdb_dirpath"] = rdb_save_path
+            logger.info(f"RDB save directory set to: {rdb_save_path}")
 
+        if rdb_filename:
+            # Set rdb filename
+            self.r.config_set('dbfilename', rdb_filename)
+            self.model["rdb_filename"] = rdb_filename
+            logger.info(f'New RDB filename set to: {rdb_filename}')
 
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
@@ -189,20 +211,14 @@ class Supervisor:
             logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
-        # Set rdb save directory
-        if not os.path.exists(self.save_path_rdb):
-            os.makedirs(self.save_path_rdb)
-        self.r.config_set('dir', self.save_path_rdb)
-        logger.info(f"RDB save directory set to {self.save_path_rdb}")
         # Set new rdb filename
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f"RDB file name set to {self.rdb_filename}")
+        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
 
 
     def get_save_path(self, graph_dict:dict={}):
         """
-        Get the path where the RDB and NWB files should be saved
+        Get the path where the RDB files should be saved
         Parameters
         ----------
         graph_dict : (optional) dict
@@ -233,13 +249,14 @@ class Supervisor:
         session_id = f'{session_str}'
         save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
-        return save_path
+        return save_path, str(participant_id)
 
 
     def load_graph(self,graph_dict,rdb_filename=None,publish_graph=True):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
         Args:
             graph_dict: graph dictionary
+            rdb_filename: Str filename to eventually save the .rdb to
         '''
 
         if set(["graph_name", "nodes"]).issubset(graph_dict):
@@ -262,20 +279,16 @@ class Supervisor:
         model["graph_loaded_ts"] = time.monotonic_ns()
 
         # Set rdb save directory
-        self.save_path = self.get_save_path(graph_dict)
+        self.save_path, self.participant_id = self.get_save_path(graph_dict)
         self.save_path_rdb = os.path.join(self.save_path, 'RDB')
-        if not os.path.exists(self.save_path_rdb):
-            os.makedirs(self.save_path_rdb)
-        self.r.config_set('dir', self.save_path_rdb)
-        logger.info(f"RDB save directory set to {self.save_path_rdb}")
 
         # Set rdb filename
         if rdb_filename is None:
-            self.rdb_filename =  self.save_path.split(os.path.sep)[-3] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
+            self.rdb_filename =  self.participant_id + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
         else:
             self.rdb_filename = rdb_filename
-        self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f'rdb filename: {self.rdb_filename}')
+
+        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
 
         # Load node information
         model["nodes"] = {}
@@ -286,77 +299,35 @@ class Supervisor:
             for n in nodes:
                 # Check for duplicate nicknames
                 if n["nickname"] in model["nodes"]:
-                    raise NodeError(
+                    raise GraphError(
                         f"Duplicate node nicknames found: {n['nickname']}",
-                        self.graph_name,
-                        n["nickname"])
+                        self.graph_name)
+                if ('machine' not in n or n["machine"] == self.machine):
+                    bin_f = self.search_node_bin_file(n["module"],n["name"])
+                    if not os.path.exists(bin_f):
+                        raise GraphError(
+                            f'{n["name"]} executable was not found at {bin_f}',
+                            self.graph_name)
+                else:
+                    bin_f = None
+
                 # Loading the nodes and graph into self.model dict
                 model["nodes"][n["nickname"]] = {}
                 model["nodes"][n["nickname"]].update(n)
-                bin_f = self.search_node_bin_file(n["module"],n["name"])
                 model["nodes"][n["nickname"]]["binary"] = bin_f
-                if ('machine' not in n or n["machine"] == self.machine):
-                    if not os.path.exists(bin_f):
-                        raise NodeError(
-                            f'{n["name"]} executable was not found at {bin_f}',
-                            self.graph_name,
-                            n["name"])
-                try:
-                    # read Git hash for the node
-                    with open(os.path.join(os.path.split(bin_f)[0], 'git_hash.o'), 'r') as f:
-                        model["nodes"][n["nickname"]]["git_hash"] = f.read().splitlines()[0]
-
-                    # read Git hash from the repository
-                    git_hash_from_repo = str(git('-C', os.path.split(bin_f)[0], 'rev-parse', 'HEAD')).splitlines()[0]
-
-                    # check repository hash is same as git_hash
-                    if git_hash_from_repo != model["nodes"][n["nickname"]]["git_hash"]:
-                        logger.warning(f"Git hash for {n['nickname']} node nickname does not match the repository's Git hash, remake")
-
-                except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
-                    pass
-                except FileNotFoundError: # git_hash.o file not found
-                    model["nodes"][n["nickname"]]["git_hash"] = ''
-                    logger.warning(f"Could not log Git hash for {n['nickname']} nickname, could not find compiled git_hash.o file")
-                except Exception as e: # unknown reason
-                    model["nodes"][n["nickname"]]["git_hash"] = ''
-                    logger.warning(f"Could not log Git hash for {n['nickname']} nickname for an unknown reason")
-                    logger.warning(repr(e))
 
                 logger.info("%s is a valid node" % n["nickname"])
 
-            if "derivatives" in graph_dict:
-                model["derivatives"] = {}
-                derivatives = graph_dict['derivatives']
-                for a in derivatives:
-                    a_name = list(a.keys())[0]
-                    a_values = a[a_name]
-                    model["derivatives"][a_name] = a_values
-                    if 'script_path' in model["derivatives"][a_name]:
-                        script_path = os.path.join(self.BRAND_BASE_DIR, model["derivatives"][a_name]['script_path'])
-
-                        if not os.path.exists(script_path):
-                            raise GraphError(f'Could not find derivative at {script_path}', self.graph_file)
-
-                        try:
-                            # read Git hash for the derivative
-                            with open(os.path.join(os.path.split(script_path)[0], 'git_hash.o'), 'r') as f:
-                                model["derivatives"][a_name]["git_hash"] = f.read().splitlines()[0]
-
-                            # read Git hash from the repository
-                            git_hash_from_repo = str(git('-C', os.path.split(script_path)[0], 'rev-parse', 'HEAD')).splitlines()[0]
-
-                            # check repository hash is same as git_hash
-                            if git_hash_from_repo != model["derivatives"][a_name]["git_hash"]:
-                                logger.warning(f"Git hash for {a_name} derivative does not match the repository's Git hash, remake")
-
-                        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
-                            pass
-                        except FileNotFoundError: # git_hash.o file not found
-                            model["derivatives"][a_name]["git_hash"] = ''
-
-                    else:
-                        model["derivatives"][a_name]["git_hash"] = ''
+            derivatives = graph_dict.get("derivatives", [])
+            model['derivatives'] = {}
+            for d in derivatives:
+                # Check for duplicate nicknames
+                if d['nickname'] in model['derivatives']:
+                    raise GraphError(
+                        f"Duplicate derivative nicknames found: {d['nickname']}",
+                        self.graph_name)
+                model['derivatives'][d['nickname']] = {}
+                model['derivatives'][d['nickname']].update(d)
 
         except KeyError as exc:
             if "nickname" in n:
@@ -364,17 +335,15 @@ class Supervisor:
             elif "name" in n:
                 name = n["name"]
             else:
-                raise NodeError(
+                raise GraphError(
                     "KeyError: "
                     "'name' and 'nickname' fields missing in graph YAML",
-                    self.graph_name,
-                    "NodeNameAndNicknameNotFound") from exc
-            raise NodeError(
+                    self.graph_name) from exc
+            raise GraphError(
                 "KeyError: "
                 f"{exc} field missing in graph YAML "
                 f"for node {name}",
-                self.graph_name,
-                name) from exc
+                self.graph_name) from exc
 
         # model is valid if we make it here
         self.model = model
@@ -782,8 +751,8 @@ class Supervisor:
                 logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
                 self.data_dir = data[b'path'].decode('utf-8')
             else:
-                logger.info(f"Set data directory command received, setting to the default {DEFAULT_DATA_DIR}")
-                self.data_dir = DEFAULT_DATA_DIR
+                logger.info(f"Set data directory command received, setting to the default {self.DEFAULT_DATA_DIR}")
+                self.data_dir = self.DEFAULT_DATA_DIR
             self.save_path = os.path.join(self.data_dir, rel_path)
             self.save_path_rdb = os.path.join(self.save_path, 'RDB')
             if not os.path.exists(self.save_path_rdb):
