@@ -404,6 +404,9 @@ class Supervisor:
         host = self.model["redis_host"]
         port = self.model["redis_port"]
         for node, node_info in self.model["nodes"].items():
+            # specify defaults
+            node_info.setdefault('root', True)
+            # run the node if it is assigned to this machine
             node_stream_name = node_info["nickname"]
             if ('machine' not in node_info
                     or node_info["machine"] == self.machine):
@@ -423,12 +426,15 @@ class Supervisor:
 
                 logger.info("Binary for %s is %s" % (node,binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
-                # run nodes as the current user, not root
-                sudo_args = [
-                    'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
-                    f"PATH={os.environ['PATH']}"
-                ] if 'SUDO_USER' in os.environ else []
-                args = sudo_args + [binary, '-n', node_stream_name]
+                # build CLI command
+                args = []
+                if not node_info['root'] and 'SUDO_USER' in os.environ:
+                    # run nodes as the current user, not root
+                    args += [
+                        'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                        f"PATH={os.environ['PATH']}"
+                    ]
+                args += [binary, '-n', node_stream_name]
                 args += ['-i', host, '-p', str(port)]
                 if self.unixsocket:
                     args += ['-s', self.unixsocket]
