@@ -47,12 +47,12 @@ class Supervisor:
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
 
-        self.git_hash = str(git('-C', self.BRAND_BASE_DIR, 'rev-parse', 'HEAD')).splitlines()[0]
-
         self.graph_file = None
         self.redis_pid = None
 
         self.booter_status_id = '0-0'
+
+        self.derivative_thread = None
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -84,7 +84,7 @@ class Supervisor:
         ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
         ap.add_argument("-s", "--socket", required=False, help="unix socket to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
-        ap.add_argument("-m", "--machine", type=str, required=False, help="machine on which this supervisor is running")
+        ap.add_argument("-m", "--machine", type=str, default='supervisor', required=False, help="machine on which this supervisor is running")
         ap.add_argument("-r", "--redis-priority", type=int, required=False, help="priority to use for the redis server")
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
@@ -278,7 +278,6 @@ class Supervisor:
         model = {}
         model["redis_host"] = self.host
         model["redis_port"] = self.port
-        model["brand_hash"] = self.git_hash
         model["graph_name"] = self.graph_name
         model["graph_loaded_ts"] = time.monotonic_ns()
 
@@ -303,15 +302,22 @@ class Supervisor:
             for n in nodes:
                 # Check for duplicate nicknames
                 if n["nickname"] in model["nodes"]:
-                    raise GraphError(
+                    raise NodeError(
                         f"Duplicate node nicknames found: {n['nickname']}",
-                        self.graph_name)
-                if ('machine' not in n or n["machine"] == self.machine):
+                        self.graph_name,
+                        n["nickname"])
+                
+                # supervisor defaults to running all nodes without a machine specified
+                if 'machine' not in n:
+                    n.setdefault('machine', self.machine)
+
+                if n["machine"] == self.machine:
                     bin_f = self.search_node_bin_file(n["module"],n["name"])
                     if not os.path.exists(bin_f):
-                        raise GraphError(
+                        raise NodeError(
                             f'{n["name"]} executable was not found at {bin_f}',
-                            self.graph_name)
+                            self.graph_name,
+                            n["name"])
                 else:
                     bin_f = None
 
@@ -327,11 +333,43 @@ class Supervisor:
             for d in derivatives:
                 # Check for duplicate nicknames
                 if d['nickname'] in model['derivatives']:
-                    raise GraphError(
+                    raise DerivativeError(
                         f"Duplicate derivative nicknames found: {d['nickname']}",
+                        d['nickname'],
                         self.graph_name)
+
+                # supervisor defaults to running all derivatives without a machine specified
+                if 'machine' not in d:
+                    d['machine'] = self.machine
+                
+                # ensure sufficient file paths are provided
+                if 'name' in d and 'module' in d:
+                    filepath = os.path.join(
+                        self.BRAND_BASE_DIR,
+                        d['module'],
+                        "derivatives",
+                        d['name'].split('.')[0],
+                        d['name'])
+                    filepath = os.path.relpath(filepath, self.BRAND_BASE_DIR)
+                elif 'full_path' in d:
+                    filepath = d['full_path']
+                else:
+                    raise DerivativeError(
+                        f"Derivative {d['nickname']} does not have complete path information",
+                        d['nickname'],
+                        self.graph_name)
+                
+                # ensure the file exists
+                if (d['machine'] == self.machine and not os.path.exists(filepath)):
+                    raise DerivativeError(
+                        f"Derivative {d['nickname']} executable was not found at {filepath}",
+                        d['nickname'],
+                        self.graph_name)
+                d['filepath'] = filepath
+                
                 model['derivatives'][d['nickname']] = {}
                 model['derivatives'][d['nickname']].update(d)
+                
 
         except KeyError as exc:
             if "nickname" in n:
@@ -383,24 +421,13 @@ class Supervisor:
 
                 binary = node_info["binary"]
 
-                # validate binary version
-                try:
-                    # read Git hash for the node
-                    with open(os.path.join(os.path.split(binary)[0], 'git_hash.o'), 'r') as f:
-                        hash = f.read().splitlines()[0]
-                except FileNotFoundError: # git hash file not found
-                    hash = ''
-                if hash != self.model["nodes"][node_info["nickname"]]["git_hash"]:
-                    logging.warning(f'Git hash for {node_info["nickname"]} '
-                                    'node nickname does not match supergraph')
-
                 logger.info("Binary for %s is %s" % (node,binary))
                 logger.info("Node Stream Name: %s" % node_stream_name)
                 # run nodes as the current user, not root
-                sudo_args = [
-                    'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
-                    f"PATH={os.environ['PATH']}"
-                ] if 'SUDO_USER' in os.environ else []
+                sudo_args = []
+                #     'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                #     f"PATH={os.environ['PATH']}"
+                # ] if 'SUDO_USER' in os.environ else []
                 args = sudo_args + [binary, '-n', node_stream_name]
                 args += ['-i', host, '-p', str(port)]
                 if self.unixsocket:
@@ -435,7 +462,7 @@ class Supervisor:
         serial derivatives (default) which will be run in a blocking fashion. """
     
         ## Tell booter to also run derivatives for its machine.
-        self.r.xadd("booter", {"command": "runParallelDerivatives"})
+        self.r.xadd("booter", {"command": "startAutorunDerivatives"})
         self.derivative_stop_event = Event()
         self.derivative_thread = RunDerivatives(machine=self.machine, 
                                                 model=self.model,
@@ -618,38 +645,6 @@ class Supervisor:
         self.r.save()
         logger.info(f"RDB data saved to file: {self.rdb_filename}")
 
-    def save_nwb(self):
-        '''
-        Saves an NWB file from the most recent supergraph
-        '''
-        self.check_graph_not_running(cmd='saveNwb')
-
-        # Make path for saving NWB file
-        save_path_nwb = os.path.join(self.save_path, 'NWB')
-
-        # Generate NWB dataset
-        p_nwb = subprocess.run(['python',
-                            'derivatives/exportNWB/exportNWB.py',
-                            self.rdb_filename,
-                            self.host,
-                            str(self.port),
-                            save_path_nwb],
-                            capture_output=True)
-
-        if len(p_nwb.stdout) > 0:
-            logger.debug(p_nwb.stdout.decode())
-
-        if p_nwb.returncode == 0:
-            logger.info(f"NWB data saved to file: {os.path.join(self.save_path, 'NWB', os.path.splitext(self.rdb_filename)[0]+'.nwb')}")
-        elif p_nwb.returncode > 0:
-            raise DerivativeError(
-                f"exportNWB returned exit code {p_nwb.returncode}.",
-                'exportNWB',
-                self.graph_file,
-                p_nwb)
-        elif p_nwb.returncode < 0:
-            logger.info(f"exportNWB was halted during execution with return code {p_nwb.returncode}, {signal.Signals(-p_nwb.returncode).name}")
-
     def flush_db(self):
         '''
         Flushes the RDB
@@ -659,41 +654,7 @@ class Supervisor:
 
         # Set new rdb filename (to avoid overwriting what we just saved)
         self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f"New RDB file name set to {self.rdb_filename}")
-
-        # New RDB, so need to reset graph status
-        self.r.xadd("graph_status", {'status': self.state[5]})
-
-    def stop_graph_and_save_nwb(self):
-        '''
-        Stops the graph
-        '''
-        # Kill child processes (nodes)
-        self.stop_graph()
-
-        # Make path for saving NWB file
-        save_path_nwb = os.path.join(self.save_path, 'NWB')
-        # Save rdb file
-        self.r.save()
-        logger.info(f"RDB data saved to file: {self.rdb_filename}")
-
-        # Generate NWB dataset
-        p_nwb = subprocess.Popen(['python',
-                            'derivatives/exportNWB/exportNWB.py',
-                            self.rdb_filename,
-                            self.host,
-                            str(self.port),
-                            save_path_nwb])
-        p_nwb.wait()
-
-        # Flush database
-        self.r.flushdb()
-
-        # Set new rdb filename (to avoid overwriting what we just saved)
-        self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        self.r.config_set('dbfilename', self.rdb_filename)
-        logger.info(f"New RDB file name set to {self.rdb_filename}")
+        self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
@@ -723,6 +684,8 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
+        self.kill_nodes()
+        self.kill_autorun_derivatives()
         try:
             self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
         except Exception as exc:
@@ -750,7 +713,11 @@ class Supervisor:
 
             if b'file' in data:
                 logger.info(f"{cmd} command received with file")
+
                 file = data[b'file'].decode("utf-8")
+                if data.get(b'relative'):
+                    file = os.path.join(self.BRAND_ROOT_DIR, file)
+                    
                 graph_dict = {}
                 try:
                     with open(file, 'r') as stream:
@@ -783,18 +750,14 @@ class Supervisor:
             self.update_params(new_params)
         elif cmd == "stopgraph":
             logger.info("Stop graph command received")
-            self.stop_graph()
-        elif cmd == "stopgraphandsavenwb":
-            logger.info("Stop graph and save NWB command received")
-            self.stop_graph_and_save_nwb()
+            do_save = bool(int(data.get(b"do_save", False)))
+            do_derivatives = bool(int(data.get(b"do_derivatives", False)))
+            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives)
         elif cmd == "saverdb":
             logger.info("Save RDB command received")
             self.save_rdb()
-        elif cmd == "savenwb":
-            logger.info("Save NWB command received")
-            self.save_nwb()
-        elif cmd == "flushdb":
-            logger.info("Flush DB command received")
+        elif cmd == "flushredis":
+            logger.info("Flush Redis command received")
             self.flush_db()
         elif cmd == "setdatadir":
             rel_path = os.path.relpath(self.save_path, self.data_dir)
@@ -806,9 +769,18 @@ class Supervisor:
                 self.data_dir = self.DEFAULT_DATA_DIR
             self.save_path = os.path.join(self.data_dir, rel_path)
             self.save_path_rdb = os.path.join(self.save_path, 'RDB')
-            if not os.path.exists(self.save_path_rdb):
-                os.makedirs(self.save_path_rdb)
-            self.r.config_set('dir', self.save_path_rdb)
+            self.update_rdb_save_configs(rdb_save_path=self.save_path_rdb)
+        elif cmd == "setrdbfilename":
+            if b'filename' in data:
+                self.rdb_filename = data[b'filename'].decode('utf-8')
+                logger.info(f"Set data filename command received, setting to {self.rdb_filename}")
+
+                self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
+            else:
+                logger.info(f"Set data filename command received, no new filename specified, keeping the default filename: {self.rdb_filename}")
+        elif cmd == "killautorunderivatives":
+            logger.info("Kill autorun derivatives command received")
+            self.kill_autorun_derivatives()
         elif cmd == "make":
             logger.info("Make command received")
             self.make()
@@ -883,8 +855,6 @@ class Supervisor:
                     {'status': self.state[2],
                     'message': str(exc),
                     'traceback': 'Supervisor ' + traceback.format_exc()})
-                self.r.xadd("supervisor_ipstream",
-                    {'commands': 'stopGraph'})
                 logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
                 logger.error(str(exc))
 
