@@ -100,55 +100,6 @@ class Booter():
                 name)
         return filepath
 
-    def validate_brand_hash(self):
-        """
-        Validates that the BRAND core
-        hash running this booter
-        matches the supergraph's hash
-        """
-        # check booter version is same as supervisor version
-        hash = str(git('-C', self.brand_base_dir, 'rev-parse', 'HEAD')).splitlines()[0]
-        if self.model['brand_hash'] != hash:
-            self.logger.warning('Git hash for BRAND repository on '
-                                f'{self.machine} machine does not match'
-                                ' supergraph')
-
-    def validate_node_hash(self, nodepath, cfg):
-        """
-        Validates that the local compiled
-        node hash matches the node's hash
-        in the supergraph
-
-        Parameters
-        ----------
-        nodepath : str
-            The path to the node
-        cfg : dict
-            The node's configuration in the 
-            supergraph
-        """
-        try:
-            # read Git hash for the node
-            with open(os.path.join(nodepath, 'git_hash.o'), 'r') as f:
-                hash = f.read().splitlines()[0]
-
-            # read Git hash from the repository
-            git_hash_from_repo = str(git('-C', nodepath, 'rev-parse', 'HEAD')).splitlines()[0]
-
-            # check repository hash is same as compiled hash
-            if git_hash_from_repo != hash:
-                self.logger.warning(f"Git hash for {cfg['nickname']} node nickname does not match the repository's Git hash, remake")
-
-        except sh.ErrorReturnCode: # not in a git repository, manual git_hash.o file written, so use that hash
-            pass
-        except FileNotFoundError: # git hash file not found
-            hash = ''
-
-        if cfg['git_hash'] != '' and cfg['git_hash'] != hash:
-            self.logger.warning(
-                f'Git hash for {cfg["nickname"]} node nickname on '
-                f'{self.machine} machine does not match supergraph')
-
     def load_graph(self, graph: dict):
         """
         Load a new supergraph into Booter
@@ -161,16 +112,12 @@ class Booter():
         # load node information
         self.model = graph
 
-        # validate BRAND hash
-        self.validate_brand_hash()
-
         node_names = list(self.model['nodes'])
         for node, cfg in self.model['nodes'].items():
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 # get paths to node executables
                 filepath = self.get_node_executable(cfg['module'], cfg['name'])
                 self.model['nodes'][node]['binary'] = filepath
-                self.validate_node_hash(os.path.split(filepath)[0], cfg)
 
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
