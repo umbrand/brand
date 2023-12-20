@@ -18,9 +18,8 @@ from .redis import RedisLoggingHandler
 
 # EXAMPLE DERIVATIVE YAML CONFIGS, BOTH WORK. 
 
-#   - filename:     deriv.py
-#     nickname:     this_derivative
-#     name:         derivative_one
+#   - nickname:     this_derivative
+#     name:         derivative_one.py
 #     module:       ../brand-modules/npl-davis
 #     machine:      *BRAND_MACHINE_NAME
 #     run_priority:               99
@@ -49,8 +48,7 @@ class RunDerivatives(Thread):
                  host,
                  port,
                  brand_base_dir,
-                 stop_event
-                 ):
+                 stop_event):
         
         super().__init__()
 
@@ -83,11 +81,6 @@ class RunDerivatives(Thread):
         )
         logging.getLogger().addHandler(self.redis_log_handler)
 
-    def set_model(self, model):
-        """Setter for model"""
-        self.model = model
-        self.get_steps()
-
     def get_steps(self, model=None):
         """Sets the total number of steps. 
         Paramters
@@ -103,18 +96,16 @@ class RunDerivatives(Thread):
         if model is None:
             model = self.model
 
-        steps = []
+        steps = {}
         for deriv, d in model['derivatives'].items():
-            if ('autorun_step' in d) and (d['autorun_step'] not in steps):
-                steps.append(d['autorun_step'])
-            elif ('autorun_step' not in d) and (-1 not in steps):
-                steps.append(-1)
+            if 'autorun_step' in d:
+                if d['autorun_step'] in steps:
+                    steps[d['autorun_step']].append(d)
+                else:
+                    steps[d['autorun_step']] = [d]
 
-        steps.sort()
+        steps = {k: steps[k] for k in sorted(steps)}
         self.steps = steps
-        
-        logging.info(f'Steps for Derivatives on {self.machine} are [{self.steps}]')
-        return self.steps
 
     def run(self):
         """Runs the thread. Gets steps, creates a new thread for each step."""
@@ -127,7 +118,7 @@ class RunDerivatives(Thread):
             self.thread_m1_stop_event = Event()
             self.thread_m1 = RunDerivativeStep(
                 machine=self.machine, 
-                model=self.model,
+                derivatives=self.steps[self.step],
                 host=self.redis_host,
                 port=self.redis_port,
                 brand_base_dir=self.brand_base_dir,
@@ -142,7 +133,7 @@ class RunDerivatives(Thread):
                 self.child_stop_event = Event()
                 self.current_thread = RunDerivativeStep(
                     machine=self.machine, 
-                    model=self.model,
+                    derivatives=self.steps[self.step],
                     host=self.redis_host,
                     port=self.redis_port,
                     brand_base_dir=self.brand_base_dir,
@@ -180,25 +171,28 @@ class RunDerivatives(Thread):
     def report_future_failure(self, step=-1):
         """Report the failure to start for all derivatives in future steps."""
         end_timestamp = time.monotonic()
+
+        failure_steps = [s for s in self.steps if s > step]
         
-        for deriv, d in self.model['derivatives'].items():
+        for s in failure_steps:
             # Only report the error for the autorun set to True derivatives 
-            # on this machine. 
-            if 'autorun_step' in d and d['autorun_step'] > step and (d['machine'] == self.machine):
-                nickname = d['nickname']
-                logging.warning(f"Previous step failed, derivative {nickname} never started.")
-                self.failure_state = True
-                self.redis_conn.xadd(
-                    DERIVATIVES_STATUS_STREAM,
-                    {
-                        "nickname": nickname,
-                        "status": "completed",
-                        "success": 0,
-                        "returncode": -1,
-                        "stderr": "Never Started, Previous step errored.",
-                        "timestamp": end_timestamp,
-                    },
-                )
+            # on this machine.
+            for d in self.steps[s]:
+                if d['machine'] == self.machine:
+                    nickname = d['nickname']
+                    logging.warning(f"Previous step failed, derivative {nickname} never started.")
+                    self.failure_state = True
+                    self.redis_conn.xadd(
+                        DERIVATIVES_STATUS_STREAM,
+                        {
+                            "nickname": nickname,
+                            "status": "completed",
+                            "success": 0,
+                            "returncode": -1,
+                            "stderr": "Never Started, Previous step errored.",
+                            "timestamp": end_timestamp,
+                        },
+                    )
 
     def kill_child_processes(self, kill_m1=False):
         """Kills all child processes."""
@@ -221,10 +215,6 @@ class RunDerivatives(Thread):
         # Attempt to connect to redis.
         try:
             redis_conn = Redis(self.redis_host, self.redis_port, retry_on_timeout=True)
-            print(
-                f"[{self.nickname}] connected to redis with host: {self.redis_host}, "
-                f"port: {self.redis_port}"
-            )
         except ConnectionError as e:
             print(f"[{self.nickname}] unable to connect to redis. Error: {e}")
             self.failure_state = True
@@ -249,7 +239,7 @@ class RunDerivativeStep(Thread):
 
     def __init__(self, 
                  machine,
-                 model,
+                 derivatives,
                  host,
                  port,
                  brand_base_dir,
@@ -283,7 +273,7 @@ class RunDerivativeStep(Thread):
         self.nickname = 'derivative_step_runner'
 
         self.machine = machine
-        self.model = model
+        self.derivatives = derivatives
         self.brand_base_dir = brand_base_dir
 
         self.redis_host = host
@@ -318,10 +308,6 @@ class RunDerivativeStep(Thread):
         # Attempt to connect to redis.
         try:
             redis_conn = Redis(self.redis_host, self.redis_port, retry_on_timeout=True)
-            print(
-                f"[{self.nickname}] connected to redis with host: {self.redis_host}, "
-                f"port: {self.redis_port}"
-            )
         except ConnectionError as e:
             print(f"[{self.nickname}] unable to connect to redis. Error: {e}")
             sys.exit(1)
@@ -480,23 +466,20 @@ class RunDerivativeStep(Thread):
             self.finished_children[nickname] = proc
 
     def start_current_step(self):
-        for deriv, d in self.model['derivatives'].items():
+        for d in self.derivatives:
 
             # Only try to run the derivatives in the assigned step
-            if 'autorun_step' in d and d['autorun_step'] == self.step and d['machine'] == self.machine:
+            if d['machine'] == self.machine:
                     
                 proc = self.start_derivative(d)
                 if proc is not None:
-                    self.running_children[deriv] = proc
+                    self.running_children[d['nickname']] = proc
 
     def check_all_derivatives(self):
         """Check that all derivatives in this step have finished,
         including those on other booters."""
 
-        step_derivatives = [deriv
-                            for deriv, d in self.model['derivatives'].items()
-                                if 'autorun_step' in d
-                                    and d['autorun_step'] == self.step]
+        step_derivatives = [d['nickname'] for d in self.derivatives]
 
         while step_derivatives:
             derivative_status = self.redis_conn.xread(
