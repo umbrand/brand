@@ -473,6 +473,7 @@ class Supervisor:
         self.derivative_thread.start()
         
     def kill_autorun_derivatives(self):
+        self.r.xadd("booter", {"command": "killAutorunDerivatives"})
         if self.derivative_thread is not None:
             self.derivative_stop_event.set()
             self.derivative_stop_event = None
@@ -510,8 +511,9 @@ class Supervisor:
             self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
         if do_derivatives:
-            # Run derivatives.
-            self.start_autorun_derivatives()
+            if self.model:
+                # Run derivatives.
+                self.start_autorun_derivatives()
 
     def kill_nodes(self):
         '''
@@ -928,6 +930,12 @@ class Supervisor:
         logger.info('Listening for commands')
         self.r.xadd("supervisor_status", {"status": "Listening for commands"})
         while(True):
+
+            if self.derivative_thread is not None:
+                if not self.derivative_thread.is_alive():
+                    self.derivative_thread = None
+                    self.derivative_stop_event = None
+
             try:
                 self.checkBooter()
                 cmd = self.r.xread({"supervisor_ipstream": last_id},

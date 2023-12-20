@@ -3,21 +3,21 @@ Booter is a daemon that starts and stops nodes according to commands
 sent by Supervisor
 """
 import argparse
+import coloredlogs
 import json
 import logging
 import os
+import psutil
+import redis
 import signal
 import subprocess
 import sys
 import traceback
 
-import coloredlogs
-import psutil
-import redis
-import sh
-from sh import git
+from threading import Event
 
-from .exceptions import CommandError, GraphError, NodeError
+from .derivative import RunDerivatives
+from .exceptions import CommandError, DerivativeError, GraphError, NodeError
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -67,6 +67,7 @@ class Booter():
         # instatiate run variables
         self.model = {}
         self.children = {}
+        self.derivative_thread = None
         # set the base directory as the current working directory
         self.brand_base_dir = os.getcwd()
         # connect to Redis
@@ -118,6 +119,14 @@ class Booter():
                 # get paths to node executables
                 filepath = self.get_node_executable(cfg['module'], cfg['name'])
                 self.model['nodes'][node]['binary'] = filepath
+
+        for deriv, cfg in self.model['derivatives'].items():
+            if 'machine' in cfg and cfg['machine'] == self.machine:
+                # verify the given filepath exists
+                if not os.path.exists(cfg['filepath']):
+                    raise DerivativeError('Derivative filepath does not exist',
+                                          deriv,
+                                          self.model['graph_name'])
 
         self.logger.info(f'Loaded graph with nodes: {node_names}')
 
@@ -231,6 +240,28 @@ class Booter():
             message = ', '.join(running_nodes)
             self.logger.exception('Could not kill these nodes: '
                                   f'{message}')
+            
+    def start_autorun_derivatives(self):
+        '''
+        Runs the autorun derivatives
+        '''
+        self.derivative_stop_event = Event()
+        self.derivative_thread = RunDerivatives(machine=self.machine, 
+                                                model=self.model,
+                                                host=self.host,
+                                                port=self.port,
+                                                brand_base_dir=self.brand_base_dir,
+                                                stop_event=self.derivative_stop_event)
+        self.derivative_thread.start()
+
+    def kill_autorun_derivatives(self):
+        if self.derivative_thread is not None:
+            self.derivative_stop_event.set()
+            self.derivative_stop_event = None
+            self.derivative_thread = None
+            self.logger.info(f"Derivative Steps killed.")
+        else:
+            raise CommandError("Derivative Steps not running.", f'booter {self.machine}', 'killAutorunDerivatives')
 
     def make(self):
         '''
@@ -271,6 +302,10 @@ class Booter():
             self.stop_graph()
         elif command == 'make':
             self.make()
+        elif command == 'startAutorunDerivatives':
+            self.start_autorun_derivatives()
+        elif command == 'killAutorunDerivatives':
+            self.kill_autorun_derivatives()
 
     def run(self):
         """
@@ -281,6 +316,12 @@ class Booter():
         self.logger.info('Listening for commands')
         self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
         while True:
+
+            if self.derivative_thread is not None:
+                if not self.derivative_thread.is_alive():
+                    self.derivative_thread = None
+                    self.derivative_stop_event = None
+                    
             try:
                 streams = self.r.xread({'booter': entry_id},
                                        block=5000,
@@ -296,7 +337,7 @@ class Booter():
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
                 sys.exit(0)
 
-            except (GraphError, NodeError, CommandError) as exc:
+            except (CommandError, DerivativeError, GraphError, NodeError) as exc:
                 # if a node has an error, stop the graph and kill all nodes
                 self.r.xadd("booter_status",
                     {'machine': self.machine,
@@ -309,6 +350,8 @@ class Booter():
                     self.logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
                 elif exc is GraphError:
                     self.logger.error(f"Error with the {exc.graph} graph")
+                elif exc is DerivativeError:
+                    self.logger.error(f"Error with the {exc.derivative} derivative in the {exc.graph} graph")
                 elif exc is CommandError:
                     self.logger.error(f"Error with the {exc.command} command")
                 self.logger.error(str(exc))

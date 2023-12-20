@@ -210,18 +210,6 @@ class RunDerivatives(Thread):
 
         return redis_conn
 
-    def terminate(self, sig, frame):
-        """
-        Allow this node to clean up before it is killed.
-
-        :param sig: Unused. Only there to satisfy built-in func signature.
-        :param frame: Unused. Only there to satisfy built-in func signature.
-        """
-        logger.info("SIGINT received, Exiting")
-        
-        self.kill_child_processes(kill_m1=True)
-        sys.exit(0)
-
 
 class RunDerivativeStep(Thread):
 
@@ -429,9 +417,6 @@ class RunDerivativeStep(Thread):
                             self.failure_state = True
 
                         self.send_derivative_exit_status(nickname, proc)
-                        
-                        # Grab output of the process.
-                        stdout, stderr = proc.communicate()
                         
             # Let some time pass as the derivatives run.
             time.sleep(CHECK_WAIT_TIME)
