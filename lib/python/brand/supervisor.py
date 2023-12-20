@@ -684,10 +684,26 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
-        self.kill_nodes()
-        self.kill_autorun_derivatives()
+        
+        # attempt to kill nodes
+        try:
+            self.kill_nodes()
+        except Exception as exc:
+            logger.warning(f"Could not kill nodes before exiting. Exiting anyway. {repr(exc)}")
+
+        # attempt to kill derivatives
+        try:
+            self.kill_autorun_derivatives()
+        except CommandError as exc:
+            self.handle_command_error(exc, redis_available=False)
+        except Exception as exc:
+            logger.warning(f"Could not kill autorun derivatives before exiting. Exiting anyway. {repr(exc)}")
+
+        # attempt to post an exit message to Redis
         try:
             self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
+        except redis.exceptions.ConnectionError as exc:
+            self.handle_redis_connection_error(exc)
         except Exception as exc:
             logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
@@ -808,6 +824,104 @@ class Supervisor:
 
             self.booter_status_id = statuses[-1][0].decode('utf-8')
 
+    def handle_redis_connection_error(self, exc):
+        logger.error('Could not connect to Redis: ' + repr(exc))
+        sys.exit(0)
+
+    def handle_graph_error(self, exc):
+        # if the graph has an error, it was never executed, so log it
+        self.r.xadd("graph_status",
+            {'status': self.state[2],
+            'message': str(exc),
+            'traceback': 'Supervisor ' + traceback.format_exc()})
+        if self.child_nodes:
+            status = self.r.xrevrange("graph_status", '+', '-', count=2)
+            self.r.xadd("graph_status",
+                {'status': status[-1][1][b'status']})
+        else:
+            self.r.xadd("graph_status", {'status': self.state[5]})
+        graph = 'None' if exc.graph is None else exc.graph
+        logger.error(f"Graph operation failed for {graph} graph")
+        logger.error(str(exc))
+
+    def handle_node_error(self, exc):
+        # if a node has an error, stop the graph
+        self.r.xadd("graph_status",
+            {'status': self.state[2],
+            'message': str(exc),
+            'traceback': 'Supervisor ' + traceback.format_exc()})
+        logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
+        logger.error(str(exc))
+    
+    def handle_booter_error(self, exc):
+        # if a booter has a CommandError, report it
+        if exc.source_exc == 'CommandError':
+            self.r.xadd("supervisor_status",
+                {'status': exc.source_exc,
+                'message': str(exc),
+                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+        # if a booter has a different error, stop the graph and kill all nodes
+        else:
+            self.r.xadd("graph_status",
+                {'status': self.state[2],
+                'message': str(exc),
+                'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
+            self.r.xadd("supervisor_ipstream",
+                {'commands': 'stopGraph'})
+        logger.error(f"Error with the {exc.machine} machine")
+        logger.error(str(exc))
+
+    def handle_derivative_error(self, exc):
+        # if a derivative has an error, then note that in the RDB
+        derivative_tb = ''
+        if exc.process.stdout is None:
+            derivative_tb += 'STDOUT: None\n'
+        else:
+            derivative_tb += 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\n'
+
+        if exc.process.stderr is None:
+            derivative_tb += 'STDERR: None\n'
+        else:
+            derivative_tb += 'STDERR: ' + exc.process.stderr.decode('utf-8') + '\n'
+
+        self.r.xadd("graph_status",
+            {'status': self.state[2],
+            'message': str(exc),
+            'traceback': 'Supervisor ' + traceback.format_exc() + '\n' + derivative_tb})
+        # rewrite previous graph_status
+        if self.child_nodes:
+            status = self.r.xrevrange("graph_status", '+', '-', count=2)
+            self.r.xadd("graph_status",
+                {'status': status[-1][1][b'status']})
+        else:
+            self.r.xadd("graph_status", {'status': self.state[5]})
+
+        logger.error(f"Error with the {exc.derivative} derivative")
+        logger.error(str(exc))
+        if exc.process.stderr is not None and len(exc.process.stderr) > 0:
+            logger.debug(exc.process.stderr.decode('utf-8'))
+
+    def handle_command_error(self, exc, redis_available=True):
+        # if a command has an error, then note that in the RDB
+        if redis_available:
+            self.r.xadd("supervisor_status",
+                {"status": "Command error",
+                "message": str(exc),
+                "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
+
+        logger.error(f"Could not execute {exc.command} command.")
+        logger.error(str(exc))
+
+        if redis_available:
+            self.r.xadd("supervisor_status", {"status": "Listening for commands"})
+
+    def handle_exception(self, exc):
+        self.r.xadd("supervisor_status",
+                    {"status": "Unhandled exception",
+                    "message": str(exc),
+                    "traceback": "Supervisor " + traceback.format_exc()})
+        logger.exception(f'Could not execute command. {repr(exc)}')
+        self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
     def main(self):
         last_id = '$'
@@ -830,97 +944,22 @@ class Supervisor:
                         self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
             except redis.exceptions.ConnectionError as exc:
-                logger.error('Could not connect to Redis: ' + repr(exc))
-                sys.exit(0)
+                self.handle_redis_connection_error(exc)
 
             except GraphError as exc:
-                # if the graph has an error, it was never executed, so log it
-                self.r.xadd("graph_status",
-                    {'status': self.state[2],
-                    'message': str(exc),
-                    'traceback': 'Supervisor ' + traceback.format_exc()})
-                if self.child_nodes:
-                    status = self.r.xrevrange("graph_status", '+', '-', count=2)
-                    self.r.xadd("graph_status",
-                        {'status': status[-1][1][b'status']})
-                else:
-                    self.r.xadd("graph_status", {'status': self.state[5]})
-                graph = 'None' if exc.graph is None else exc.graph
-                logger.error(f"Graph operation failed for {graph} graph")
-                logger.error(str(exc))
+                self.handle_graph_error(exc)
 
             except NodeError as exc:
-                # if a node has an error, stop the graph
-                self.r.xadd("graph_status",
-                    {'status': self.state[2],
-                    'message': str(exc),
-                    'traceback': 'Supervisor ' + traceback.format_exc()})
-                logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
-                logger.error(str(exc))
+                self.handle_node_error(exc)
 
             except BooterError as exc:
-                # if a booter has a CommandError, report it
-                if exc.source_exc == 'CommandError':
-                    self.r.xadd("supervisor_status",
-                        {'status': exc.source_exc,
-                        'message': str(exc),
-                        'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
-                # if a booter has a different error, stop the graph and kill all nodes
-                else:
-                    self.r.xadd("graph_status",
-                        {'status': self.state[2],
-                        'message': str(exc),
-                        'traceback': exc.booter_tb + '\nSupervisor ' + traceback.format_exc()})
-                    self.r.xadd("supervisor_ipstream",
-                        {'commands': 'stopGraph'})
-                logger.error(f"Error with the {exc.machine} machine")
-                logger.error(str(exc))
+                self.handle_booter_error(exc)
 
             except DerivativeError as exc:
-                # if a derivative has an error, then note that in the RDB
-                derivative_tb = ''
-                if exc.process.stdout is None:
-                    derivative_tb += 'STDOUT: None\n'
-                else:
-                    derivative_tb += 'STDOUT: ' + exc.process.stdout.decode('utf-8') + '\n'
-
-                if exc.process.stderr is None:
-                    derivative_tb += 'STDERR: None\n'
-                else:
-                    derivative_tb += 'STDERR: ' + exc.process.stderr.decode('utf-8') + '\n'
-
-                self.r.xadd("graph_status",
-                    {'status': self.state[2],
-                    'message': str(exc),
-                    'traceback': 'Supervisor ' + traceback.format_exc() + '\n' + derivative_tb})
-                # rewrite previous graph_status
-                if self.child_nodes:
-                    status = self.r.xrevrange("graph_status", '+', '-', count=2)
-                    self.r.xadd("graph_status",
-                        {'status': status[-1][1][b'status']})
-                else:
-                    self.r.xadd("graph_status", {'status': self.state[5]})
-
-                logger.error(f"Error with the {exc.derivative} derivative")
-                logger.error(str(exc))
-                if exc.process.stderr is not None and len(exc.process.stderr) > 0:
-                    logger.debug(exc.process.stderr.decode('utf-8'))
+                self.handle_derivative_error(exc)
 
             except CommandError as exc:
-                # if a command has an error, then note that in the RDB
-                self.r.xadd("supervisor_status",
-                    {"status": "Command error",
-                    "message": str(exc),
-                    "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
-
-                logger.error(f"Could not execute {exc.command} command.")
-                logger.error(str(exc))
-                self.r.xadd("supervisor_status", {"status": "Listening for commands"})
+                self.handle_command_error(exc)
 
             except Exception as exc:
-                self.r.xadd("supervisor_status",
-                    {"status": "Unhandled exception",
-                    "message": str(exc),
-                    "traceback": "Supervisor " + traceback.format_exc()})
-                logger.exception(f'Could not execute command. {repr(exc)}')
-                self.r.xadd("supervisor_status", {"status": "Listening for commands"})
+                self.handle_exception(exc)
