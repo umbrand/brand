@@ -477,7 +477,7 @@ class Supervisor:
             self.derivative_stop_event.set()
             self.derivative_stop_event = None
             self.derivative_thread = None
-            logging.info(f"Derivative Steps killed.")
+            logger.info(f"Derivative Steps killed.")
         else:
             raise CommandError("Derivative Steps not running.", 'supervisor', 'killAutorunDerivatives')
 

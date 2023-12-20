@@ -2,6 +2,7 @@
 # Author: Brandon Jacques, Sam Nason-Tomaszewski
 # Adapted from code by: David Brandman and Kushant Patel
 
+import coloredlogs
 import logging
 import os
 import psutil
@@ -41,6 +42,9 @@ from .redis import RedisLoggingHandler
 DERIVATIVES_STATUS_STREAM = "derivatives_status"
 CHECK_WAIT_TIME = .02
 
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+
 class RunDerivatives(Thread):
 
     def __init__(self, 
@@ -72,15 +76,11 @@ class RunDerivatives(Thread):
         self.current_thread = None
         self.thread_m1 = None
 
-        # Configure logging.
-        logging.basicConfig(format=f'[{self.nickname}] %(levelname)s: %(message)s',
-                            level=logging.INFO)
-
         # Also send logs to Redis.
         self.redis_log_handler = RedisLoggingHandler(
             self.redis_conn, self.nickname
         )
-        logging.getLogger().addHandler(self.redis_log_handler)
+        logger.addHandler(self.redis_log_handler)
 
     def get_steps(self, model=None):
         """Sets the total number of steps. 
@@ -115,7 +115,7 @@ class RunDerivatives(Thread):
 
         if -1 in self.steps:
             self.step = -1
-            logging.info(f"Starting RunDerivativeStep {self.step}.")
+            logger.info(f"Starting RunDerivativeStep {self.step}.")
             self.thread_m1 = RunDerivativeStep(
                 machine=self.machine, 
                 derivatives=self.steps[self.step],
@@ -129,7 +129,7 @@ class RunDerivatives(Thread):
         for step in self.steps:
             if step > -1:
                 self.step = step
-                logging.info(f"Starting RunDerivativeStep {self.step}.")
+                logger.info(f"Starting RunDerivativeStep {self.step}.")
                 self.current_thread = RunDerivativeStep(
                     machine=self.machine, 
                     derivatives=self.steps[self.step],
@@ -154,7 +154,7 @@ class RunDerivatives(Thread):
             if self.thread_m1.failure_state:
                 self.failure_state = True
 
-        logging.info(f"Derivative steps finished {'successfully' if not self.failure_state else 'in an error.'}")
+        logger.info(f"Derivative steps finished {'successfully' if not self.failure_state else 'in an error.'}")
 
     def report_future_failure(self, step=-1):
         """Report the failure to start for all derivatives in future steps."""
@@ -168,7 +168,7 @@ class RunDerivatives(Thread):
             for d in self.steps[s]:
                 if d['machine'] == self.machine:
                     nickname = d['nickname']
-                    logging.warning(f"Previous step failed, derivative {nickname} never started.")
+                    logger.warning(f"Previous step failed, derivative {nickname} never started.")
                     self.failure_state = True
                     self.redis_conn.xadd(
                         DERIVATIVES_STATUS_STREAM,
@@ -217,7 +217,7 @@ class RunDerivatives(Thread):
         :param sig: Unused. Only there to satisfy built-in func signature.
         :param frame: Unused. Only there to satisfy built-in func signature.
         """
-        logging.info("SIGINT received, Exiting")
+        logger.info("SIGINT received, Exiting")
         
         self.kill_child_processes(kill_m1=True)
         sys.exit(0)
@@ -314,7 +314,7 @@ class RunDerivativeStep(Thread):
         elif open(filepath,'r').readline()[:2] == "#!":
             args = ["./" + filepath]
         elif open(filepath,'r').readline()[:2] != "#!":
-            logging.error(
+            logger.error(
                 f"Derivative {nickname} is not Python or a Bin, nor does it "
                 f"contain a shebang (#!) to let the OS know how to run it. "
                 f"The derivative will not be started."
@@ -358,7 +358,7 @@ class RunDerivativeStep(Thread):
         delay_msg = (
             f"in {delay_sec} seconds " if delay_sec is not None else ""
         )
-        logging.info(f"Starting derivative {nickname} {delay_msg}...")
+        logger.info(f"Starting derivative {nickname} {delay_msg}...")
 
         proc = subprocess.Popen(args)
         start_timestamp = time.monotonic()
@@ -396,9 +396,9 @@ class RunDerivativeStep(Thread):
         )
 
         if returncode == 0:
-            logging.info(f"Derivative {nickname} completed successfully.")
+            logger.info(f"Derivative {nickname} completed successfully.")
         else:
-            logging.error(f"Derivative {nickname} errored with code {returncode}.\n{stderr}")
+            logger.error(f"Derivative {nickname} errored with code {returncode}.\n{stderr}")
     
     def wait_for_children(self):
 
@@ -461,7 +461,7 @@ class RunDerivativeStep(Thread):
                 os.kill(proc.pid, 0)
             except OSError:
                 # process doesn't exist, may have crashed
-                logging.warning(f"'{nickname}' (pid: {proc.pid})"
+                logger.warning(f"'{nickname}' (pid: {proc.pid})"
                                 " isn't running and may have crashed")
                 self.running_children[nickname] = None
                 self.finished_children[nickname] = proc
@@ -475,7 +475,7 @@ class RunDerivativeStep(Thread):
                     proc.communicate(timeout=15)
                 except subprocess.TimeoutExpired:
                     # SIGINT failed, so send SIGKILL
-                    logging.warning(f"Could not stop '{nickname}' "
+                    logger.warning(f"Could not stop '{nickname}' "
                                     f"(pid: {proc.pid}) using SIGINT")
                     kill_proc_tree(proc.pid, signal.SIGKILL)
                     try:
@@ -487,14 +487,14 @@ class RunDerivativeStep(Thread):
                         pass  # delay error message until after the loop
                     else:
                         # process terminated via SIGKILL
-                        logging.info(f"Killed '{nickname}' "
+                        logger.info(f"Killed '{nickname}' "
                                      f"(pid: {proc.pid}) using SIGKILL")
                         self.running_children[nickname] = None
                         self.finished_children[nickname] = proc
                         self.send_derivative_exit_status(nickname, proc, "Early termination.")
                 else:
                     # process terminated via SIGINT
-                    logging.info(f"Stopped '{nickname}' "
+                    logger.info(f"Stopped '{nickname}' "
                                  f"(pid: {proc.pid}) using SIGINT")
                     self.running_children[nickname] = None
                     self.finished_children[nickname] = proc
@@ -511,7 +511,7 @@ class RunDerivativeStep(Thread):
                 f'{node} ({p.pid})' for node, p in self.running_children.items()
             ]
             message = ', '.join(running_nodes)
-            logging.exception('Could not kill these nodes: '
+            logger.exception('Could not kill these nodes: '
                               f'{message}')
 
     def start_current_step(self):
@@ -556,7 +556,7 @@ class RunDerivativeStep(Thread):
         self.check_all_derivatives()
 
         # Close up process.
-        logging.info(f"Step {self.step} {'Failed' if self.failure_state else 'Completed'}.")
+        logger.info(f"Step {self.step} {'Failed' if self.failure_state else 'Completed'}.")
         self.redis_conn.close()
 
     def terminate(self, sig, frame):
@@ -566,7 +566,7 @@ class RunDerivativeStep(Thread):
         :param sig: Unused. Only there to satisfy built-in func signature.
         :param frame: Unused. Only there to satisfy built-in func signature.
         """
-        logging.info("SIGINT received, Exiting")
+        logger.info("SIGINT received, Exiting")
         
         self.kill_child_processes()
         self.redis_conn.close()
@@ -651,7 +651,7 @@ def run_derivative(brand_obj,
                                   session_path],
                                   capture_output=True)
     else:
-        logging.error(
+        logger.error(
             f"Derivative {deriv_name} is not Python or a Bin, nor does it "
             f"contain a shebang (#!) to let the OS know how to run it. "
             f"The derivative will not be started."
