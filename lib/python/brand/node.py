@@ -2,13 +2,16 @@
 # Author: Mattia Rigotti
 # Adapted from code by: David Brandman and Kushant Patel
 
-import sys
 import argparse
-from redis import Redis
+import gc
+import json
 import logging
 import signal
-import json
-import time
+import sys
+
+from redis import Redis
+
+from .redis import RedisLoggingHandler
 
 class BRANDNode():
     def __init__(self):
@@ -49,6 +52,8 @@ class BRANDNode():
 
         logging.basicConfig(format=f'[{self.NAME}] %(levelname)s: %(message)s',
                             level=numeric_level)
+        self.redis_log_handler = RedisLoggingHandler(self.r, self.NAME)
+        logging.getLogger().addHandler(self.redis_log_handler)
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -212,8 +217,9 @@ class BRANDNode():
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
+        self.cleanup()
         self.r.close()
-        #self.sock.close()
+        gc.collect()
         sys.exit(0)
 
     def cleanup(self):
