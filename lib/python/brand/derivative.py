@@ -115,14 +115,13 @@ class RunDerivatives(Thread):
         if -1 in self.steps:
             self.step = -1
             logging.info(f"Starting RunDerivativeStep {self.step}.")
-            self.thread_m1_stop_event = Event()
             self.thread_m1 = RunDerivativeStep(
                 machine=self.machine, 
                 derivatives=self.steps[self.step],
                 host=self.redis_host,
                 port=self.redis_port,
                 brand_base_dir=self.brand_base_dir,
-                stop_event=self.thread_m1_stop_event,
+                stop_event=self.stop_event,
                 step=self.step)
             self.thread_m1.start()
 
@@ -130,26 +129,18 @@ class RunDerivatives(Thread):
             if step > -1:
                 self.step = step
                 logging.info(f"Starting RunDerivativeStep {self.step}.")
-                self.child_stop_event = Event()
                 self.current_thread = RunDerivativeStep(
                     machine=self.machine, 
                     derivatives=self.steps[self.step],
                     host=self.redis_host,
                     port=self.redis_port,
                     brand_base_dir=self.brand_base_dir,
-                    stop_event=self.child_stop_event,
+                    stop_event=self.stop_event,
                     step=self.step)
                 self.current_thread.start()
 
                 # Wait for this step to finish.
-                while self.current_thread.is_alive():
-                    
-                    # set by parent supervisor or booter
-                    if self.stop_event.is_set():
-                        self.kill_child_processes()
-                        break
-
-                    time.sleep(CHECK_WAIT_TIME)
+                self.current_thread.join()
 
                 # Check if thread failed on finish, or if we were stopped early. 
                 if self.current_thread.failure_state or self.failure_state:
@@ -157,11 +148,7 @@ class RunDerivatives(Thread):
                     break
 
         if -1 in self.steps:
-            while self.thread_m1.is_alive():
-                if self.stop_event.is_set():
-                    self.thread_m1_stop_event.set()
-                    break
-                time.sleep(CHECK_WAIT_TIME)
+            self.thread_m1.join()
             
             if self.thread_m1.failure_state:
                 self.failure_state = True
@@ -197,11 +184,11 @@ class RunDerivatives(Thread):
     def kill_child_processes(self, kill_m1=False):
         """Kills all child processes."""
         if self.current_thread is not None:
-            self.child_stop_event.set()
+            self.stop_event.set()
             self.report_future_failure(step=self.step)
             self.failure_state = True
         if kill_m1 and self.thread_m1 is not None:
-            self.thread_m1_stop_event.set()
+            self.stop_event.set()
             self.failure_state = True
 
     def connect_to_redis(self):
@@ -447,7 +434,7 @@ class RunDerivativeStep(Thread):
     def kill_child_processes(self):
         for nickname in self.running_children.copy():
             proc = self.running_children[nickname]
-            proc.kill()
+            proc.send_signal(signal.SIGINT)
             returncode = proc.poll()
             logging.error(f"Derivative {nickname} was killed early.")
             self.failure_state = True
