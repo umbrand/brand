@@ -4,6 +4,7 @@
 
 import logging
 import os
+import psutil
 import signal
 import subprocess
 import sys
@@ -372,6 +373,32 @@ class RunDerivativeStep(Thread):
         )
 
         return proc
+
+    def send_derivative_exit_status(self, nickname, proc, stderr=''):
+        """
+        Send the exit status of a derivative to redis
+        """
+        if stderr is None or stderr == '':
+            stdout, stderr = proc.communicate()
+
+        returncode = proc.poll()
+        end_timestamp = time.monotonic()
+        self.redis_conn.xadd(
+            DERIVATIVES_STATUS_STREAM,
+            {
+                "nickname": nickname,
+                "status": "completed",
+                "success": int(returncode == 0),
+                "returncode": returncode,
+                "stderr": '' if stderr is None else stderr,
+                "timestamp": end_timestamp,
+            },
+        )
+
+        if returncode == 0:
+            logging.info(f"Derivative {nickname} completed successfully.")
+        else:
+            logging.error(f"Derivative {nickname} errored with code {returncode}.\n{stderr}")
     
     def wait_for_children(self):
 
@@ -397,60 +424,95 @@ class RunDerivativeStep(Thread):
 
                         # Add it to the finished_children_list.
                         self.finished_children[nickname] = proc
+
+                        if returncode != 0:
+                            self.failure_state = True
+
+                        self.send_derivative_exit_status(nickname, proc)
                         
                         # Grab output of the process.
                         stdout, stderr = proc.communicate()
                         
-                        # Send it out to redis. 
-                        if returncode == 0:
-                            logging.info(f"Derivative {nickname} completed successfully.")
-                            self.redis_conn.xadd(
-                                DERIVATIVES_STATUS_STREAM,
-                                {
-                                    "nickname": nickname,
-                                    "status": "completed",
-                                    "success": 1,
-                                    "timestamp": end_timestamp,
-                                },
-                            )
-                        else:
-                            logging.error(f"Derivative {nickname} errored with code {returncode}.")
-                            logging.error(stderr)
-                            self.failure_state = True
-                            self.redis_conn.xadd(
-                                DERIVATIVES_STATUS_STREAM,
-                                {
-                                    "nickname": nickname,
-                                    "status": "completed",
-                                    "success": 0,
-                                    "returncode": returncode,
-                                    "stderr": '' if stderr is None else stderr,
-                                    "timestamp": end_timestamp,
-                                },
-                            )
             # Let some time pass as the derivatives run.
             time.sleep(CHECK_WAIT_TIME)
 
     def kill_child_processes(self):
-        for nickname in self.running_children.copy():
-            proc = self.running_children[nickname]
-            proc.send_signal(signal.SIGINT)
-            returncode = proc.poll()
-            logging.error(f"Derivative {nickname} was killed early.")
-            self.failure_state = True
-            self.redis_conn.xadd(
-                DERIVATIVES_STATUS_STREAM,
-                {
-                    "nickname": nickname,
-                    "status": "completed",
-                    "success": 0,
-                    "returncode": returncode,
-                    "stderr": "Early Termination.",
-                    "timestamp": time.monotonic(),
-                },
-            )
-            del self.running_children[nickname]
-            self.finished_children[nickname] = proc
+        '''
+        Kills child processes
+        '''
+
+        def kill_proc_tree(pid, sig=signal.SIGTERM, include_parent=True):
+            """
+            Kill a process tree (including grandchildren) with signal "sig"
+            """
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=False)
+            if include_parent:
+                children.append(parent)
+            for p in children:
+                try:
+                    p.send_signal(sig)
+                except psutil.NoSuchProcess:
+                    pass
+
+        for nickname, proc in self.running_children.items():
+            try:
+                # check if process exists
+                os.kill(proc.pid, 0)
+            except OSError:
+                # process doesn't exist, may have crashed
+                logging.warning(f"'{nickname}' (pid: {proc.pid})"
+                                " isn't running and may have crashed")
+                self.running_children[nickname] = None
+                self.finished_children[nickname] = proc
+                self.send_derivative_exit_status(nickname, proc, "Early termination.")
+            else:
+                # process is running
+                # send SIGINT
+                kill_proc_tree(proc.pid, signal.SIGINT)
+                try:
+                    # check if it terminated
+                    proc.communicate(timeout=15)
+                except subprocess.TimeoutExpired:
+                    # SIGINT failed, so send SIGKILL
+                    logging.warning(f"Could not stop '{nickname}' "
+                                    f"(pid: {proc.pid}) using SIGINT")
+                    kill_proc_tree(proc.pid, signal.SIGKILL)
+                    try:
+                        # check if it terminated
+                        proc.communicate(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        # keep the process in self.running_children to report 
+                        # the error later
+                        pass  # delay error message until after the loop
+                    else:
+                        # process terminated via SIGKILL
+                        logging.info(f"Killed '{nickname}' "
+                                     f"(pid: {proc.pid}) using SIGKILL")
+                        self.running_children[nickname] = None
+                        self.finished_children[nickname] = proc
+                        self.send_derivative_exit_status(nickname, proc, "Early termination.")
+                else:
+                    # process terminated via SIGINT
+                    logging.info(f"Stopped '{nickname}' "
+                                 f"(pid: {proc.pid}) using SIGINT")
+                    self.running_children[nickname] = None
+                    self.finished_children[nickname] = proc
+                    self.send_derivative_exit_status(nickname, proc, "Early termination.")
+
+        # remove killed processes from self.running_children
+        self.running_children = {
+            n: p
+            for n, p in self.running_children.items() if p is not None
+        }
+        # raise an error if nodes are still running
+        if self.running_children:
+            running_nodes = [
+                f'{node} ({p.pid})' for node, p in self.running_children.items()
+            ]
+            message = ', '.join(running_nodes)
+            logging.exception('Could not kill these nodes: '
+                              f'{message}')
 
     def start_current_step(self):
         for d in self.derivatives:
