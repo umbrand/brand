@@ -13,9 +13,8 @@ import time
 
 from redis import Redis
 
-from threading import Event, Thread
+from threading import Thread
 
-from .exceptions import DerivativeError
 from .redis import RedisLoggingHandler
 
 # EXAMPLE DERIVATIVE YAML CONFIGS, BOTH WORK. 
@@ -141,12 +140,16 @@ class RunDerivatives(Thread):
                 # Wait for this step to finish.
                 self.current_thread.join()
 
-                # Check if thread failed on finish, or if we were stopped early. 
-                if self.current_thread.failure_state or self.failure_state:
-                    self.kill_child_processes()
-                    break
+                # Check if thread failed on finish.
+                if self.current_thread.failure_state:
+                    self.failure_state = True
                     
                 logger.info(f"Step {self.step} {'failed' if self.failure_state else 'completed'}.")
+
+                # If this step failed, stop running derivatives.
+                if self.failure_state:
+                    self.report_future_failure(step=self.step)
+                    break
 
         if -1 in self.steps:
             self.thread_m1.join()
@@ -161,15 +164,15 @@ class RunDerivatives(Thread):
         end_timestamp = time.monotonic()
 
         failure_steps = [s for s in self.steps if s > step]
-        
+        failure_steps_derivatives = []
+
         for s in failure_steps:
             # Only report the error for the autorun set to True derivatives 
             # on this machine.
             for d in self.steps[s]:
                 if d['machine'] == self.machine:
                     nickname = d['nickname']
-                    logger.warning(f"Previous step failed, derivative {nickname} never started.")
-                    self.failure_state = True
+                    failure_steps_derivatives.append(nickname)
                     self.redis_conn.xadd(
                         DERIVATIVES_STATUS_STREAM,
                         {
@@ -182,15 +185,8 @@ class RunDerivatives(Thread):
                         },
                     )
 
-    def kill_child_processes(self, kill_m1=False):
-        """Kills all child processes."""
-        if self.current_thread is not None:
-            self.stop_event.set()
-            self.report_future_failure(step=self.step)
-            self.failure_state = True
-        if kill_m1 and self.thread_m1 is not None:
-            self.stop_event.set()
-            self.failure_state = True
+        logger.warning(f"Derivative step(s) {', '.join([str(s) for s in failure_steps])} failed to start because a previous step errored.")
+        logger.warning(f"Derivative(s) {', '.join(failure_steps_derivatives)} did not run.")
 
     def connect_to_redis(self):
         """
