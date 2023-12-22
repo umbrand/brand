@@ -116,28 +116,26 @@ class RunDerivatives(Thread):
         if -1 in self.steps:
             self.step = -1
             logger.info(f"Starting RunDerivativeStep {self.step}.")
-            self.thread_m1 = RunDerivativeStep(
+            self.thread_m1 = RunDerivativeSet(
                 machine=self.machine, 
                 derivatives=self.steps[self.step],
                 host=self.redis_host,
                 port=self.redis_port,
                 brand_base_dir=self.brand_base_dir,
-                stop_event=self.stop_event,
-                step=self.step)
+                stop_event=self.stop_event)
             self.thread_m1.start()
 
         for step in self.steps:
             if step > -1:
                 self.step = step
                 logger.info(f"Starting RunDerivativeStep {self.step}.")
-                self.current_thread = RunDerivativeStep(
+                self.current_thread = RunDerivativeSet(
                     machine=self.machine, 
                     derivatives=self.steps[self.step],
                     host=self.redis_host,
                     port=self.redis_port,
                     brand_base_dir=self.brand_base_dir,
-                    stop_event=self.stop_event,
-                    step=self.step)
+                    stop_event=self.stop_event)
                 self.current_thread.start()
 
                 # Wait for this step to finish.
@@ -147,6 +145,8 @@ class RunDerivatives(Thread):
                 if self.current_thread.failure_state or self.failure_state:
                     self.kill_child_processes()
                     break
+                    
+                logger.info(f"Step {self.step} {'failed' if self.failure_state else 'completed'}.")
 
         if -1 in self.steps:
             self.thread_m1.join()
@@ -211,7 +211,7 @@ class RunDerivatives(Thread):
         return redis_conn
 
 
-class RunDerivativeStep(Thread):
+class RunDerivativeSet(Thread):
 
     def __init__(self, 
                  machine,
@@ -219,34 +219,29 @@ class RunDerivativeStep(Thread):
                  host,
                  port,
                  brand_base_dir,
-                 stop_event,
-                 step=0) -> None:
-        """Run all derivatives in a step then start the next step.
+                 stop_event) -> None:
+        """Run all derivatives in a set.
         
         Parameters
         ----------
         
         machine: str
             Which Machine the process is being run on. 
+        derivatives: dict
+            A dictionary containing all the derivatives to run.
         host: str
             Redis IP address
         port: int
             Redis port number
-        log_level: str
-            How much logging you want from this. 
-        step: int 
-            The current step number.
-        cont: bool (default = True)
-            Whether or not to start the next step automatically. This is 
-            primarily here for when you might want to run a particular step 
-            outside of the normal autorun. 
-        failure_state: bool (default = False)
-            Whether the previous step failed. 
+        brand_base_dir: str
+            The BRAND base directory
+        stop_event: threading.Event
+            An event to stop the thread.
         """
         
         super().__init__()
 
-        self.nickname = 'derivative_step_runner'
+        self.nickname = 'derivative_set_runner'
 
         self.machine = machine
         self.derivatives = derivatives
@@ -263,8 +258,6 @@ class RunDerivativeStep(Thread):
             self.latest_id = latest_entry[0][0]
         else:
             self.latest_id = 0
-
-        self.step = step
 
         self.running_children = {}
         self.finished_children = {}
@@ -334,7 +327,7 @@ class RunDerivativeStep(Thread):
                 taskset_args = ['taskset', '-c', str(affinity)]
                 args = taskset_args + args
         # You can specify a derivative to start after some short delay even 
-        # within a step (doesn't overload the CPU maybe). 
+        # within a set (doesn't overload the CPU maybe). 
         if 'delay_sec' in deriv_info:
             delay_sec = deriv_info['delay_sec']
             delay_args = ['sleep', delay_sec, "&&"]
@@ -499,10 +492,10 @@ class RunDerivativeStep(Thread):
             logger.exception('Could not kill these nodes: '
                               f'{message}')
 
-    def start_current_step(self):
+    def start_set(self):
         for d in self.derivatives:
 
-            # Only try to run the derivatives in the assigned step
+            # Only try to run the derivatives for this machine
             if d['machine'] == self.machine:
                     
                 proc = self.start_derivative(d)
@@ -510,38 +503,37 @@ class RunDerivativeStep(Thread):
                     self.running_children[d['nickname']] = proc
 
     def check_all_derivatives(self):
-        """Check that all derivatives in this step have finished,
+        """Check that all derivatives in this set have finished,
         including those on other booters."""
 
-        step_derivatives = [d['nickname'] for d in self.derivatives]
+        set_derivatives = [d['nickname'] for d in self.derivatives]
 
-        while step_derivatives:
+        while set_derivatives:
             derivative_status = self.redis_conn.xread(
                 {DERIVATIVES_STATUS_STREAM: self.latest_id},
                 block=0
             )
             for entry in derivative_status[0][1]:
                 nickname = entry[1][b'nickname'].decode('utf-8')
-                if nickname in step_derivatives:
+                if nickname in set_derivatives:
                     # if the derivative is completed, remove it from the list
                     if entry[1][b'status'] == b'completed':
-                        step_derivatives.remove(nickname)
+                        set_derivatives.remove(nickname)
                         if entry[1][b'success'] == 0:
                             self.failure_state = True
 
 
     def run(self):
         # start all the derivatives
-        self.start_current_step()
+        self.start_set()
 
         self.wait_for_children()
 
         # check that all derivatives on all booters
-        # are finished before exiting the step
+        # are finished before exiting
         self.check_all_derivatives()
 
         # Close up process.
-        logger.info(f"Step {self.step} {'Failed' if self.failure_state else 'Completed'}.")
         self.redis_conn.close()
 
     def terminate(self, sig, frame):
@@ -556,123 +548,3 @@ class RunDerivativeStep(Thread):
         self.kill_child_processes()
         self.redis_conn.close()
         sys.exit(0)
-
-
-def run_derivative(brand_obj, 
-                   deriv_info,
-                   session_path, 
-                   rdb_filename
-                   ):
-    """
-    Runs an arbitrary derivative as a new process.
-
-    Parameters
-    ----------
-    launch_obj : Supervisor or Booter class
-        The class that will launch the derivative
-    deriv_name : str
-        The name of the derivative
-    deriv_path : str
-        The path to the derivative
-
-    Raises
-    ------
-    DerivativeError
-        If the derivative cannot be found or returns an error code
-    """
-
-    deriv_name = deriv_info['nickname']
-    if 'full_path' in deriv_info:
-        deriv_path = deriv_info['full_path']
-    elif ('name' in deriv_info) and ('module' in deriv_info) and ('rel_path' in deriv_info):
-        name = deriv_info['name']
-        filename = deriv_info['filename']
-        module = deriv_info['module']
-        deriv_path = os.path.join(
-            brand_obj.BRAND_BASE_DIR, module, "derivatives", name, filename
-            )
-    else:
-        raise DerivativeError(
-            f"Error running derivative {deriv_name}, derivative path or name and module must be defined in graph",
-            deriv_name,
-            brand_obj.graph_file)
-    
-    # validate derivative path
-    if not os.path.exists(deriv_path):
-        raise DerivativeError(
-            f'Could not find {deriv_name} derivative at {deriv_path}',
-            deriv_name,
-            brand_obj.graph_file if hasattr(brand_obj, 'graph_file') else '')
-    
-    # This list contains the args for priority and affinity
-    pre_args = []
-    # Add in the args about controlling priortiy and affinity.
-    if 'run_priority' in deriv_info:  # if priority is specified
-        priority = deriv_info['run_priority']
-        if priority:  # if priority is not None or empty
-            chrt_args = ['chrt', '-f', str(int(priority))]
-            pre_args = chrt_args
-    if 'cpu_affinity' in deriv_info:  # if affinity is specified
-        affinity = deriv_info['cpu_affinity']
-        if affinity:  # if affinity is not None or empty
-            taskset_args = ['taskset', '-c', str(affinity)]
-            pre_args = taskset_args + pre_args
-    
-    # Run the derivative
-    if '.py' == deriv_path[-3:]:
-        p_deriv = subprocess.run(pre_args + ['python',
-                                  deriv_path,
-                                  rdb_filename,
-                                  brand_obj.host,
-                                  str(brand_obj.port),
-                                  session_path],
-                                  capture_output=True)
-    elif '.bin' == deriv_path[-4:] or open(deriv_path,'r').readline()[:2] == "#!":
-        deriv_path = "./" + deriv_path
-        p_deriv = subprocess.run(pre_args + [deriv_path,
-                                  rdb_filename,
-                                  brand_obj.host,
-                                  str(brand_obj.port),
-                                  session_path],
-                                  capture_output=True)
-    else:
-        logger.error(
-            f"Derivative {deriv_name} is not Python or a Bin, nor does it "
-            f"contain a shebang (#!) to let the OS know how to run it. "
-            f"The derivative will not be started."
-            )
-        brand_obj.r.xadd(
-            DERIVATIVES_STATUS_STREAM,
-            {
-                "nickname": deriv_name,
-                "status": "completed",
-                "success": 0,
-                "returncode": -1,
-                "stderr": -1,
-                "timestamp": -1,
-            },
-        )
-        raise DerivativeError(
-            f"Derivative {deriv_name} is not Python or a Bin, nor does it " \
-            f"contain a shebang (#!) to let the OS know how to run it. " \
-            f"The derivative will not be started.",
-            deriv_name,
-            brand_obj.graph_file if hasattr(brand_obj, 'graph_file') else '')
-    
-    if len(p_deriv.stdout) > 0:
-        brand_obj.logger.debug(p_deriv.stdout.decode())
-
-    if p_deriv.returncode == 0:
-        brand_obj.logger.info(f'{deriv_name} derivative completed')
-    elif p_deriv.returncode > 0:
-        raise DerivativeError(
-            f'{deriv_name} derivative returned exit code {p_deriv.returncode}',
-            deriv_name,
-            brand_obj.graph_file if hasattr(brand_obj, 'graph_file') else '',
-            p_deriv)
-    elif p_deriv.returncode < 0:
-        brand_obj.logger.info(f'{deriv_name} derivative was halted during execution with return code {p_deriv.returncode}, {signal.Signals(-p_deriv.returncode).name}')
-
-
-
-

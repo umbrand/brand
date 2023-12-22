@@ -21,7 +21,7 @@ from sh import git
 
 from threading import Event
 
-from .derivative import RunDerivatives
+from .derivative import RunDerivatives, RunDerivativeSet
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
 from .redis import RedisLoggingHandler
@@ -52,7 +52,8 @@ class Supervisor:
 
         self.booter_status_id = '0-0'
 
-        self.derivative_thread = None
+        self.derivative_threads = {}
+        self.derivative_stop_events = {}
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -463,24 +464,26 @@ class Supervisor:
     
         ## Tell booter to also run derivatives for its machine.
         self.r.xadd("booter", {"command": "startAutorunDerivatives"})
-        self.derivative_stop_event = Event()
-        self.derivative_thread = RunDerivatives(machine=self.machine, 
-                                                model=self.model,
-                                                host=self.host,
-                                                port=self.port,
-                                                brand_base_dir=self.BRAND_BASE_DIR,
-                                                stop_event=self.derivative_stop_event)
-        self.derivative_thread.start()
+        self.derivative_stop_events['supervisor_autorun'] = Event()
+        autorun_derivative_thread = RunDerivatives(
+            machine=self.machine, 
+            model=self.model,
+            host=self.host,
+            port=self.port,
+            brand_base_dir=self.BRAND_BASE_DIR,
+            stop_event=self.derivative_stop_events['supervisor_autorun'])
+        autorun_derivative_thread.start()
+        self.derivative_threads['supervisor_autorun'] = autorun_derivative_thread
         
     def kill_autorun_derivatives(self):
         self.r.xadd("booter", {"command": "killAutorunDerivatives"})
-        if self.derivative_thread is not None:
-            self.derivative_stop_event.set()
-            self.derivative_stop_event = None
-            self.derivative_thread = None
-            logger.info(f"Derivative Steps killed.")
+        if 'supervisor_autorun' in self.derivative_threads:
+            self.derivative_stop_events['supervisor_autorun'].set()
+            del self.derivative_stop_events['supervisor_autorun']
+            del self.derivative_threads['supervisor_autorun']
+            logger.info(f"Autorun derivatives killed.")
         else:
-            raise CommandError("Derivative Steps not running.", 'supervisor', 'killAutorunDerivatives')
+            raise CommandError("Autorun derivatives not running.", 'supervisor', 'killAutorunDerivatives')
 
     def stop_graph(self, do_save=False, do_derivatives=False):
         '''
@@ -580,6 +583,102 @@ class Supervisor:
             message = ', '.join(running_nodes)
             self.logger.exception('Could not kill these nodes: '
                                   f'{message}')
+            
+    def run_derivatives(self, derivative_names):
+        '''
+        Runs a list of derivatives
+        '''
+
+        # for later logging of method outcomes
+        started_derivatives = []
+        failed_derivatives = {}
+
+        # first check for valid derivatives
+        for derivative in derivative_names:
+            if derivative not in self.model['derivatives']:
+                failed_derivatives[derivative] = 'not in graph'
+
+        derivative_names = [d for d in derivative_names if d not in failed_derivatives]
+
+        self.r.xadd('booter', {'command': 'runDerivatives',
+                               'derivatives': ','.join(derivative_names)})
+
+        # loop through derivatives and start each if able
+        for derivative in derivative_names:
+            # only attempt to run derivatives specified for this machine
+            if self.model['derivatives'][derivative]['machine'] == self.machine:
+                # check if derivative is already running
+                if derivative in self.derivative_threads:
+                    if self.derivative_threads[derivative].is_alive():
+                        failed_derivatives[derivative] = 'already running'
+                # make sure derivative is not already running
+                if derivative not in failed_derivatives:
+                    # generate a stop event for this derivative
+                    self.derivative_stop_events[derivative] = Event()
+                    # start the derivative
+                    derivative_thread = RunDerivativeSet(
+                        machine=self.machine,
+                        derivatives=[self.model['derivatives'][derivative]],
+                        host=self.host,
+                        port=self.port,
+                        brand_base_dir=self.BRAND_BASE_DIR,
+                        stop_event=self.derivative_stop_events[derivative])
+                    derivative_thread.start()
+                    # add the derivative to the list of running derivatives
+                    self.derivative_threads[derivative] = derivative_thread
+                    started_derivatives.append(derivative)
+
+        if started_derivatives:
+            logger.info(f"Started derivative(s): {started_derivatives}")
+
+        if failed_derivatives:
+            raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", 'supervisor', 'runDerivative')
+
+    def kill_derivatives(self, derivative_names):
+        '''
+        Kills a list of derivatives
+        '''
+
+        # for later logging of method outcomes
+        killed_derivatives = []
+        failed_derivatives = {}
+
+        # first check for valid derivatives
+        for derivative in derivative_names:
+            if derivative not in self.model['derivatives']:
+                failed_derivatives[derivative] = 'not in graph'
+
+        derivative_names = [d for d in derivative_names if d not in failed_derivatives]
+
+        self.r.xadd('booter', {'command': 'killDerivatives',
+                               'derivatives': ','.join(derivative_names)})
+
+        # loop through derivatives and kill each if able
+        for derivative in derivative_names:
+            # check if derivative in graph
+            if derivative in self.model['derivatives']:
+                # only kill derivatives on this machine
+                if self.model['derivatives'][derivative]['machine'] == self.machine:
+                    # check if derivative is running
+                    if derivative in self.derivative_threads:
+                        # set the stop event for this derivative
+                        self.derivative_stop_events[derivative].set()
+                        # clear derivative and event instances
+                        del self.derivative_stop_events[derivative]
+                        del self.derivative_threads[derivative]
+                        killed_derivatives.append(derivative)
+                    else:
+                        # derivative is not running
+                        failed_derivatives[derivative] = 'not running'
+            else:
+                # derivative is not in graph
+                failed_derivatives[derivative] = 'not in graph'
+        
+        if killed_derivatives:
+            logger.info(f"Killed derivative(s): {killed_derivatives}")
+
+        if failed_derivatives:
+            raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", 'supervisor', 'killDerivative')
 
     def update_params(self, new_params):
         '''
@@ -695,9 +794,8 @@ class Supervisor:
 
         # attempt to kill derivatives
         try:
-            self.kill_autorun_derivatives()
-        except CommandError as exc:
-            self.handle_command_error(exc, redis_available=False)
+            for event in self.derivative_stop_events.values():
+                event.set()
         except Exception as exc:
             logger.warning(f"Could not kill autorun derivatives before exiting. Exiting anyway. {repr(exc)}")
 
@@ -799,6 +897,28 @@ class Supervisor:
         elif cmd == "killautorunderivatives":
             logger.info("Kill autorun derivatives command received")
             self.kill_autorun_derivatives()
+        elif cmd in ["runderivative", "runderivatives"]:
+            logger.info("Run derivative(s) command received")
+            if b'derivatives' in data:
+                derivatives = data[b'derivatives']
+            elif b'derivative' in data:
+                derivatives = data[b'derivative']
+            else:
+                raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'runDerivatives')
+
+            derivatives = derivatives.decode('utf-8').split(',')
+            self.run_derivatives(derivatives)
+        elif cmd in ["killderivative", "killderivatives"]:
+            logger.info("Kill derivative(s) command received")
+            if b'derivatives' in data:
+                derivatives = data[b'derivatives']
+            elif b'derivative' in data:
+                derivatives = data[b'derivative']
+            else:
+                raise CommandError("killDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'killDerivatives')
+            
+            derivatives = derivatives.decode('utf-8').split(',')
+            self.kill_derivatives(derivatives)
         elif cmd == "make":
             logger.info("Make command received")
             self.make()
@@ -911,7 +1031,7 @@ class Supervisor:
                 "message": str(exc),
                 "traceback": "Supervisor " + traceback.format_exc() + '\nDetails:\n' + exc.details})
 
-        logger.error(f"Could not execute {exc.command} command.")
+        logger.error(f"Error executing {exc.command} command.")
         logger.error(str(exc))
 
         if redis_available:
@@ -931,10 +1051,10 @@ class Supervisor:
         self.r.xadd("supervisor_status", {"status": "Listening for commands"})
         while(True):
 
-            if self.derivative_thread is not None:
-                if not self.derivative_thread.is_alive():
-                    self.derivative_thread = None
-                    self.derivative_stop_event = None
+            for derivative in list(self.derivative_threads.keys()):
+                if not self.derivative_threads[derivative].is_alive():
+                    del self.derivative_threads[derivative]
+                    del self.derivative_stop_events[derivative]
 
             try:
                 self.checkBooter()

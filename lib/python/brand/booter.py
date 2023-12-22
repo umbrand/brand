@@ -16,7 +16,7 @@ import traceback
 
 from threading import Event
 
-from .derivative import RunDerivatives
+from .derivative import RunDerivatives, RunDerivativeSet
 from .exceptions import CommandError, DerivativeError, GraphError, NodeError
 
 DEFAULT_REDIS_IP = '127.0.0.1'
@@ -67,7 +67,8 @@ class Booter():
         # instatiate run variables
         self.model = {}
         self.children = {}
-        self.derivative_thread = None
+        self.derivative_threads = {}
+        self.derivative_stop_events = {}
         # set the base directory as the current working directory
         self.brand_base_dir = os.getcwd()
         # connect to Redis
@@ -245,23 +246,95 @@ class Booter():
         '''
         Runs the autorun derivatives
         '''
-        self.derivative_stop_event = Event()
-        self.derivative_thread = RunDerivatives(machine=self.machine, 
-                                                model=self.model,
-                                                host=self.host,
-                                                port=self.port,
-                                                brand_base_dir=self.brand_base_dir,
-                                                stop_event=self.derivative_stop_event)
-        self.derivative_thread.start()
+        self.derivative_stop_events[f'booter_{self.machine}_autorun'] = Event()
+        autorun_derivative_thread = RunDerivatives(
+            machine=self.machine, 
+            model=self.model,
+            host=self.host,
+            port=self.port,
+            brand_base_dir=self.brand_base_dir,
+            stop_event=self.derivative_stop_events[f'booter_{self.machine}_autorun'])
+        autorun_derivative_thread.start()
+        self.derivative_threads[f'booter_{self.machine}_autorun'] = autorun_derivative_thread
 
     def kill_autorun_derivatives(self):
-        if self.derivative_thread is not None:
-            self.derivative_stop_event.set()
-            self.derivative_stop_event = None
-            self.derivative_thread = None
-            self.logger.info(f"Derivative Steps killed.")
+        if f'booter_{self.machine}_autorun' in self.derivative_threads:
+            self.derivative_stop_events[f'booter_{self.machine}_autorun'].set()
+            del self.derivative_stop_events[f'booter_{self.machine}_autorun']
+            del self.derivative_threads[f'booter_{self.machine}_autorun']
+            self.logger.info(f"Autorun derivatives killed.")
         else:
-            raise CommandError("Derivative Steps not running.", f'booter {self.machine}', 'killAutorunDerivatives')
+            raise CommandError("Autorun derivatives not running.", f'booter {self.machine}', 'killAutorunDerivatives')
+            
+    def run_derivatives(self, derivative_names):
+        '''
+        Runs a list of derivatives
+        '''
+
+        # for later logging of method outcomes
+        started_derivatives = []
+        failed_derivatives = {}
+
+        # loop through derivatives and start each if able
+        for derivative in derivative_names:
+            # only attempt to run derivatives specified for this machine
+            if self.model['derivatives'][derivative]['machine'] == self.machine:
+                # check if derivative is already running
+                if derivative in self.derivative_threads:
+                    if self.derivative_threads[derivative].is_alive():
+                        failed_derivatives[derivative] = 'already running'
+                # make sure derivative is not already running
+                if derivative not in failed_derivatives:
+                    # generate a stop event for this derivative
+                    self.derivative_stop_events[derivative] = Event()
+                    # start the derivative
+                    derivative_thread = RunDerivativeSet(
+                        machine=self.machine,
+                        derivatives=[self.model['derivatives'][derivative]],
+                        host=self.host,
+                        port=self.port,
+                        brand_base_dir=self.brand_base_dir,
+                        stop_event=self.derivative_stop_events[derivative])
+                    derivative_thread.start()
+                    # add the derivative to the list of running derivatives
+                    self.derivative_threads[derivative] = derivative_thread
+                    started_derivatives.append(derivative)
+
+        if started_derivatives:
+            self.logger.info(f"Started derivative(s): {started_derivatives}")
+
+        if failed_derivatives:
+            raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", 'supervisor', 'runDerivative')
+
+    def kill_derivatives(self, derivative_names):
+        '''
+        Kills a list of derivatives
+        '''
+        # for later logging of method outcomes
+        killed_derivatives = []
+        failed_derivatives = {}
+
+        # loop through derivatives and kill each if able
+        for derivative in derivative_names:
+            # only kill derivatives on this machine
+            if self.model['derivatives'][derivative]['machine'] == self.machine:
+                # check if derivative is running
+                if derivative in self.derivative_threads:
+                    # set the stop event for this derivative
+                    self.derivative_stop_events[derivative].set()
+                    # clear derivative and event instances
+                    del self.derivative_stop_events[derivative]
+                    del self.derivative_threads[derivative]
+                    killed_derivatives.append(derivative)
+                else:
+                    # derivative is not running
+                    failed_derivatives[derivative] = 'not running'
+        
+        if killed_derivatives:
+            self.logger.info(f"Killed derivative(s): {killed_derivatives}")
+            
+        if failed_derivatives:
+            raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", 'supervisor', 'killDerivative')
 
     def make(self):
         '''
@@ -306,6 +379,26 @@ class Booter():
             self.start_autorun_derivatives()
         elif command == 'killAutorunDerivatives':
             self.kill_autorun_derivatives()
+        elif command in ["runDerivative", "runDerivatives"]:
+            if b'derivatives' in entry:
+                derivatives = entry[b'derivatives']
+            elif b'derivative' in entry:
+                derivatives = entry[b'derivative']
+            else:
+                raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'runDerivatives')
+
+            derivatives = derivatives.decode('utf-8').split(',')
+            self.run_derivatives(derivatives)
+        elif command in ["killDerivative", "killDerivatives"]:
+            if b'derivatives' in entry:
+                derivatives = entry[b'derivatives']
+            elif b'derivative' in entry:
+                derivatives = entry[b'derivative']
+            else:
+                raise CommandError("killDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'killDerivatives')
+            
+            derivatives = derivatives.decode('utf-8').split(',')
+            self.kill_derivatives(derivatives)
 
     def run(self):
         """
@@ -317,10 +410,10 @@ class Booter():
         self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
         while True:
 
-            if self.derivative_thread is not None:
-                if not self.derivative_thread.is_alive():
-                    self.derivative_thread = None
-                    self.derivative_stop_event = None
+            for derivative in list(self.derivative_threads.keys()):
+                if not self.derivative_threads[derivative].is_alive():
+                    del self.derivative_threads[derivative]
+                    del self.derivative_stop_events[derivative]
                     
             try:
                 streams = self.r.xread({'booter': entry_id},
@@ -370,6 +463,21 @@ class Booter():
         End this booter process when SIGINT is received
         """
         self.logger.info('SIGINT received, Exiting')
+
+        # attempt to kill nodes
+        try:
+            self.kill_nodes()
+        except Exception as exc:
+            self.logger.warning(f"Could not kill nodes. Exiting anyway. {repr(exc)}")
+
+        # attempt to kill derivatives
+        try:
+            for event in self.derivative_stop_events.values():
+                event.set()
+        except Exception as exc:
+            self.logger.warning(f"Could not kill derivatives. Exiting anyway. {repr(exc)}")
+
+        # attempt to post an exit message to Redis
         try:
             self.r.xadd("booter_status", {"machine": self.machine, "status": "SIGINT received, Exiting"})
         except Exception as exc:
