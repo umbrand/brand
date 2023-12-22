@@ -5,26 +5,38 @@ include $(ROOT)/setenv.mk
 MODULES_BASE_PATH=../brand-modules
 ifdef graph
 	#run yq to get the list of modules
-	NODE_PATHS=$(shell yq '.nodes[.name] | .module + "/nodes/" + .name' $(graph))
-	DERIVS_PATHS=$(shell yq '.derivatives[.name] | .module + "/derivatives/" + .name' $(graph))
+	ifdef machine
+		NODE_PATHS=$(shell yq 'explode(.) | .nodes[] | .module + "/nodes/" + select(has("machine")|not or .machine=="$(machine)").name' $(graph))
+		DERIVS_PATHS=$(shell yq 'explode(.) | .derivatives[] | .module + "/derivatives/" + select(has("machine")|not or .machine=="$(machine)").name' $(graph))
+	else
+		NODE_PATHS=$(shell yq '.nodes[] | .module + "/nodes/" + .name' $(graph))
+		DERIVS_PATHS=$(shell yq '.derivatives[] | .module + "/derivatives/" + .name' $(graph))
+	endif
 	#loop through the list of modules and get the path to the Makefile
-	MODULES_NODES=$(foreach path,$(NODE_PATHS),$(shell dirname $(wildcard $(path)/*)))
-	MODULES_DERIVS=$(foreach path,$(DERIVS_PATHS),$(shell dirname $(wildcard $(path)/*)))
+	MODULES_NODES=$(foreach path,$(NODE_PATHS),$(shell dirname $(wildcard $(path)/Makefile)))
+	MODULES_DERIVS_NO_EXT=$(foreach path,$(DERIVS_PATHS),$(shell echo ${path%.*}))
+	MODULES_DERIVS=$(foreach path,$(MODULES_DERIVS_NO_EXT),$(shell dirname $(wildcard $(path)/Makefile)))
 else ifdef node
 	ifdef module
 		#loop through the list of modules and get the path to the Makefile
-		MODULES_NODES=$(shell dirname $(MODULES_SUBDIR_BASE_PATH)/$(module)/nodes/$(node)/*)
-		MODULES_DERIVS=$(wildcard $(MODULES_BASE_PATH)/*/derivatives/*)
-
+		MODULES_NODES=$(shell dirname $(MODULES_BASE_PATH)/$(module)/nodes/$(node)/Makefile)
 	else
 		#loop through the list of modules and get the path to the Makefile
-		MODULES_NODES=$(shell dirname $(wildcard $(MODULES_SUBDIR_BASE_PATH)/*/nodes/$(node)/*))
-		MODULES_DERIVS=$(wildcard $(MODULES_BASE_PATH)/*/derivatives/*)
-
+		MODULES_NODES=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/nodes/$(node)/Makefile))
+	endif
+else ifdef derivative
+	ifdef module
+		#loop through the list of modules and get the path to the Makefile
+		DERIV_NO_EXT=$(shell echo ${derivative%.*})
+		MODULES_DERIVS=$(shell dirname $(MODULES_BASE_PATH)/$(module)/derivatives/$(DERIV_NO_EXT)/Makefile)
+	else
+		#loop through the list of modules and get the path to the Makefile
+		DERIV_NO_EXT=$(shell echo ${derivative%.*})
+		MODULES_DERIVS=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/derivatives/$(DERIV_NO_EXT)/Makefile))
 	endif
 else
-	MODULES_NODES=$(wildcard $(MODULES_BASE_PATH)/*/nodes/*)
-	MODULES_DERIVS=$(wildcard $(MODULES_BASE_PATH)/*/derivatives/*)
+	MODULES_NODES=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/nodes/*/Makefile))
+	MODULES_DERIVS=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/derivatives/*/Makefile))
 endif
 
 # Get all directories in nodes/ and derivatives/
