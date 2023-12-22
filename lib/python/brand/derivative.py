@@ -6,6 +6,7 @@ import coloredlogs
 import logging
 import os
 import psutil
+import redis
 import signal
 import subprocess
 import sys
@@ -173,17 +174,20 @@ class RunDerivatives(Thread):
                 if d['machine'] == self.machine:
                     nickname = d['nickname']
                     failure_steps_derivatives.append(nickname)
-                    self.redis_conn.xadd(
-                        DERIVATIVES_STATUS_STREAM,
-                        {
-                            "nickname": nickname,
-                            "status": "completed",
-                            "success": 0,
-                            "returncode": -1,
-                            "stderr": "Never Started, Previous step errored.",
-                            "timestamp": end_timestamp,
-                        },
-                    )
+                    try:
+                        self.redis_conn.xadd(
+                            DERIVATIVES_STATUS_STREAM,
+                            {
+                                "nickname": nickname,
+                                "status": "completed",
+                                "success": 0,
+                                "returncode": -1,
+                                "stderr": "Never Started, Previous step errored.",
+                                "timestamp": end_timestamp,
+                            },
+                        )
+                    except redis.exceptions.ConnectionError:
+                        pass
 
         logger.warning(f"Derivative step(s) {', '.join([str(s) for s in failure_steps])} failed to start because a previous step errored.")
         logger.warning(f"Derivative(s) {', '.join(failure_steps_derivatives)} did not run.")
@@ -360,17 +364,20 @@ class RunDerivativeSet(Thread):
 
         returncode = proc.poll()
         end_timestamp = time.monotonic()
-        self.redis_conn.xadd(
-            DERIVATIVES_STATUS_STREAM,
-            {
-                "nickname": nickname,
-                "status": "completed",
-                "success": int(returncode == 0),
-                "returncode": returncode,
-                "stderr": '' if stderr is None else stderr,
-                "timestamp": end_timestamp,
-            },
-        )
+        try:
+            self.redis_conn.xadd(
+                DERIVATIVES_STATUS_STREAM,
+                {
+                    "nickname": nickname,
+                    "status": "completed",
+                    "success": int(returncode == 0),
+                    "returncode": returncode,
+                    "stderr": '' if stderr is None else stderr,
+                    "timestamp": end_timestamp
+                }
+            )
+        except redis.exceptions.ConnectionError:
+            pass
 
         if returncode == 0:
             logger.info(f"Derivative {nickname} completed successfully.")
@@ -505,19 +512,21 @@ class RunDerivativeSet(Thread):
         set_derivatives = [d['nickname'] for d in self.derivatives]
 
         while set_derivatives:
-            derivative_status = self.redis_conn.xread(
-                {DERIVATIVES_STATUS_STREAM: self.latest_id},
-                block=0
-            )
-            for entry in derivative_status[0][1]:
-                nickname = entry[1][b'nickname'].decode('utf-8')
-                if nickname in set_derivatives:
-                    # if the derivative is completed, remove it from the list
-                    if entry[1][b'status'] == b'completed':
-                        set_derivatives.remove(nickname)
-                        if entry[1][b'success'] == b'0':
-                            self.failure_state = True
-
+            try:
+                derivative_status = self.redis_conn.xread(
+                    {DERIVATIVES_STATUS_STREAM: self.latest_id},
+                    block=0
+                )
+                for entry in derivative_status[0][1]:
+                    nickname = entry[1][b'nickname'].decode('utf-8')
+                    if nickname in set_derivatives:
+                        # if the derivative is completed, remove it from the list
+                        if entry[1][b'status'] == b'completed':
+                            set_derivatives.remove(nickname)
+                            if entry[1][b'success'] == b'0':
+                                self.failure_state = True
+            except redis.exceptions.ConnectionError:
+                break
 
     def run(self):
         # start all the derivatives

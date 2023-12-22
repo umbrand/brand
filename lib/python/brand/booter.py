@@ -428,7 +428,7 @@ class Booter():
 
             except redis.exceptions.ConnectionError as exc:
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
-                sys.exit(0)
+                self.terminate()
 
             except (CommandError, DerivativeError, GraphError, NodeError) as exc:
                 # if a node has an error, stop the graph and kill all nodes

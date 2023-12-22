@@ -948,7 +948,7 @@ class Supervisor:
 
     def handle_redis_connection_error(self, exc):
         logger.error('Could not connect to Redis: ' + repr(exc))
-        sys.exit(0)
+        self.terminate()
 
     def handle_graph_error(self, exc):
         # if the graph has an error, it was never executed, so log it
