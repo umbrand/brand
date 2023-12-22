@@ -519,7 +519,7 @@ class RunDerivativeSet(Thread):
                     # if the derivative is completed, remove it from the list
                     if entry[1][b'status'] == b'completed':
                         set_derivatives.remove(nickname)
-                        if entry[1][b'success'] == 0:
+                        if entry[1][b'success'] == b'0':
                             self.failure_state = True
 
 
