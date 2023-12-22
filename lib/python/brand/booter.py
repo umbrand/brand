@@ -141,14 +141,20 @@ class Booter():
         """
         host, port = self.model['redis_host'], self.model['redis_port']
         for node, cfg in self.model['nodes'].items():
+            # specify defaults
+            cfg.setdefault('root', True)
+            # run the node if it is assigned to this machine
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 node_stream_name = cfg["nickname"]
-                # run nodes as the current user, not root
-                sudo_args = [
-                    'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
-                    f"PATH={os.environ['PATH']}"
-                ] if 'SUDO_USER' in os.environ else []
-                args = sudo_args + [
+                # build CLI command
+                args = []
+                if not cfg['root'] and 'SUDO_USER' in os.environ:
+                    # run nodes as the current user, not root
+                    args += [
+                        'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                        f"PATH={os.environ['PATH']}"
+                    ]
+                args += [
                     cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
                     str(port)
                 ]
