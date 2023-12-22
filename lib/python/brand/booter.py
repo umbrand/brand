@@ -18,6 +18,7 @@ from threading import Event
 
 from .derivative import RunDerivatives, RunDerivativeSet
 from .exceptions import CommandError, DerivativeError, GraphError, NodeError
+from .redis import RedisLoggingHandler
 
 DEFAULT_REDIS_IP = '127.0.0.1'
 DEFAULT_REDIS_PORT = 6379
@@ -73,6 +74,9 @@ class Booter():
         self.brand_base_dir = os.getcwd()
         # connect to Redis
         self.r = redis.Redis(self.host, self.port, socket_connect_timeout=1)
+        # add a Redis logging handler
+        self.redis_log_handler = RedisLoggingHandler(self.r, f'booter_{self.machine}')
+        self.logger.addHandler(self.redis_log_handler)
         # register signal handler
         signal.signal(signal.SIGINT, self.terminate)
 
