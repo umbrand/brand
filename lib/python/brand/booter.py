@@ -67,7 +67,7 @@ class Booter():
         coloredlogs.install(level=log_level, logger=self.logger)
         # instatiate run variables
         self.model = {}
-        self.children = {}
+        self.child_nodes = {}
         self.derivative_threads = {}
         self.derivative_stop_events = {}
         self.derivative_continue_on_error = True
@@ -174,7 +174,7 @@ class Booter():
                             args = taskset_args + args
                     p = subprocess.Popen(args)
                     self.logger.debug(' '.join(args))
-                    self.children[node] = p
+                    self.child_nodes[node] = p
 
             self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
         else:
@@ -191,7 +191,7 @@ class Booter():
             graph = 'None'
         self.r.xadd("booter_status", {"machine": self.machine, "status": f"{graph} graph stopped successfully"})
 
-    def kill_nodes(self):
+    def kill_nodes(self, node_list=None):
         '''
         Kills child processes
         '''
@@ -210,50 +210,54 @@ class Booter():
                 except psutil.NoSuchProcess:
                     pass
 
-        for node, proc in self.children.items():
-            try:
-                # check if process exists
-                os.kill(proc.pid, 0)
-            except OSError:
-                self.logger.warning(f"'{node}' (pid: {proc.pid})"
-                                    " isn't running and may have crashed")
-                self.children[node] = None
-            else:
-                # process is running
-                # send SIGINT
-                kill_proc_tree(proc.pid, signal.SIGINT)
+        if node_list is None:
+            node_list = list(self.child_nodes.keys())
+
+        for node, proc in self.child_nodes.items():
+            if node in node_list:
                 try:
-                    # check if it terminated
-                    proc.communicate(timeout=15)
-                except subprocess.TimeoutExpired:
-                    self.logger.warning(f"Could not stop '{node}' "
-                                        f"(pid: {proc.pid}) using SIGINT")
-                    # if not, send SIGKILL
-                    kill_proc_tree(proc.pid, signal.SIGKILL)
+                    # check if process exists
+                    os.kill(proc.pid, 0)
+                except OSError:
+                    self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                                        " isn't running and may have crashed")
+                    self.child_nodes[node] = None
+                    node_list.remove(node)
+                else:
+                    # process is running
+                    # send SIGINT
+                    kill_proc_tree(proc.pid, signal.SIGINT)
                     try:
                         # check if it terminated
                         proc.communicate(timeout=15)
                     except subprocess.TimeoutExpired:
-                        pass  # delay error message until after the loop
+                        self.logger.warning(f"Could not stop '{node}' "
+                                            f"(pid: {proc.pid}) using SIGINT")
+                        # if not, send SIGKILL
+                        kill_proc_tree(proc.pid, signal.SIGKILL)
+                        try:
+                            # check if it terminated
+                            proc.communicate(timeout=15)
+                        except subprocess.TimeoutExpired:
+                            pass  # delay error message until after the loop
+                        else:
+                            self.logger.info(f"Killed '{node}' "
+                                            f"(pid: {proc.pid}) using SIGKILL")
+                            self.child_nodes[node] = None
+                            node_list.remove(node)
                     else:
-                        self.logger.info(f"Killed '{node}' "
-                                         f"(pid: {proc.pid}) using SIGKILL")
-                        self.children[node] = None
-                else:
-                    self.logger.info(f"Stopped '{node}' "
-                                     f"(pid: {proc.pid}) using SIGINT")
-                    self.children[node] = None
+                        self.logger.info(f"Stopped '{node}' "
+                                        f"(pid: {proc.pid}) using SIGINT")
+                        self.child_nodes[node] = None
+                        node_list.remove(node)
         # remove killed processes from self.children
-        self.children = {
+        self.child_nodes = {
             n: p
-            for n, p in self.children.items() if p is not None
+            for n, p in self.child_nodes.items() if p is not None
         }
         # raise an error if nodes are still running
-        if self.children:
-            running_nodes = [
-                f'{node} ({p.pid})' for node, p in self.children.items()
-            ]
-            message = ', '.join(running_nodes)
+        if node_list:
+            message = ', '.join(node_list)
             self.logger.exception('Could not kill these nodes: '
                                   f'{message}')
             
@@ -410,6 +414,15 @@ class Booter():
             self.load_graph(graph_dict)
         elif command == 'stopGraph':
             self.stop_graph()
+        elif command == "stopChildProcess":
+            if b"nickname" not in entry:
+                raise CommandError("stopChildProcess command requires a 'nickname' key", f'booter_{self.machine}', 'stopChildProcess')
+            nickname = entry[b"nickname"].decode('utf-8')
+            # Kill the process if it is here
+            if nickname in self.child_nodes:
+                self.kill_nodes([nickname])
+            elif nickname in self.derivative_threads:
+                self.kill_derivatives([nickname])
         elif command == 'make':
             graph = entry[b'graph'].decode('utf-8') if b'graph' in entry else None
             node = entry[b'node'].decode('utf-8') if b'node' in entry else None

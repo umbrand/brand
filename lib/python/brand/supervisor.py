@@ -557,7 +557,7 @@ class Supervisor:
                 # Run derivatives.
                 self.start_autorun_derivatives()
 
-    def kill_nodes(self):
+    def kill_nodes(self, node_list=None):
         '''
         Kills child processes
         '''
@@ -575,51 +575,55 @@ class Supervisor:
                     p.send_signal(sig)
                 except psutil.NoSuchProcess:
                     pass
+        
+        if node_list is None:
+            node_list = list(self.child_nodes.keys())
 
         for node, proc in self.child_nodes.items():
-            try:
-                # check if process exists
-                os.kill(proc.pid, 0)
-            except OSError:
-                self.logger.warning(f"'{node}' (pid: {proc.pid})"
-                                    " isn't running and may have crashed")
-                self.child_nodes[node] = None
-            else:
-                # process is running
-                # send SIGINT
-                kill_proc_tree(proc.pid, signal.SIGINT)
+            if node in node_list:
                 try:
-                    # check if it terminated
-                    proc.communicate(timeout=15)
-                except subprocess.TimeoutExpired:
-                    self.logger.warning(f"Could not stop '{node}' "
-                                        f"(pid: {proc.pid}) using SIGINT")
-                    # if not, send SIGKILL
-                    kill_proc_tree(proc.pid, signal.SIGKILL)
+                    # check if process exists
+                    os.kill(proc.pid, 0)
+                except OSError:
+                    self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                                        " isn't running and may have crashed")
+                    self.child_nodes[node] = None
+                    node_list.remove(node)
+                else:
+                    # process is running
+                    # send SIGINT
+                    kill_proc_tree(proc.pid, signal.SIGINT)
                     try:
                         # check if it terminated
                         proc.communicate(timeout=15)
                     except subprocess.TimeoutExpired:
-                        pass  # delay error message until after the loop
+                        self.logger.warning(f"Could not stop '{node}' "
+                                            f"(pid: {proc.pid}) using SIGINT")
+                        # if not, send SIGKILL
+                        kill_proc_tree(proc.pid, signal.SIGKILL)
+                        try:
+                            # check if it terminated
+                            proc.communicate(timeout=15)
+                        except subprocess.TimeoutExpired:
+                            pass  # delay error message until after the loop
+                        else:
+                            self.logger.info(f"Killed '{node}' "
+                                            f"(pid: {proc.pid}) using SIGKILL")
+                            self.child_nodes[node] = None
+                            node_list.remove(node)
                     else:
-                        self.logger.info(f"Killed '{node}' "
-                                         f"(pid: {proc.pid}) using SIGKILL")
+                        self.logger.info(f"Stopped '{node}' "
+                                        f"(pid: {proc.pid}) using SIGINT")
                         self.child_nodes[node] = None
-                else:
-                    self.logger.info(f"Stopped '{node}' "
-                                     f"(pid: {proc.pid}) using SIGINT")
-                    self.child_nodes[node] = None
+                        node_list.remove(node)
         # remove killed processes from self.children
         self.child_nodes = {
             n: p
             for n, p in self.child_nodes.items() if p is not None
         }
         # raise an error if nodes are still running
-        if self.child_nodes:
-            running_nodes = [
-                f'{node} ({p.pid})' for node, p in self.child_nodes.items()
-            ]
-            message = ', '.join(running_nodes)
+        if node_list:
+            message = ', '.join(node_list)
             self.logger.exception('Could not kill these nodes: '
                                   f'{message}')
             
@@ -944,6 +948,21 @@ class Supervisor:
             do_save = bool(int(data.get(b"do_save", False)))
             do_derivatives = bool(int(data.get(b"do_derivatives", False)))
             self.stop_graph(do_save=do_save, do_derivatives=do_derivatives)
+        elif cmd == "stopchildprocess":
+            logger.info("Stop child process command received")
+            if b"nickname" not in data:
+                raise CommandError("stopChildProcess command requires a 'nickname' key", 'supervisor', 'stopChildProcess')
+            nickname = data[b"nickname"].decode('utf-8')
+            # Forward the command to booter as well
+            self.r.xadd("booter", {
+                "command": "stopChildProcess",
+                "nickname": nickname
+            })
+            # Kill the process if it is here
+            if nickname in self.child_nodes:
+                self.kill_nodes([nickname])
+            elif nickname in self.derivative_threads:
+                self.kill_derivatives([nickname])
         elif cmd == "saverdb":
             logger.info("Save RDB command received")
             self.save_rdb()
