@@ -346,12 +346,29 @@ class Booter():
         if failed_derivatives:
             raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", 'supervisor', 'killDerivative')
 
-    def make(self):
+    def make(self, graph=None, node=None, derivative=None, module=None):
         '''
-        Makes all nodes and derivatives
+        Makes nodes and derivatives, defaults to all unless graph, node, or derivative is specified
         '''
         # Run make
-        p_make = subprocess.run(['make'],
+
+        proc_cmd = ['make']
+
+        if graph is not None:
+            proc_cmd += [f'graph="{graph}"']
+
+        if node is not None:
+            proc_cmd += [f'node="{node}"']
+
+        if derivative is not None:
+            proc_cmd += [f'derivative="{derivative}"']
+
+        if module is not None:
+            proc_cmd += [f'module="{module}"']
+
+        proc_cmd += [f'machine="{self.machine}"']
+
+        p_make = subprocess.run(proc_cmd,
                                 capture_output=True)
 
         if p_make.returncode == 0:
@@ -384,7 +401,11 @@ class Booter():
         elif command == 'stopGraph':
             self.stop_graph()
         elif command == 'make':
-            self.make()
+            graph = entry[b'graph'].decode('utf-8') if b'graph' in entry else None
+            node = entry[b'node'].decode('utf-8') if b'node' in entry else None
+            derivative = entry[b'derivative'].decode('utf-8') if b'derivative' in entry else None
+            module = entry[b'module'].decode('utf-8') if b'module' in entry else None
+            self.make(graph=graph, node=node, derivative=derivative, module=module)
         elif command == 'startAutorunDerivatives':
             self.start_autorun_derivatives()
         elif command == 'killAutorunDerivatives':

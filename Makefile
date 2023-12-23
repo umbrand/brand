@@ -27,12 +27,10 @@ else ifdef node
 else ifdef derivative
 	ifdef module
 		#loop through the list of modules and get the path to the Makefile
-		DERIV_NO_EXT=$(shell echo ${derivative%.*})
-		MODULES_DERIVS=$(shell dirname $(MODULES_BASE_PATH)/$(module)/derivatives/$(DERIV_NO_EXT)/Makefile)
+		MODULES_DERIVS=$(shell dirname $(MODULES_BASE_PATH)/$(module)/derivatives/$(derivative)/Makefile)
 	else
 		#loop through the list of modules and get the path to the Makefile
-		DERIV_NO_EXT=$(shell echo ${derivative%.*})
-		MODULES_DERIVS=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/derivatives/$(DERIV_NO_EXT)/Makefile))
+		MODULES_DERIVS=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/derivatives/$(derivative)/Makefile))
 	endif
 else
 	MODULES_NODES=$(shell dirname $(wildcard $(MODULES_BASE_PATH)/*/nodes/*/Makefile))

@@ -183,13 +183,15 @@ class Supervisor:
             if not os.path.exists(rdb_save_path):
                 os.makedirs(rdb_save_path)
             self.r.config_set('dir', rdb_save_path)
-            self.model["rdb_dirpath"] = rdb_save_path
+            if self.model:
+                self.model["rdb_dirpath"] = rdb_save_path
             logger.info(f"RDB save directory set to: {rdb_save_path}")
 
         if rdb_filename:
             # Set rdb filename
             self.r.config_set('dbfilename', rdb_filename)
-            self.model["rdb_filename"] = rdb_filename
+            if self.model:
+                self.model["rdb_filename"] = rdb_filename
             logger.info(f'New RDB filename set to: {rdb_filename}')
 
     def start_redis_server(self):
@@ -766,15 +768,40 @@ class Supervisor:
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
 
-    def make(self):
+    def make(self, graph=None, node=None, derivative=None, module=None):
         '''
-        Makes all nodes and derivatives
+        Makes nodes and derivatives, defaults to all unless graph, node, or derivative is specified
         '''
         self.check_graph_not_running(cmd='make')
 
-        # Run make
-        self.r.xadd('booter', {'command': 'make'})
-        p_make = subprocess.run(['make'],
+        booter_cmd = {'command': 'make'}
+        proc_cmd = ['make']
+
+        if (graph == "true" or graph == "1"):
+            if self.model:
+                proc_cmd += [f'graph="{self.graph_file}"']
+                booter_cmd['graph'] = self.graph_file
+            else:
+                raise CommandError("No graph loaded, cannot make graph", 'supervisor', 'make')
+        elif graph is not None:
+            proc_cmd += [f'graph="{graph}"']
+            booter_cmd['graph'] = graph
+
+        if node is not None:
+            proc_cmd += [f'node="{node}"']
+            booter_cmd['node'] = node
+
+        if derivative is not None:
+            proc_cmd += [f'derivative="{derivative}"']
+            booter_cmd['derivative'] = derivative
+
+        if module is not None:
+            proc_cmd += [f'module="{module}"']
+            booter_cmd['module'] = module        
+
+        self.r.xadd('booter', booter_cmd)
+
+        p_make = subprocess.run(proc_cmd,
                                 capture_output=True)
 
         if p_make.returncode == 0:
@@ -927,7 +954,11 @@ class Supervisor:
             self.kill_derivatives(derivatives)
         elif cmd == "make":
             logger.info("Make command received")
-            self.make()
+            graph = data[b'graph'].decode('utf-8') if b'graph' in data else None
+            node = data[b'node'].decode('utf-8') if b'node' in data else None
+            derivative = data[b'derivative'].decode('utf-8') if b'derivative' in data else None
+            module = data[b'module'].decode('utf-8') if b'module' in data else None
+            self.make(graph=graph, node=node, derivative=derivative, module=module)
         else:
             logger.warning("Invalid command")
 
