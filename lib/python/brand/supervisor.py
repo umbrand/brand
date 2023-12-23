@@ -329,8 +329,25 @@ class Supervisor:
                 model["nodes"][n["nickname"]].update(n)
                 model["nodes"][n["nickname"]]["binary"] = bin_f
 
-                logger.info("%s is a valid node" % n["nickname"])
+                logger.info("%s is a valid node" % n["nickname"])                
 
+        except KeyError as exc:
+            if "nickname" in n:
+                name = n["nickname"]
+            elif "name" in n:
+                name = n["name"]
+            else:
+                raise GraphError(
+                    "KeyError: "
+                    "'name' and 'nickname' fields missing in graph YAML node(s)",
+                    self.graph_name) from exc
+            raise GraphError(
+                "KeyError: "
+                f"{exc} field missing in graph YAML "
+                f"for node {name}",
+                self.graph_name) from exc
+        
+        try:
             derivatives = graph_dict.get("derivatives", [])
             model['derivatives'] = {}
             for d in derivatives:
@@ -371,23 +388,22 @@ class Supervisor:
                 d['filepath'] = filepath
                 
                 model['derivatives'][d['nickname']] = {}
-                model['derivatives'][d['nickname']].update(d)
-                
+                model['derivatives'][d['nickname']].update(d)                
 
         except KeyError as exc:
-            if "nickname" in n:
-                name = n["nickname"]
-            elif "name" in n:
-                name = n["name"]
+            if "nickname" in d:
+                name = d["nickname"]
+            elif "name" in d:
+                name = d["name"]
             else:
                 raise GraphError(
                     "KeyError: "
-                    "'name' and 'nickname' fields missing in graph YAML",
+                    "'name' and 'nickname' fields missing in graph YAML derivative(s)",
                     self.graph_name) from exc
             raise GraphError(
                 "KeyError: "
                 f"{exc} field missing in graph YAML "
-                f"for node {name}",
+                f"for derivative {name}",
                 self.graph_name) from exc
 
         # model is valid if we make it here
