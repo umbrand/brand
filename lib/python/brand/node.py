@@ -44,7 +44,7 @@ class BRANDNode():
         self.initializeParameters()
 
         # set up logging
-        loglevel = self.parameters['log']
+        loglevel = self.parameters.setdefault('log', 'INFO')
         numeric_level = getattr(logging, loglevel.upper(), None)
 
         if not isinstance(numeric_level, int):
