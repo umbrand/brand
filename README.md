@@ -297,7 +297,6 @@ After loading a graph with a `startGraph` command to `supervisor`, `supervisor` 
 {
     "redis_host": <redis host>,
     "redis_port": <redis port>,
-    "brand_hash": <Git commit hash for the core BRAND repository>,
     "graph_name": <graph name>,
     "graph_loaded_ts": <timestamp upon startGraph in nanoseconds>,
     "nodes": {
@@ -306,7 +305,6 @@ After loading a graph with a `startGraph` command to `supervisor`, `supervisor` 
             "nickname": <node 1 nickname>,
             "module": <node 1's source module as a relative path to the BRAND root directory>,
             "binary": <full path to node 1's binary>,
-            "git_hash": <Git commit hash for node 1>,
             "run_priority": <optional, node 1's realtime priority>,
             "cpu_affinity": <optional, node 1's CPU affinity>,
             "parameters": {
@@ -320,7 +318,6 @@ After loading a graph with a `startGraph` command to `supervisor`, `supervisor` 
             "nickname": <node 2 nickname>,
             "module": <node 2's source module as a relative path to the BRAND root directory>,
             "binary": <full path to node 2's binary>,
-            "git_hash": <Git commit hash for node 2>,
             "run_priority": <optional, node 2's realtime priority>,
             "cpu_affinity": <optional, node 2's CPU affinity>,
             "parameters": {
@@ -351,8 +348,6 @@ After loading a graph with a `startGraph` command to `supervisor`, `supervisor` 
     }
 }
 ```
-
-`make` will write a `git_hash.o` file to each node and derivative, which `supervisor` will write into the supergraph to easily track the exact code version used. When the `startGraph` command is sent, `booter` machines (see [Multi-machine graphs](#multi-machine-graphs) below) will generate a `GraphError` exception if the BRAND repository hashes do not match. Both `supervisor` and `booter` machines will generate a `NodeError` exception if the value in the local `git_hash.o` does not match the supergraph's Git hash for a node when `startGraph` is called. A warning will be printed in `supervisor` or `booter`'s console if the supergraph's Git hash for a node or derivative does not match the repository's hash. If a node is not located in a Git repository and does not have a `git_hash.o` file, then its Git hash in the supergraph will be an empty string.
 
 Note the presence of derivatives in the graph YAML file and the supergraph is optional. The structure of a derivative's information should be defined in the derivative's documentation. Derivatives are a new feature to BRAND, so check back in the future for more documentation and functionality.
 
