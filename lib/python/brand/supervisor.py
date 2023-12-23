@@ -406,6 +406,17 @@ class Supervisor:
                 f"{exc} field missing in graph YAML "
                 f"for derivative {name}",
                 self.graph_name) from exc
+        
+        # ensure that node and derivative nicknames are not shared
+        node_nn = set(model['nodes'].keys())
+        derivative_nn = set(model['derivatives'].keys())
+        shared_nn = node_nn & derivative_nn
+
+        if shared_nn:
+            raise GraphError(
+                f"Node and derivative nicknames must be unique. "
+                f"Duplicate nicknames found: {shared_nn}",
+                self.graph_name)
 
         # model is valid if we make it here
         self.model = model
@@ -418,6 +429,9 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream",payload)
+        self.r.xadd("booter",
+            {'command': 'loadGraph',
+             'graph': model_pub})
         logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
 
@@ -426,8 +440,7 @@ class Supervisor:
         ''' Start the graph '''
         self.r.xadd('booter', {
             'command': 'startGraph',
-            'graph': json.dumps(self.model)
-        })
+            'graph': json.dumps(self.model)})
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
@@ -729,7 +742,7 @@ class Supervisor:
         if self.model:
             for nickname in new_params:
                 nn_dec = nickname.decode("utf-8")
-                if nn_dec in self.model["nodes"]:
+                if nn_dec in self.model["nodes"] or nn_dec in self.model["derivatives"]:
                     # validate correct JSON format
                     try:
                         json.loads(new_params[nickname].decode())
@@ -752,7 +765,10 @@ class Supervisor:
             nn_dec = nickname.decode("utf-8")
             nickname_params = json.loads(new_params[nickname].decode())
             for param, value in nickname_params.items():
-                self.model["nodes"][nn_dec]["parameters"][param] = value
+                if nn_dec in self.model["nodes"]:
+                    self.model["nodes"][nn_dec]["parameters"][param] = value
+                elif nn_dec in self.model["derivatives"]:
+                    self.model["derivatives"][nn_dec]["parameters"][param] = value
 
         # write the new supergraph
         model_pub = json.dumps(self.model)
@@ -760,9 +776,17 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream", payload)
+        self.r.xadd('booter', 
+            {'command': 'loadGraph',
+             'graph': model_pub})
         logger.info("Supergraph updated successfully")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
-        self.r.xadd("graph_status", {'status': self.state[3]}) # status 3 means graph is running
+        # write previous graph status
+        status = self.r.xrevrange("graph_status", '+', '-', count=2)
+        if status[-1][1][b'status'].decode('utf-8') != self.state[4]:
+            self.r.xadd("graph_status",
+                {'status': status[-1][1][b'status']})
+        
 
     def save_rdb(self):
         '''

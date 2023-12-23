@@ -126,6 +126,7 @@ class Booter():
                 filepath = self.get_node_executable(cfg['module'], cfg['name'])
                 self.model['nodes'][node]['binary'] = filepath
 
+        deriv_names = list(self.model['derivatives'])
         for deriv, cfg in self.model['derivatives'].items():
             if 'machine' in cfg and cfg['machine'] == self.machine:
                 # verify the given filepath exists
@@ -134,47 +135,50 @@ class Booter():
                                           deriv,
                                           self.model['graph_name'])
 
-        self.logger.info(f'Loaded graph with nodes: {node_names}')
+        self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
 
     def start_graph(self):
         """
         Start the nodes in the graph that are assigned to this machine
         """
-        host, port = self.model['redis_host'], self.model['redis_port']
-        for node, cfg in self.model['nodes'].items():
-            # specify defaults
-            cfg.setdefault('root', True)
-            # run the node if it is assigned to this machine
-            if 'machine' in cfg and cfg['machine'] == self.machine:
-                node_stream_name = cfg["nickname"]
-                # build CLI command
-                args = []
-                if not cfg['root'] and 'SUDO_USER' in os.environ:
-                    # run nodes as the current user, not root
+        if self.model:
+            host, port = self.model['redis_host'], self.model['redis_port']
+            for node, cfg in self.model['nodes'].items():
+                # specify defaults
+                cfg.setdefault('root', True)
+                # run the node if it is assigned to this machine
+                if 'machine' in cfg and cfg['machine'] == self.machine:
+                    node_stream_name = cfg["nickname"]
+                    # build CLI command
+                    args = []
+                    if not cfg['root'] and 'SUDO_USER' in os.environ:
+                        # run nodes as the current user, not root
+                        args += [
+                            'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                            f"PATH={os.environ['PATH']}"
+                        ]
                     args += [
-                        'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
-                        f"PATH={os.environ['PATH']}"
+                        cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
+                        str(port)
                     ]
-                args += [
-                    cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
-                    str(port)
-                ]
-                # root permissions are needed to set real-time priority
-                if 'run_priority' in cfg:  # if priority is specified
-                    priority = cfg['run_priority']
-                    if priority:  # if priority is not None or empty
-                        chrt_args = ['chrt', '-f', str(int(priority))]
-                        args = chrt_args + args
-                if 'cpu_affinity' in cfg:  # if affinity is specified
-                    affinity = cfg['cpu_affinity']
-                    if affinity:  # if affinity is not None or empty
-                        taskset_args = ['taskset', '-c', str(affinity)]
-                        args = taskset_args + args
-                p = subprocess.Popen(args)
-                self.logger.debug(' '.join(args))
-                self.children[node] = p
+                    # root permissions are needed to set real-time priority
+                    if 'run_priority' in cfg:  # if priority is specified
+                        priority = cfg['run_priority']
+                        if priority:  # if priority is not None or empty
+                            chrt_args = ['chrt', '-f', str(int(priority))]
+                            args = chrt_args + args
+                    if 'cpu_affinity' in cfg:  # if affinity is specified
+                        affinity = cfg['cpu_affinity']
+                        if affinity:  # if affinity is not None or empty
+                            taskset_args = ['taskset', '-c', str(affinity)]
+                            args = taskset_args + args
+                    p = subprocess.Popen(args)
+                    self.logger.debug(' '.join(args))
+                    self.children[node] = p
 
-        self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
+            self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
+        else:
+            raise CommandError("No graph loaded", f'booter_{self.machine}', 'startGraph')
 
     def stop_graph(self):
         """
@@ -276,7 +280,7 @@ class Booter():
             del self.derivative_threads[f'booter_{self.machine}_autorun']
             self.logger.info(f"Autorun derivatives killed.")
         else:
-            raise CommandError("Autorun derivatives not running.", f'booter {self.machine}', 'killAutorunDerivatives')
+            raise CommandError("Autorun derivatives not running.", f'booter_{self.machine}', 'killAutorunDerivatives')
             
     def run_derivatives(self, derivative_names):
         '''
@@ -316,7 +320,7 @@ class Booter():
             self.logger.info(f"Started derivative(s): {started_derivatives}")
 
         if failed_derivatives:
-            raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", 'supervisor', 'runDerivative')
+            raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", f'booter_{self.machine}', 'runDerivative')
 
     def kill_derivatives(self, derivative_names):
         '''
@@ -346,7 +350,7 @@ class Booter():
             self.logger.info(f"Killed derivative(s): {killed_derivatives}")
             
         if failed_derivatives:
-            raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", 'supervisor', 'killDerivative')
+            raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", f'booter_{self.machine}', 'killDerivative')
 
     def make(self, graph=None, node=None, derivative=None, module=None):
         '''
@@ -379,7 +383,7 @@ class Booter():
         elif p_make.returncode > 0:
             raise CommandError(
                 f"Make returned exit code {p_make.returncode}.",
-                f'booter {self.machine}',
+                f'booter_{self.machine}',
                 'make',
                 'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
         elif p_make.returncode < 0:
@@ -397,9 +401,13 @@ class Booter():
         """
         command = entry[b'command'].decode()
         if command == 'startGraph':
+            if b'graph' in entry:
+                graph_dict = json.loads(entry[b'graph'])
+                self.load_graph(graph_dict)
+            self.start_graph()
+        elif command == 'loadGraph':
             graph_dict = json.loads(entry[b'graph'])
             self.load_graph(graph_dict)
-            self.start_graph()
         elif command == 'stopGraph':
             self.stop_graph()
         elif command == 'make':
@@ -418,7 +426,7 @@ class Booter():
             elif b'derivative' in entry:
                 derivatives = entry[b'derivative']
             else:
-                raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'runDerivatives')
+                raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", f'booter_{self.machine}', 'runDerivatives')
 
             derivatives = derivatives.decode('utf-8').split(',')
             self.run_derivatives(derivatives)
@@ -428,14 +436,14 @@ class Booter():
             elif b'derivative' in entry:
                 derivatives = entry[b'derivative']
             else:
-                raise CommandError("killDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'killDerivatives')
+                raise CommandError("killDerivative(s) command requires a 'derivative' or 'derivatives' key", f'booter_{self.machine}', 'killDerivatives')
             
             derivatives = derivatives.decode('utf-8').split(',')
             self.kill_derivatives(derivatives)
         elif command == "setDerivativeContinueOnError":
             if b'continue_on_error' in entry:
                 if entry[b'continue_on_error'] not in [b'0', b'1']:
-                    raise CommandError("continue_on_error must be 0 or 1", 'supervisor', 'setDerivativeContinueOnError')
+                    raise CommandError("continue_on_error must be 0 or 1", f'booter_{self.machine}', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
                 self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
 
