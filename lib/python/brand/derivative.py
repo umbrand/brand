@@ -84,7 +84,7 @@ class RunDerivatives(Thread):
         logger.addHandler(self.redis_log_handler)
 
     def get_steps(self, model=None):
-        """Sets the total number of steps. 
+        """Gets the derivative steps from the supergraph. 
         Paramters
         ---------
         model: dict
@@ -92,8 +92,9 @@ class RunDerivatives(Thread):
 
         Returns
         -------
-        steps: list
-            A list containing all the step numbers in order. """
+        steps: dict
+            A dictionary containing the step numbers as keys
+            and derivative information as values. """
         
         if model is None:
             model = self.model
@@ -315,7 +316,7 @@ class RunDerivativeSet(Thread):
                     "success": 0,
                     "returncode": -1,
                     "stderr": -1,
-                    "timestamp": -1,
+                    "timestamp": time.monotonic(),
                 },
             )
             return None

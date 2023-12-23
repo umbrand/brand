@@ -369,7 +369,7 @@ class Supervisor:
                         self.BRAND_BASE_DIR,
                         d['module'],
                         "derivatives",
-                        d['name'].split('.')[0],
+                        os.path.splitext(d['name'])[0],
                         d['name'])
                     filepath = os.path.relpath(filepath, self.BRAND_BASE_DIR)
                 elif 'full_path' in d:
@@ -408,14 +408,14 @@ class Supervisor:
                 self.graph_name) from exc
         
         # ensure that node and derivative nicknames are not shared
-        node_nn = set(model['nodes'].keys())
-        derivative_nn = set(model['derivatives'].keys())
-        shared_nn = node_nn & derivative_nn
+        node_nicknames = set(model['nodes'].keys())
+        derivative_nicknames = set(model['derivatives'].keys())
+        shared_nicknames = node_nicknames & derivative_nicknames
 
-        if shared_nn:
+        if shared_nicknames:
             raise GraphError(
                 f"Node and derivative nicknames must be unique. "
-                f"Duplicate nicknames found: {shared_nn}",
+                f"Duplicate nicknames found: {shared_nicknames}",
                 self.graph_name)
 
         # model is valid if we make it here
@@ -745,8 +745,8 @@ class Supervisor:
         # validate the new parameters
         if self.model:
             for nickname in new_params:
-                nn_dec = nickname.decode("utf-8")
-                if nn_dec in self.model["nodes"] or nn_dec in self.model["derivatives"]:
+                nickname_decoded = nickname.decode("utf-8")
+                if nickname_decoded in self.model["nodes"] or nickname_decoded in self.model["derivatives"]:
                     # validate correct JSON format
                     try:
                         json.loads(new_params[nickname].decode())
@@ -757,7 +757,7 @@ class Supervisor:
                             self.graph_file)
                 else:
                     raise GraphError(
-                        f"There is no {nn_dec} nickname in the supergraph, skipped all parameter updates",
+                        f"There is no {nickname_decoded} nickname in the supergraph, skipped all parameter updates",
                         self.graph_file)
         else:
             raise GraphError(
@@ -766,13 +766,13 @@ class Supervisor:
 
         # if we make it out of the above loop without error, then the parameter update is valid, so overwrite the existing model
         for nickname in new_params:
-            nn_dec = nickname.decode("utf-8")
+            nickname_decoded = nickname.decode("utf-8")
             nickname_params = json.loads(new_params[nickname].decode())
             for param, value in nickname_params.items():
-                if nn_dec in self.model["nodes"]:
-                    self.model["nodes"][nn_dec]["parameters"][param] = value
-                elif nn_dec in self.model["derivatives"]:
-                    self.model["derivatives"][nn_dec]["parameters"][param] = value
+                if nickname_decoded in self.model["nodes"]:
+                    self.model["nodes"][nickname_decoded]["parameters"][param] = value
+                elif nickname_decoded in self.model["derivatives"]:
+                    self.model["derivatives"][nickname_decoded]["parameters"][param] = value
 
         # write the new supergraph
         model_pub = json.dumps(self.model)
