@@ -54,6 +54,7 @@ class Supervisor:
 
         self.derivative_threads = {}
         self.derivative_stop_events = {}
+        self.derivative_continue_on_error = True
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -495,7 +496,8 @@ class Supervisor:
             host=self.host,
             port=self.port,
             brand_base_dir=self.BRAND_BASE_DIR,
-            stop_event=self.derivative_stop_events['supervisor_autorun'])
+            stop_event=self.derivative_stop_events['supervisor_autorun'],
+            continue_on_error=self.derivative_continue_on_error)
         autorun_derivative_thread.start()
         self.derivative_threads['supervisor_autorun'] = autorun_derivative_thread
         
@@ -975,6 +977,14 @@ class Supervisor:
             derivative = data[b'derivative'].decode('utf-8') if b'derivative' in data else None
             module = data[b'module'].decode('utf-8') if b'module' in data else None
             self.make(graph=graph, node=node, derivative=derivative, module=module)
+        elif cmd == "setderivativecontinueonerror":
+            if b'continue_on_error' in data:
+                if data[b'continue_on_error'] not in [b'0', b'1']:
+                    raise CommandError("continue_on_error must be 0 or 1", 'supervisor', 'setDerivativeContinueOnError')
+                self.derivative_continue_on_error = bool(int(data[b'continue_on_error']))
+                self.r.xadd("booter", {'command': 'setDerivativeContinueOnError',
+                                       'continue_on_error': int(self.derivative_continue_on_error)})
+                logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
         else:
             logger.warning("Invalid command")
 

@@ -53,7 +53,8 @@ class RunDerivatives(Thread):
                  host,
                  port,
                  brand_base_dir,
-                 stop_event):
+                 stop_event,
+                 continue_on_error=True):
         
         super().__init__()
 
@@ -71,7 +72,7 @@ class RunDerivatives(Thread):
 
         self.stop_event = stop_event
 
-        self.failure_state = False
+        self.run_all_if_error = continue_on_error
 
         self.current_thread = None
         self.thread_m1 = None
@@ -107,6 +108,7 @@ class RunDerivatives(Thread):
 
         steps = {k: steps[k] for k in sorted(steps)}
         self.steps = steps
+        self.errors = {step: False for step in self.steps}
 
     def run(self):
         """Runs the thread. Gets steps, creates a new thread for each step."""
@@ -115,7 +117,7 @@ class RunDerivatives(Thread):
 
         if -1 in self.steps:
             self.step = -1
-            logger.info(f"Starting RunDerivativeStep {self.step}.")
+            logger.info(f"Starting derivative step {self.step}.")
             self.thread_m1 = RunDerivativeSet(
                 machine=self.machine, 
                 derivatives=self.steps[self.step],
@@ -128,7 +130,7 @@ class RunDerivatives(Thread):
         for step in self.steps:
             if step > -1:
                 self.step = step
-                logger.info(f"Starting RunDerivativeStep {self.step}.")
+                logger.info(f"Starting derivative step {self.step}.")
                 self.current_thread = RunDerivativeSet(
                     machine=self.machine, 
                     derivatives=self.steps[self.step],
@@ -143,22 +145,27 @@ class RunDerivatives(Thread):
 
                 # Check if thread failed on finish.
                 if self.current_thread.failure_state:
-                    self.failure_state = True
-                    
-                logger.info(f"Step {self.step} {'failed' if self.failure_state else 'completed'}.")
+                    self.errors[self.step] = True
+                    logger.warning(f"Step {self.step} completed with an error(s).")
+                else:
+                    logger.info(f"Step {self.step} completed.")
 
                 # If this step failed, stop running derivatives.
-                if self.failure_state:
+                if self.errors[self.step] and not self.run_all_if_error:
                     self.report_future_failure(step=self.step)
                     break
 
         if -1 in self.steps:
+            logger.info(f"Waiting for derivative step -1 to finish.")
             self.thread_m1.join()
             
             if self.thread_m1.failure_state:
-                self.failure_state = True
+                self.errors[-1] = True
+                logger.warning(f"Step -1 completed with an error(s).")
+            else:
+                logger.info(f"Step -1 completed.")
 
-        logger.info(f"Derivative steps finished {'successfully' if not self.failure_state else 'in an error.'}")
+        logger.info(f"Derivative steps finished {f'with error(s): {self.errors}' if any(self.errors.values()) else 'successfully'}")
 
     def report_future_failure(self, step=-1):
         """Report the failure to start for all derivatives in future steps."""
@@ -170,6 +177,7 @@ class RunDerivatives(Thread):
         for s in failure_steps:
             # Only report the error for the autorun set to True derivatives 
             # on this machine.
+            self.errors[s] = True
             for d in self.steps[s]:
                 if d['machine'] == self.machine:
                     nickname = d['nickname']
@@ -205,7 +213,6 @@ class RunDerivatives(Thread):
             redis_conn = Redis(self.redis_host, self.redis_port, retry_on_timeout=True)
         except ConnectionError as e:
             print(f"[{self.nickname}] unable to connect to redis. Error: {e}")
-            self.failure_state = True
             sys.exit(1)
 
         return redis_conn

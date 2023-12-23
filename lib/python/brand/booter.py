@@ -70,6 +70,7 @@ class Booter():
         self.children = {}
         self.derivative_threads = {}
         self.derivative_stop_events = {}
+        self.derivative_continue_on_error = True
         # set the base directory as the current working directory
         self.brand_base_dir = os.getcwd()
         # connect to Redis
@@ -263,7 +264,8 @@ class Booter():
             host=self.host,
             port=self.port,
             brand_base_dir=self.brand_base_dir,
-            stop_event=self.derivative_stop_events[f'booter_{self.machine}_autorun'])
+            stop_event=self.derivative_stop_events[f'booter_{self.machine}_autorun'],
+            continue_on_error=self.derivative_continue_on_error)
         autorun_derivative_thread.start()
         self.derivative_threads[f'booter_{self.machine}_autorun'] = autorun_derivative_thread
 
@@ -430,6 +432,12 @@ class Booter():
             
             derivatives = derivatives.decode('utf-8').split(',')
             self.kill_derivatives(derivatives)
+        elif command == "setDerivativeContinueOnError":
+            if b'continue_on_error' in entry:
+                if entry[b'continue_on_error'] not in [b'0', b'1']:
+                    raise CommandError("continue_on_error must be 0 or 1", 'supervisor', 'setDerivativeContinueOnError')
+                self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
+                self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
 
     def run(self):
         """
