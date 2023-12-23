@@ -88,13 +88,7 @@ class RunDerivatives(Thread):
         Paramters
         ---------
         model: dict
-            A dictionary containing the current supergraph.
-
-        Returns
-        -------
-        steps: dict
-            A dictionary containing the step numbers as keys
-            and derivative information as values. """
+            A dictionary containing the current supergraph."""
         
         if model is None:
             model = self.model
