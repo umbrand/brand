@@ -58,7 +58,7 @@ class RunDerivatives(Thread):
         
         super().__init__()
 
-        self.nickname = "derivative_runner"
+        self.nickname = f"derivative_runner_{machine}"
 
         self.step = -1
         self.machine = machine
@@ -77,11 +77,12 @@ class RunDerivatives(Thread):
         self.current_thread = None
         self.thread_m1 = None
 
-        # Also send logs to Redis.
-        self.redis_log_handler = RedisLoggingHandler(
-            self.redis_conn, self.nickname
-        )
-        logger.addHandler(self.redis_log_handler)
+        # Also send logs to Redis, only add handler if not present yet
+        if not any(isinstance(h, RedisLoggingHandler) for h in logger.handlers):
+            self.redis_log_handler = RedisLoggingHandler(
+                self.redis_conn, self.nickname
+            )
+            logger.addHandler(self.redis_log_handler)
 
     def get_steps(self, model=None):
         """Gets the derivative steps from the supergraph. 
