@@ -151,7 +151,7 @@ class AutorunDerivatives(Thread):
 
     def wait_for_derivatives(self, step):
         """Waits for derivatives in a step to finish."""
-        step_derivatives = self.steps[step].copy()
+        step_derivatives = list(set(self.steps[step]).intersection(self.running_derivatives))
         while step_derivatives:
             try:
                 # get latest derivative statuses
@@ -164,8 +164,8 @@ class AutorunDerivatives(Thread):
                         if nickname in self.running_derivatives:
                             # if the derivative is completed, remove it from the list
                             if entry[1][b'status'] == b'completed':
-                                logger.info(step_derivatives)
-                                step_derivatives.remove(nickname)
+                                if nickname in step_derivatives:
+                                    step_derivatives.remove(nickname)
                                 self.running_derivatives.remove(nickname)
                                 if entry[1][b'success'] == b'0':
                                     self.errors[step] = True
