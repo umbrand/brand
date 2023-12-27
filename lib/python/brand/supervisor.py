@@ -21,7 +21,7 @@ from sh import git
 
 from threading import Event
 
-from .derivative import RunDerivatives, RunDerivativeSet
+from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
 from .redis import RedisLoggingHandler
@@ -501,21 +501,17 @@ class Supervisor:
         serial derivatives (default) which will be run in a blocking fashion. """
     
         ## Tell booter to also run derivatives for its machine.
-        self.r.xadd("booter", {"command": "startAutorunDerivatives"})
         self.derivative_stop_events['supervisor_autorun'] = Event()
-        autorun_derivative_thread = RunDerivatives(
-            machine=self.machine, 
+        autorun_derivative_thread = AutorunDerivatives(
             model=self.model,
             host=self.host,
             port=self.port,
-            brand_base_dir=self.BRAND_BASE_DIR,
             stop_event=self.derivative_stop_events['supervisor_autorun'],
             continue_on_error=self.derivative_continue_on_error)
         autorun_derivative_thread.start()
         self.derivative_threads['supervisor_autorun'] = autorun_derivative_thread
         
     def kill_autorun_derivatives(self):
-        self.r.xadd("booter", {"command": "killAutorunDerivatives"})
         if 'supervisor_autorun' in self.derivative_threads:
             self.derivative_stop_events['supervisor_autorun'].set()
             del self.derivative_stop_events['supervisor_autorun']
@@ -659,12 +655,10 @@ class Supervisor:
                     # generate a stop event for this derivative
                     self.derivative_stop_events[derivative] = Event()
                     # start the derivative
-                    derivative_thread = RunDerivativeSet(
-                        machine=self.machine,
-                        derivatives=[self.model['derivatives'][derivative]],
+                    derivative_thread = RunDerivative(
+                        derivative_info=self.model['derivatives'][derivative],
                         host=self.host,
                         port=self.port,
-                        brand_base_dir=self.BRAND_BASE_DIR,
                         stop_event=self.derivative_stop_events[derivative])
                     derivative_thread.start()
                     # add the derivative to the list of running derivatives
