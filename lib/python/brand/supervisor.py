@@ -496,24 +496,33 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[3]})
 
     def start_autorun_derivatives(self):
-        """Autorun derivatives come in two categories. First, there are 
-        parellel derivatives that can be started immediately. Second, there are 
-        serial derivatives (default) which will be run in a blocking fashion. """
+        """Starts autorun derivatives"""
     
-        ## Tell booter to also run derivatives for its machine.
+        # check if autorun derivatives are already running
+        if 'supervisor_autorun' in self.derivative_threads:
+            if self.derivative_threads['supervisor_autorun'].is_alive():
+                raise CommandError("Autorun derivatives already running.", 'supervisor', 'startAutorunDerivatives')
+            
+        # create a stop event for the autorun derivatives
         self.derivative_stop_events['supervisor_autorun'] = Event()
+        # create the thread that will keep track of autorunning derivatives
         autorun_derivative_thread = AutorunDerivatives(
             model=self.model,
             host=self.host,
             port=self.port,
             stop_event=self.derivative_stop_events['supervisor_autorun'],
             continue_on_error=self.derivative_continue_on_error)
+        # start the thread
         autorun_derivative_thread.start()
+        # add the thread to track it
         self.derivative_threads['supervisor_autorun'] = autorun_derivative_thread
         
     def kill_autorun_derivatives(self):
+        """Kills autorun derivatives"""
         if 'supervisor_autorun' in self.derivative_threads:
+            # set the stop event to stop the autorun derivatives
             self.derivative_stop_events['supervisor_autorun'].set()
+            # delete the event and thread instances
             del self.derivative_stop_events['supervisor_autorun']
             del self.derivative_threads['supervisor_autorun']
             logger.info(f"Autorun derivatives killed.")

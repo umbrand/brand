@@ -61,6 +61,7 @@ class AutorunDerivatives(Thread):
         self.step = -1
         self.model = model
 
+        # load Redis connection info
         self.redis_host = host
         self.redis_port = port
         self.redis_conn = self.connect_to_redis()
@@ -99,11 +100,15 @@ class AutorunDerivatives(Thread):
             model = self.model
 
         steps = {}
+        # run through the derivatives in the graph
         for derivative_nickname, derivative_info in model['derivatives'].items():
+            # if the derivative has an autorun step, add it to the list
             if 'autorun_step' in derivative_info:
                 if derivative_info['autorun_step'] in steps:
+                    # add to the step's existing list
                     steps[derivative_info['autorun_step']].append(derivative_nickname)
                 else:
+                    # create a new step
                     steps[derivative_info['autorun_step']] = [derivative_nickname]
 
         steps = {k: steps[k] for k in sorted(steps)}
@@ -115,6 +120,7 @@ class AutorunDerivatives(Thread):
         # Sets self.steps and sorts it.
         self.get_steps()
 
+        # begin autorun step -1 derivatives so they may run in parallel to others
         if -1 in self.steps:
             self.step = -1
             logger.info(f"Starting derivative step {self.step}.")
@@ -122,10 +128,12 @@ class AutorunDerivatives(Thread):
                 'supervisor_ipstream',
                 {'commands': 'runDerivatives',
                  'derivatives': ','.join(self.steps[self.step])})
+            # log the step -1 derivatives in the running derivatives list
             self.running_derivatives.extend(self.steps[self.step])
 
         for step in self.steps:
             if step > -1:
+                # start up derivatives for the current step
                 self.step = step
                 logger.info(f"Starting derivative step {self.step}.")
                 self.redis_conn.xadd(
@@ -133,19 +141,28 @@ class AutorunDerivatives(Thread):
                     {'commands': 'runDerivatives',
                      'derivatives': ','.join(self.steps[self.step])})
                 
+                # log the step derivatives in the running derivatives list
                 self.running_derivatives.extend(self.steps[self.step])
 
+                # wait for this step to finish before proceeding to the next
                 self.wait_for_derivatives(step)
 
-                if (self.stop_event.is_set()
-                    or (self.errors[step]
-                        and not self.run_all_if_error)):
+                # exit immediately if the stop event is set
+                if self.stop_event.is_set():
+                    self.kill_derivatives()
+                    break
+
+                # if the step errored and we're not continuing on error
+                if self.errors[step] and not self.run_all_if_error:
                     self.report_future_failure(self.step)
                     break
 
         if -1 in self.steps:
             logger.info(f"Waiting for derivative step -1 to finish.")
             self.wait_for_derivatives(-1)
+
+        if self.stop_event.is_set():
+            self.report_future_failure(self.step)
 
         logger.info(f"Derivative steps finished {f'with error(s): {self.errors}' if any(self.errors.values()) else 'successfully'}")
 
@@ -176,12 +193,32 @@ class AutorunDerivatives(Thread):
                     break
 
             except redis.exceptions.ConnectionError:
-                break
+                logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
         
         if self.errors[step]:
             logger.warning(f"Step {step} completed with an error(s).")
         else:
             logger.info(f"Step {step} completed.")
+
+    def kill_derivatives(self, derivatives=[]):
+        """Kills a list of derivatives"""
+
+        if not derivatives:
+            derivatives = self.running_derivatives
+        
+        # kill specified derivatives
+        self.redis_conn.xadd(
+            'supervisor_ipstream',
+            {'commands': 'killDerivatives',
+             'derivatives': ','.join(derivatives)})
+        
+        for nickname in derivatives:
+            # remove derivative from the running derivatives list
+            self.running_derivatives.remove(nickname)
+
+            # get the nickname's step
+            step = [step for step in self.steps if nickname in self.steps[step]][0]
+            self.errors[step] = True
 
     def report_future_failure(self, step=-1):
         """Report the failure to start for all derivatives in future steps."""
@@ -190,12 +227,6 @@ class AutorunDerivatives(Thread):
 
         failure_steps_derivatives = []
         failure_steps = [s for s in self.steps if s > step]
-
-        # kill derivatives currently running
-        self.redis_conn.xadd(
-            'supervisor_ipstream',
-            {'commands': 'killDerivatives',
-             'derivatives': ','.join(self.running_derivatives)})
 
         for s in failure_steps:
             # Report failure for all derivatives in future steps
@@ -215,7 +246,7 @@ class AutorunDerivatives(Thread):
                         },
                     )
                 except redis.exceptions.ConnectionError:
-                    pass
+                    logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
 
         logger.warning(f"Derivative step(s) {', '.join([str(s) for s in failure_steps])} failed because a previous step errored.")
         logger.warning(f"Derivative(s) {', '.join(failure_steps_derivatives)} did not run.")
