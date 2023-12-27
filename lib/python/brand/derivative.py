@@ -165,7 +165,7 @@ class RunDerivatives(Thread):
 
     def report_future_failure(self, step=-1):
         """Report the failure to start for all derivatives in future steps."""
-        end_timestamp = time.monotonic()
+        end_timestamp = time.time()
 
         failure_steps = [s for s in self.steps if s > step]
         failure_steps_derivatives = []
@@ -311,7 +311,7 @@ class RunDerivativeSet(Thread):
                     "success": 0,
                     "returncode": -1,
                     "stderr": -1,
-                    "timestamp": time.monotonic(),
+                    "timestamp": time.time(),
                 },
             )
             return None
@@ -345,7 +345,7 @@ class RunDerivativeSet(Thread):
         logger.info(f"Starting derivative {nickname} {delay_msg}...")
 
         proc = subprocess.Popen(args)
-        start_timestamp = time.monotonic()
+        start_timestamp = time.time()
 
         self.redis_conn.xadd(
             DERIVATIVES_STATUS_STREAM,
@@ -366,7 +366,7 @@ class RunDerivativeSet(Thread):
             stdout, stderr = proc.communicate()
 
         returncode = proc.poll()
-        end_timestamp = time.monotonic()
+        end_timestamp = time.time()
         try:
             self.redis_conn.xadd(
                 DERIVATIVES_STATUS_STREAM,
@@ -404,7 +404,7 @@ class RunDerivativeSet(Thread):
                 if proc.pid not in self.finished_children:
                     returncode = proc.poll()
                     if returncode is not None:
-                        end_timestamp = time.monotonic()
+                        end_timestamp = time.time()
 
                         # Remove that nickname from the list. 
                         del self.running_children[nickname]
