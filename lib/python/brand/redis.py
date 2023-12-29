@@ -122,6 +122,31 @@ def xread_sync(self,
 
     return out  # Return the synchronized output
 
+def redis_id_minus_one(redis_id):
+    """
+    Returns the Redis ID one less than the given ID
+
+    Parameters
+    ----------
+    redis_id : str
+        A Redis ID
+
+    Returns
+    -------
+    str
+        The Redis ID one less than the given ID
+    """
+    if isinstance(redis_id, bytes):
+        redis_id = redis_id.decode('utf-8')
+        
+    id_split = redis_id.split('-')
+    if int(id_split[1]) == 0:
+        id_split[0] = str(int(id_split[0]) - 1)
+        id_split[1] = str(0xFFFFFFFFFFFFFFFF)
+    else:
+        id_split[1] = str(int(id_split[1]) - 1)
+    return '-'.join(id_split)
+
 class RedisLoggingHandler(logging.Handler):
     """
     Send `logging` messages to a particular stream in Redis. (This stream can then be

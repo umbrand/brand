@@ -392,7 +392,7 @@ class Booter():
                     self.r.xadd(
                         self.booter_ping_stream,
                         {"machine": self.machine,
-                         "timestamp": time.monotonic_ns()})
+                         "timestamp_ns": time.monotonic_ns()})
                     break
 
                 entry_id = entry_id.decode('utf-8')

@@ -24,7 +24,7 @@ from threading import Event
 from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
-from .redis import RedisLoggingHandler
+from .redis import RedisLoggingHandler, redis_id_minus_one
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -877,6 +877,7 @@ class Supervisor:
         # wait for booters to respond
         booter_to_ping_id = '$'
         booter_ping_times = {}
+        got_ping = False
         while True:
 
             # wait for a booter to request a ping
@@ -890,25 +891,41 @@ class Supervisor:
                 # get start time of the ping
                 start_timestamp = time.monotonic_ns()
                 # send the ping request
-                self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
+                ping_response_id = self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
                 # wait for the ping response
-                ping_response = self.r.xread({self.BOOTER_PING_STREAM: booter_to_ping_id}, block=1000, count=1)
+                ping_response = self.r.xread(
+                    {self.BOOTER_PING_STREAM: redis_id_minus_one(redis_id_minus_one(ping_response_id))},
+                    block=1000,
+                    count=1)
                 # if we have a response
                 if ping_response:
                     # get the end time of the ping
                     end_timestamp = time.monotonic_ns()
                     # get the response
                     ping_response_id, ping_response_entry = ping_response[0][1][0]
-                    # calculate the round trip time
-                    rtt = end_timestamp - start_timestamp
-                    # log the round trip time
-                    logger.info(f"Round trip time to {machine_to_ping}: {rtt} ns")
-                    # add the round trip time to the dictionary
-                    booter_ping_times[machine_to_ping] = rtt
+                    # guarantee that the response is from the machine we pinged
+                    if ping_response_entry[b'machine'].decode('utf-8') == machine_to_ping:
+                        # calculate the round trip time
+                        round_trip_time = end_timestamp - start_timestamp
+                        # log the round trip time
+                        booter_ping_times[machine_to_ping] = {
+                            'round_trip_time_ns': round_trip_time,
+                            'supervisor_booter_timestamps_ns': [
+                                int(sum([start_timestamp, end_timestamp])/2),
+                                int(ping_response_entry[b'timestamp_ns'])]}
+                        got_ping = True
+                    else:
+                        logger.warning(f"Booter {ping_response_entry[b'machine'].decode('utf-8')}"
+                                       f" responded to ping when {machine_to_ping} was expected")
                 else:
                     logger.warning(f"Booter {machine_to_ping} did not respond to ping")
             else:
+                if not got_ping:
+                    logger.warning("No booters responded to ping")
                 break
+
+        if got_ping:
+            logger.info(f"Booter ping times: {booter_ping_times}")
 
 
     def terminate(self, sig, frame):
