@@ -44,6 +44,9 @@ class Supervisor:
         self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'brand-modules')) # path to the brand modules directory
         self.DEFAULT_DATA_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'Data')) # path to the default brand data directory
 
+        self.BOOTER_PING_STREAM = 'booter_ping'
+        self.SUPERVISOR_PING_STREAM = 'supervisor_ping'
+
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
 
@@ -864,6 +867,49 @@ class Supervisor:
         elif p_make.returncode < 0:
             logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
+    def ping(self):
+        '''
+        Instructs supervisor to ping booters
+        '''
+        # send the ping instruction to booters
+        self.r.xadd("booter", {'command': 'ping'})
+
+        # wait for booters to respond
+        booter_to_ping_id = '$'
+        booter_ping_times = {}
+        while True:
+
+            # wait for a booter to request a ping
+            booter_to_ping = self.r.xread({self.BOOTER_PING_STREAM: booter_to_ping_id}, block=1000, count=1)
+
+            # if we have a response
+            if booter_to_ping:
+                booter_to_ping_id, booter_to_ping_entry = booter_to_ping[0][1][0]
+                # get the machine we're currently pinging
+                machine_to_ping = booter_to_ping_entry[b'machine'].decode('utf-8')
+                # get start time of the ping
+                start_timestamp = time.monotonic_ns()
+                # send the ping request
+                self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
+                # wait for the ping response
+                ping_response = self.r.xread({self.BOOTER_PING_STREAM: booter_to_ping_id}, block=1000, count=1)
+                # if we have a response
+                if ping_response:
+                    # get the end time of the ping
+                    end_timestamp = time.monotonic_ns()
+                    # get the response
+                    ping_response_id, ping_response_entry = ping_response[0][1][0]
+                    # calculate the round trip time
+                    rtt = end_timestamp - start_timestamp
+                    # log the round trip time
+                    logger.info(f"Round trip time to {machine_to_ping}: {rtt} ns")
+                    # add the round trip time to the dictionary
+                    booter_ping_times[machine_to_ping] = rtt
+                else:
+                    logger.warning(f"Booter {machine_to_ping} did not respond to ping")
+            else:
+                break
+
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
@@ -1031,6 +1077,9 @@ class Supervisor:
                 self.r.xadd("booter", {'command': 'setDerivativeContinueOnError',
                                        'continue_on_error': int(self.derivative_continue_on_error)})
                 logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+        elif cmd == "ping":
+            logger.info("Ping command received")
+            self.ping()
         else:
             logger.warning("Invalid command")
 

@@ -12,6 +12,7 @@ import redis
 import signal
 import subprocess
 import sys
+import time
 import traceback
 
 from threading import Event
@@ -80,6 +81,9 @@ class Booter():
         self.logger.addHandler(self.redis_log_handler)
         # register signal handler
         signal.signal(signal.SIGINT, self.terminate)
+        # get ping-related streams
+        self.booter_ping_stream = 'booter_ping'
+        self.supervisor_ping_stream = 'supervisor_ping'
 
     def get_node_executable(self, module, name):
         """
@@ -366,6 +370,39 @@ class Booter():
         elif p_make.returncode < 0:
             self.logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
+    def ping(self):
+        '''
+        Responds to ping requests from Supervisor
+        '''
+        # tell supervisor this machine requests a ping
+        self.r.xadd(self.booter_ping_stream, {"machine": self.machine})
+
+        # wait for a ping request directed to this machine:
+        entry_id = '$'
+        while True:
+
+            request = self.r.xread({self.supervisor_ping_stream: entry_id}, block=1000, count=1)
+
+            # if we have a response
+            if request:
+                entry_id, entry_data = request[0][1][0]
+                # check if pinging this machine
+                if entry_data[b'machine'].decode('utf-8') == self.machine:
+                    # tell booter our current monotonic time
+                    self.r.xadd(
+                        self.booter_ping_stream,
+                        {"machine": self.machine,
+                         "timestamp": time.monotonic_ns()})
+                    break
+
+                entry_id = entry_id.decode('utf-8')
+
+            else:
+                # if no response, log a warning and exit
+                self.logger.warning("Ping request timed out, exiting command")
+                break
+
+
     def parse_command(self, entry):
         """
         Parse an entry from the 'booter' stream and run the corresponding
@@ -432,6 +469,9 @@ class Booter():
                     raise CommandError("continue_on_error must be 0 or 1", f'booter_{self.machine}', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
                 self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+        elif command == "ping":
+            self.ping()
+
 
     def run(self):
         """
