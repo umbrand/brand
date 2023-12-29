@@ -24,7 +24,7 @@ from threading import Event
 from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
                          GraphError, NodeError, RedisError)
-from .redis import RedisLoggingHandler, redis_id_minus_one
+from .redis import RedisLoggingHandler
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -891,10 +891,10 @@ class Supervisor:
                 # get start time of the ping
                 start_timestamp = time.monotonic_ns()
                 # send the ping request
-                ping_response_id = self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
+                self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
                 # wait for the ping response
                 ping_response = self.r.xread(
-                    {self.BOOTER_PING_STREAM: redis_id_minus_one(redis_id_minus_one(ping_response_id))},
+                    {self.BOOTER_PING_STREAM: booter_to_ping_id},
                     block=1000,
                     count=1)
                 # if we have a response
@@ -902,7 +902,7 @@ class Supervisor:
                     # get the end time of the ping
                     end_timestamp = time.monotonic_ns()
                     # get the response
-                    ping_response_id, ping_response_entry = ping_response[0][1][0]
+                    booter_to_ping_id, ping_response_entry = ping_response[0][1][0]
                     # guarantee that the response is from the machine we pinged
                     if ping_response_entry[b'machine'].decode('utf-8') == machine_to_ping:
                         # calculate the round trip time
