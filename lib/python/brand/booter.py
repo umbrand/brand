@@ -375,10 +375,12 @@ class Booter():
         Responds to ping requests from Supervisor
         '''
         # tell supervisor this machine requests a ping
-        self.r.xadd(self.booter_ping_stream, {"machine": self.machine})
+        entry_id = self.r.xadd(self.booter_ping_stream, {"machine": self.machine})
+
+        # get final ID of previous ms to ensure we xread the soonest possible supervisor reply
+        entry_id = str(int(entry_id.split(b'-')[0])-1)+'-'+str(0xFFFFFFFFFFFFFFFF)
 
         # wait for a ping request directed to this machine:
-        entry_id = '$'
         while True:
 
             request = self.r.xread({self.supervisor_ping_stream: entry_id}, block=1000, count=1)
