@@ -920,13 +920,12 @@ class Supervisor:
                 else:
                     logger.warning(f"Booter {machine_to_ping} did not respond to ping")
             else:
-                if not got_ping:
+                if got_ping:
+                    logger.info(f"Booter ping times: {booter_ping_times}")
+                    self.r.xadd("ping_times", {machine: json.dumps(times) for machine, times in booter_ping_times.items()})
+                else:
                     logger.warning("No booters responded to ping")
                 break
-
-        if got_ping:
-            logger.info(f"Booter ping times: {booter_ping_times}")
-            self.r.xadd("ping_times", {machine: json.dumps(times) for machine, times in booter_ping_times.items()})
 
 
     def terminate(self, sig, frame):
