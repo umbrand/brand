@@ -888,10 +888,9 @@ class Supervisor:
             # if we have a response
             if booter_to_ping:
                 booter_ping_request_id, booter_ping_request_entry = booter_to_ping[0][1][0]
-                # get final ID of previous ms to ensure we read the soonest possible booter reply
                 if booter_ping_response_id == '$':
+                    # get final ID of previous ms to ensure we read the soonest possible booter reply
                     booter_ping_response_id = str(int(booter_ping_request_id.split(b'-')[0])-1)+'-'+str(0xFFFFFFFFFFFFFFFF)
-                print(booter_ping_response_id)
                 # get the machine we're currently pinging
                 machine_to_ping = booter_ping_request_entry[b'machine'].decode('utf-8')
                 # get start time of the ping
