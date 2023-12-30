@@ -44,7 +44,8 @@ class Supervisor:
         self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'brand-modules')) # path to the brand modules directory
         self.DEFAULT_DATA_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'Data')) # path to the default brand data directory
 
-        self.BOOTER_PING_STREAM = 'booter_ping'
+        self.BOOTER_PING_REQUEST_STREAM = 'booter_ping_request'
+        self.BOOTER_PING_RESPONSE_STREAM = 'booter_ping_response'
         self.SUPERVISOR_PING_STREAM = 'supervisor_ping'
 
         self.state = ("initialized", "parsing", "graph failed", "running",
@@ -875,26 +876,31 @@ class Supervisor:
         self.r.xadd("booter", {'command': 'ping'})
 
         # wait for booters to respond
-        booter_to_ping_id = '$'
+        booter_ping_request_id = '$'
+        booter_ping_response_id = '$'
         booter_ping_times = {}
         got_ping = False
         while True:
 
             # wait for a booter to request a ping
-            booter_to_ping = self.r.xread({self.BOOTER_PING_STREAM: booter_to_ping_id}, block=1000, count=1)
+            booter_to_ping = self.r.xread({self.BOOTER_PING_REQUEST_STREAM: booter_ping_request_id}, block=1000, count=1)
 
             # if we have a response
             if booter_to_ping:
-                booter_to_ping_id, booter_to_ping_entry = booter_to_ping[0][1][0]
+                booter_ping_request_id, booter_ping_request_entry = booter_to_ping[0][1][0]
+                # get final ID of previous ms to ensure we read the soonest possible booter reply
+                if booter_ping_response_id == '$':
+                    booter_ping_response_id = str(int(booter_ping_request_id.split(b'-')[0])-1)+'-'+str(0xFFFFFFFFFFFFFFFF)
+                print(booter_ping_response_id)
                 # get the machine we're currently pinging
-                machine_to_ping = booter_to_ping_entry[b'machine'].decode('utf-8')
+                machine_to_ping = booter_ping_request_entry[b'machine'].decode('utf-8')
                 # get start time of the ping
                 start_timestamp = time.monotonic_ns()
                 # send the ping request
                 self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
                 # wait for the ping response
                 ping_response = self.r.xread(
-                    {self.BOOTER_PING_STREAM: booter_to_ping_id},
+                    {self.BOOTER_PING_RESPONSE_STREAM: booter_ping_response_id},
                     block=1000,
                     count=1)
                 # if we have a response
@@ -902,7 +908,7 @@ class Supervisor:
                     # get the end time of the ping
                     end_timestamp = time.monotonic_ns()
                     # get the response
-                    booter_to_ping_id, ping_response_entry = ping_response[0][1][0]
+                    booter_ping_response_id, ping_response_entry = ping_response[0][1][0]
                     # guarantee that the response is from the machine we pinged
                     if ping_response_entry[b'machine'].decode('utf-8') == machine_to_ping:
                         # calculate the round trip time
@@ -926,6 +932,7 @@ class Supervisor:
 
         if got_ping:
             logger.info(f"Booter ping times: {booter_ping_times}")
+            self.r.xadd("ping_times", {machine: json.dumps(times) for machine, times in booter_ping_times.items()})
 
 
     def terminate(self, sig, frame):

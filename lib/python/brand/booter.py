@@ -82,7 +82,8 @@ class Booter():
         # register signal handler
         signal.signal(signal.SIGINT, self.terminate)
         # get ping-related streams
-        self.booter_ping_stream = 'booter_ping'
+        self.booter_ping_request_stream = 'booter_ping_request'
+        self.booter_ping_response_stream = 'booter_ping_response'
         self.supervisor_ping_stream = 'supervisor_ping'
 
     def get_node_executable(self, module, name):
@@ -375,7 +376,7 @@ class Booter():
         Responds to ping requests from Supervisor
         '''
         # tell supervisor this machine requests a ping
-        entry_id = self.r.xadd(self.booter_ping_stream, {"machine": self.machine})
+        entry_id = self.r.xadd(self.booter_ping_request_stream, {"machine": self.machine})
 
         # get final ID of previous ms to ensure we xread the soonest possible supervisor reply
         entry_id = str(int(entry_id.split(b'-')[0])-1)+'-'+str(0xFFFFFFFFFFFFFFFF)
@@ -392,7 +393,7 @@ class Booter():
                 if entry_data[b'machine'].decode('utf-8') == self.machine:
                     # tell booter our current monotonic time
                     self.r.xadd(
-                        self.booter_ping_stream,
+                        self.booter_ping_response_stream,
                         {"machine": self.machine,
                          "timestamp_ns": time.monotonic_ns()})
                     break
