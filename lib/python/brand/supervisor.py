@@ -44,9 +44,8 @@ class Supervisor:
         self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'brand-modules')) # path to the brand modules directory
         self.DEFAULT_DATA_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'Data')) # path to the default brand data directory
 
+        self.BOOTER_PING_STREAM = 'booter_ping'
         self.BOOTER_PING_REQUEST_STREAM = 'booter_ping_request'
-        self.BOOTER_PING_RESPONSE_STREAM = 'booter_ping_response'
-        self.SUPERVISOR_PING_STREAM = 'supervisor_ping'
 
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
@@ -877,7 +876,6 @@ class Supervisor:
 
         # wait for booters to respond
         booter_ping_request_id = '$'
-        booter_ping_response_id = '$'
         booter_ping_times = {}
         got_ping = False
         while True:
@@ -888,18 +886,15 @@ class Supervisor:
             # if we have a response
             if booter_to_ping:
                 booter_ping_request_id, booter_ping_request_entry = booter_to_ping[0][1][0]
-                if booter_ping_response_id == '$':
-                    # get final ID of previous ms to ensure we read the soonest possible booter reply
-                    booter_ping_response_id = str(int(booter_ping_request_id.split(b'-')[0])-1)+'-'+str(0xFFFFFFFFFFFFFFFF)
                 # get the machine we're currently pinging
                 machine_to_ping = booter_ping_request_entry[b'machine'].decode('utf-8')
                 # get start time of the ping
                 start_timestamp = time.monotonic_ns()
                 # send the ping request
-                self.r.xadd(self.SUPERVISOR_PING_STREAM, {'machine': machine_to_ping})
+                booter_ping_response_id = self.r.xadd(self.BOOTER_PING_STREAM, {'machine': machine_to_ping})
                 # wait for the ping response
                 ping_response = self.r.xread(
-                    {self.BOOTER_PING_RESPONSE_STREAM: booter_ping_response_id},
+                    {self.BOOTER_PING_STREAM: booter_ping_response_id},
                     block=1000,
                     count=1)
                 # if we have a response
