@@ -44,6 +44,9 @@ class Supervisor:
         self.BRAND_MOD_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'brand-modules')) # path to the brand modules directory
         self.DEFAULT_DATA_DIR = os.path.abspath(os.path.join(self.BRAND_ROOT_DIR, 'Data')) # path to the default brand data directory
 
+        self.BOOTER_PING_STREAM = 'booter_ping'
+        self.BOOTER_PING_REQUEST_STREAM = 'booter_ping_request'
+
         self.state = ("initialized", "parsing", "graph failed", "running",
                       "published", "stopped/not initialized")
 
@@ -864,6 +867,66 @@ class Supervisor:
         elif p_make.returncode < 0:
             logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
+    def ping(self):
+        '''
+        Instructs supervisor to ping booters
+        '''
+        # send the ping instruction to booters
+        self.r.xadd("booter", {'command': 'ping'})
+
+        # wait for booters to respond
+        booter_ping_request_id = '$'
+        booter_ping_times = {}
+        got_ping = False
+        while True:
+
+            # wait for a booter to request a ping
+            booter_to_ping = self.r.xread({self.BOOTER_PING_REQUEST_STREAM: booter_ping_request_id}, block=1000, count=1)
+
+            # if we have a response
+            if booter_to_ping:
+                booter_ping_request_id, booter_ping_request_entry = booter_to_ping[0][1][0]
+                # get the machine we're currently pinging
+                machine_to_ping = booter_ping_request_entry[b'machine'].decode('utf-8')
+                # get start time of the ping
+                start_timestamp = time.monotonic_ns()
+                # send the ping request
+                booter_ping_response_id = self.r.xadd(self.BOOTER_PING_STREAM, {'machine': machine_to_ping})
+                # wait for the ping response
+                ping_response = self.r.xread(
+                    {self.BOOTER_PING_STREAM: booter_ping_response_id},
+                    block=1000,
+                    count=1)
+                # if we have a response
+                if ping_response:
+                    # get the end time of the ping
+                    end_timestamp = time.monotonic_ns()
+                    # get the response
+                    booter_ping_response_id, ping_response_entry = ping_response[0][1][0]
+                    # guarantee that the response is from the machine we pinged
+                    if ping_response_entry[b'machine'].decode('utf-8') == machine_to_ping:
+                        # calculate the round trip time
+                        round_trip_time = end_timestamp - start_timestamp
+                        # log the round trip time
+                        booter_ping_times[machine_to_ping] = {
+                            'round_trip_time_ns': round_trip_time,
+                            'supervisor_booter_timestamps_ns': [
+                                int(sum([start_timestamp, end_timestamp])/2),
+                                int(ping_response_entry[b'timestamp_ns'])]}
+                        got_ping = True
+                    else:
+                        logger.warning(f"Booter {ping_response_entry[b'machine'].decode('utf-8')}"
+                                       f" responded to ping when {machine_to_ping} was expected")
+                else:
+                    logger.warning(f"Booter {machine_to_ping} did not respond to ping")
+            else:
+                if got_ping:
+                    logger.info(f"Booter ping times: {booter_ping_times}")
+                    self.r.xadd("ping_times", {machine: json.dumps(times) for machine, times in booter_ping_times.items()})
+                else:
+                    logger.warning("No booters responded to ping")
+                break
+
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
@@ -1031,6 +1094,9 @@ class Supervisor:
                 self.r.xadd("booter", {'command': 'setDerivativeContinueOnError',
                                        'continue_on_error': int(self.derivative_continue_on_error)})
                 logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+        elif cmd == "ping":
+            logger.info("Ping command received")
+            self.ping()
         else:
             logger.warning("Invalid command")
 

@@ -130,6 +130,7 @@ class AutorunDerivatives(Thread):
                  'derivatives': ','.join(self.steps[self.step])})
             # log the step -1 derivatives in the running derivatives list
             self.running_derivatives.extend(self.steps[self.step])
+            self.check_derivatives_running(self.steps[self.step])
 
         for step in self.steps:
             if step > -1:
@@ -143,6 +144,7 @@ class AutorunDerivatives(Thread):
                 
                 # log the step derivatives in the running derivatives list
                 self.running_derivatives.extend(self.steps[self.step])
+                self.check_derivatives_running(self.steps[self.step])
 
                 # wait for this step to finish before proceeding to the next
                 self.wait_for_derivatives(step)
@@ -166,6 +168,45 @@ class AutorunDerivatives(Thread):
 
         logger.info(f"Derivative steps finished {f'with error(s): {self.errors}' if any(self.errors.values()) else 'successfully'}")
 
+    def check_derivatives_running(self, derivatives=[]):
+        """Checks if derivatives are running."""
+
+        check_id = self.latest_id
+
+        derivatives_to_check = derivatives.copy()
+        
+        while derivatives_to_check:
+            try:
+                # get latest derivative statuses
+                derivative_status = self.redis_conn.xread(
+                    {DERIVATIVES_STATUS_STREAM: check_id},
+                    block=1000)
+                
+                if derivative_status:
+                    for entry in derivative_status[0][1]:
+                        nickname = entry[1][b'nickname'].decode('utf-8')
+                        if nickname in derivatives_to_check:
+                            # if the derivative is running, remove it from the list
+                            if entry[1][b'status'] == b'running':
+                                derivatives_to_check.remove(nickname)
+                    check_id = derivative_status[0][1][-1][0].decode('utf-8')
+
+                else:
+                    # status timeout, so remove the derivatives without running status from the list
+                    logger.warning(f"Derivative(s) {', '.join(derivatives_to_check)} did not start.")
+                    self.running_derivatives = [d for d in self.running_derivatives if d not in derivatives_to_check]
+                    self.steps[self.step] = [d for d in self.steps[self.step] if d not in derivatives_to_check]
+                    derivatives_to_check = []
+                    break
+
+                if self.stop_event.is_set():
+                    self.errors[self.step] = True
+                    break
+
+            except redis.exceptions.ConnectionError:
+                logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
+                break
+
     def wait_for_derivatives(self, step):
         """Waits for derivatives in a step to finish."""
         step_derivatives = list(set(self.steps[step]).intersection(self.running_derivatives))
@@ -183,9 +224,9 @@ class AutorunDerivatives(Thread):
                             if entry[1][b'status'] == b'completed':
                                 if nickname in step_derivatives:
                                     step_derivatives.remove(nickname)
+                                    if entry[1][b'success'] == b'0':
+                                        self.errors[step] = True
                                 self.running_derivatives.remove(nickname)
-                                if entry[1][b'success'] == b'0':
-                                    self.errors[step] = True
                     self.latest_id = derivative_status[0][1][-1][0].decode('utf-8')
 
                 if self.stop_event.is_set():
@@ -318,6 +359,13 @@ class RunDerivative(Thread):
         self.child = None
 
         self.failure_state = False
+
+        # Also send logs to Redis, only add handler if not present yet
+        if not any(isinstance(h, RedisLoggingHandler) for h in logger.handlers):
+            self.redis_log_handler = RedisLoggingHandler(
+                self.redis_conn, self.nickname
+            )
+            logger.addHandler(self.redis_log_handler)
 
     def connect_to_redis(self):
         """
