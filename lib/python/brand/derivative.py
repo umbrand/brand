@@ -319,6 +319,13 @@ class RunDerivative(Thread):
 
         self.failure_state = False
 
+        # Also send logs to Redis, only add handler if not present yet
+        if not any(isinstance(h, RedisLoggingHandler) for h in logger.handlers):
+            self.redis_log_handler = RedisLoggingHandler(
+                self.redis_conn, self.nickname
+            )
+            logger.addHandler(self.redis_log_handler)
+
     def connect_to_redis(self):
         """
         Connect to redis, and add an initial entry to indicate this node successfully
