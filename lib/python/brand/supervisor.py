@@ -1244,7 +1244,8 @@ class Supervisor:
                     else:
                         self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
                         logger.error("'commands' key not in supervisor_ipstream entry")
-                        self.r.xadd("supervisor_status", {"status": "Listening for commands"})
+
+                self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
             except redis.exceptions.ConnectionError as exc:
                 self.handle_redis_connection_error(exc)
