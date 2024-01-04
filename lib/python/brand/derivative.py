@@ -80,8 +80,9 @@ class AutorunDerivatives(Thread):
         self.running_derivatives = []
 
         self.logger = logging.getLogger(self.nickname)
-        coloredlogs.install(level='DEBUG', logger=self.logger)
-        self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
+        if not any([isinstance(h, RedisLoggingHandler) for h in self.logger.handlers]):
+            coloredlogs.install(level='DEBUG', logger=self.logger)
+            self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
 
     def get_steps(self, model=None):
         """Gets the derivative steps from the supergraph. 
@@ -355,8 +356,9 @@ class RunDerivative(Thread):
         self.failure_state = False
 
         self.logger = logging.getLogger(self.nickname)
-        coloredlogs.install(level='DEBUG', logger=self.logger)
-        self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
+        if not any([isinstance(h, RedisLoggingHandler) for h in self.logger.handlers]):
+            coloredlogs.install(level='DEBUG', logger=self.logger)
+            self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
 
     def connect_to_redis(self):
         """
