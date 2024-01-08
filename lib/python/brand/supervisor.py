@@ -298,8 +298,6 @@ class Supervisor:
         else:
             self.rdb_filename = rdb_filename
 
-        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
-
         # Load node information
         model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
@@ -423,6 +421,9 @@ class Supervisor:
 
         # model is valid if we make it here
         self.model = model
+
+        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
+        
         if publish_graph:
             self.publish_graph()
 
