@@ -931,7 +931,9 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
-        
+        self.cleanup()
+
+    def cleanup(self):
         # attempt to kill nodes
         try:
             self.kill_nodes()
@@ -948,8 +950,6 @@ class Supervisor:
         # attempt to post an exit message to Redis
         try:
             self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
-        except redis.exceptions.ConnectionError as exc:
-            self.handle_redis_connection_error(exc)
         except Exception as exc:
             logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
@@ -1124,7 +1124,7 @@ class Supervisor:
 
     def handle_redis_connection_error(self, exc):
         logger.error('Could not connect to Redis: ' + repr(exc))
-        self.terminate()
+        self.cleanup()
 
     def handle_graph_error(self, exc):
         # if the graph has an error, it was never executed, so log it

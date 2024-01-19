@@ -234,4 +234,7 @@ class BRANDNode():
         """
         Handle uncaught exceptions by logging them.
         """
-        logging.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+        if self.r.ping():
+            logging.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+        else:
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
