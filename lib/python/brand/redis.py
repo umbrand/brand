@@ -146,8 +146,5 @@ class RedisLoggingHandler(logging.Handler):
         try:
             msg = self.format(record)
             self.redis_conn.xadd(self.LOG_STREAM_NAME, {"message": msg})
-        except redis.exceptions.ConnectionError:
-            # If not connected to redis, that's ok, just do nothing.
-            pass
         except:
             self.handleError(record)

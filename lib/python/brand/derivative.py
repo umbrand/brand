@@ -432,7 +432,7 @@ class RunDerivative(Thread):
         )
         self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        proc = subprocess.Popen(args)
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
@@ -537,7 +537,7 @@ class RunDerivative(Thread):
         if returncode == 0:
             self.logger.info(f"Derivative {self.nickname} completed successfully.")
         else:
-            self.logger.error(f"Derivative {self.nickname} errored with code {returncode}.\n{stderr}")
+            self.logger.error(f"Derivative {self.nickname} errored with code {returncode}.\n{stderr.decode('utf-8')}")
             self.failure_state = True
     
     def wait_for_child(self):
