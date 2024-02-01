@@ -5,7 +5,6 @@ import logging
 import os
 import psutil
 import redis
-import sh
 import signal
 import subprocess
 import sys
@@ -16,8 +15,6 @@ import yaml
 from datetime import datetime
 
 from redis import Redis
-
-from sh import git
 
 from threading import Event
 
@@ -828,7 +825,7 @@ class Supervisor:
         self.check_graph_not_running(cmd='make')
 
         booter_cmd = {'command': 'make'}
-        proc_cmd = ['make']
+        proc_cmd = ['make', '-j']
 
         if (graph == "true" or graph == "1"):
             if self.model:

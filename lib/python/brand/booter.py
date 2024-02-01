@@ -17,7 +17,7 @@ import traceback
 
 from threading import Event
 
-from .derivative import AutorunDerivatives, RunDerivative
+from .derivative import RunDerivative
 from .exceptions import CommandError, DerivativeError, GraphError, NodeError
 from .redis import RedisLoggingHandler
 
@@ -339,7 +339,7 @@ class Booter():
         '''
         # Run make
 
-        proc_cmd = ['make']
+        proc_cmd = ['make', '-j']
 
         if graph is not None:
             proc_cmd += [f'graph="{graph}"']
