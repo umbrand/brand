@@ -57,6 +57,8 @@ class BRANDNode():
 
         signal.signal(signal.SIGINT, self.terminate)
 
+        sys.excepthook = self._handle_exception
+
         # # initialize output stream entry data
         # self.sync_dict = {}
         # self.sync_dict_json = json.dumps(self.sync_dict)
@@ -227,3 +229,12 @@ class BRANDNode():
         # When this function is done, it wriest the following:
         #     XADD nickname_state * code 0 status "done"
         pass
+
+    def _handle_exception(self, exc_type, exc_value, exc_traceback):
+        """
+        Handle uncaught exceptions by logging them.
+        """
+        if self.r.ping():
+            logging.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+        else:
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)

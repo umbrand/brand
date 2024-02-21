@@ -5,7 +5,6 @@ import logging
 import os
 import psutil
 import redis
-import sh
 import signal
 import subprocess
 import sys
@@ -16,8 +15,6 @@ import yaml
 from datetime import datetime
 
 from redis import Redis
-
-from sh import git
 
 from threading import Event
 
@@ -298,8 +295,6 @@ class Supervisor:
         else:
             self.rdb_filename = rdb_filename
 
-        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
-
         # Load node information
         model["nodes"] = {}
         self.r.xadd("graph_status", {'status': self.state[1]})  # status 2 means graph is parsing
@@ -423,6 +418,9 @@ class Supervisor:
 
         # model is valid if we make it here
         self.model = model
+
+        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
+        
         if publish_graph:
             self.publish_graph()
 
@@ -827,7 +825,7 @@ class Supervisor:
         self.check_graph_not_running(cmd='make')
 
         booter_cmd = {'command': 'make'}
-        proc_cmd = ['make']
+        proc_cmd = ['make', '-j']
 
         if (graph == "true" or graph == "1"):
             if self.model:
@@ -930,7 +928,9 @@ class Supervisor:
 
     def terminate(self, sig, frame):
         logger.info('SIGINT received, Exiting')
-        
+        self.cleanup()
+
+    def cleanup(self):
         # attempt to kill nodes
         try:
             self.kill_nodes()
@@ -947,8 +947,6 @@ class Supervisor:
         # attempt to post an exit message to Redis
         try:
             self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
-        except redis.exceptions.ConnectionError as exc:
-            self.handle_redis_connection_error(exc)
         except Exception as exc:
             logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
         sys.exit(0)
@@ -1123,7 +1121,7 @@ class Supervisor:
 
     def handle_redis_connection_error(self, exc):
         logger.error('Could not connect to Redis: ' + repr(exc))
-        self.terminate()
+        self.cleanup()
 
     def handle_graph_error(self, exc):
         # if the graph has an error, it was never executed, so log it
@@ -1244,7 +1242,8 @@ class Supervisor:
                     else:
                         self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
                         logger.error("'commands' key not in supervisor_ipstream entry")
-                        self.r.xadd("supervisor_status", {"status": "Listening for commands"})
+
+                self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
             except redis.exceptions.ConnectionError as exc:
                 self.handle_redis_connection_error(exc)

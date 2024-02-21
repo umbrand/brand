@@ -42,9 +42,6 @@ from .redis import RedisLoggingHandler
 DERIVATIVES_STATUS_STREAM = "derivatives_status"
 CHECK_WAIT_TIME = .02
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-
 class AutorunDerivatives(Thread):
 
     def __init__(self, 
@@ -82,12 +79,10 @@ class AutorunDerivatives(Thread):
         # A list of derivatives that are currently running
         self.running_derivatives = []
 
-        # Also send logs to Redis, only add handler if not present yet
-        if not any(isinstance(h, RedisLoggingHandler) for h in logger.handlers):
-            self.redis_log_handler = RedisLoggingHandler(
-                self.redis_conn, self.nickname
-            )
-            logger.addHandler(self.redis_log_handler)
+        self.logger = logging.getLogger(self.nickname)
+        if not any([isinstance(h, RedisLoggingHandler) for h in self.logger.handlers]):
+            coloredlogs.install(level='DEBUG', logger=self.logger)
+            self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
 
     def get_steps(self, model=None):
         """Gets the derivative steps from the supergraph. 
@@ -123,7 +118,7 @@ class AutorunDerivatives(Thread):
         # begin autorun step -1 derivatives so they may run in parallel to others
         if -1 in self.steps:
             self.step = -1
-            logger.info(f"Starting derivative step {self.step}.")
+            self.logger.info(f"Starting derivative step {self.step}.")
             self.redis_conn.xadd(
                 'supervisor_ipstream',
                 {'commands': 'runDerivatives',
@@ -136,7 +131,7 @@ class AutorunDerivatives(Thread):
             if step > -1:
                 # start up derivatives for the current step
                 self.step = step
-                logger.info(f"Starting derivative step {self.step}.")
+                self.logger.info(f"Starting derivative step {self.step}.")
                 self.redis_conn.xadd(
                     'supervisor_ipstream',
                     {'commands': 'runDerivatives',
@@ -160,13 +155,13 @@ class AutorunDerivatives(Thread):
                     break
 
         if -1 in self.steps:
-            logger.info(f"Waiting for derivative step -1 to finish.")
+            self.logger.info(f"Waiting for derivative step -1 to finish.")
             self.wait_for_derivatives(-1)
 
         if self.stop_event.is_set():
             self.report_future_failure(self.step)
 
-        logger.info(f"Derivative steps finished {f'with error(s): {self.errors}' if any(self.errors.values()) else 'successfully'}")
+        self.logger.info(f"Derivative steps finished {f'with error(s): {self.errors}' if any(self.errors.values()) else 'successfully'}")
 
     def check_derivatives_running(self, derivatives=[]):
         """Checks if derivatives are running."""
@@ -193,7 +188,7 @@ class AutorunDerivatives(Thread):
 
                 else:
                     # status timeout, so remove the derivatives without running status from the list
-                    logger.warning(f"Derivative(s) {', '.join(derivatives_to_check)} did not start.")
+                    self.logger.warning(f"Derivative(s) {', '.join(derivatives_to_check)} did not start.")
                     self.running_derivatives = [d for d in self.running_derivatives if d not in derivatives_to_check]
                     self.steps[self.step] = [d for d in self.steps[self.step] if d not in derivatives_to_check]
                     derivatives_to_check = []
@@ -204,7 +199,7 @@ class AutorunDerivatives(Thread):
                     break
 
             except redis.exceptions.ConnectionError:
-                logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
+                self.logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
                 break
 
     def wait_for_derivatives(self, step):
@@ -234,12 +229,12 @@ class AutorunDerivatives(Thread):
                     break
 
             except redis.exceptions.ConnectionError:
-                logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
+                self.logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
         
         if self.errors[step]:
-            logger.warning(f"Step {step} completed with an error(s).")
+            self.logger.warning(f"Step {step} completed with an error(s).")
         else:
-            logger.info(f"Step {step} completed.")
+            self.logger.info(f"Step {step} completed.")
 
     def kill_derivatives(self, derivatives=[]):
         """Kills a list of derivatives"""
@@ -287,10 +282,10 @@ class AutorunDerivatives(Thread):
                         },
                     )
                 except redis.exceptions.ConnectionError:
-                    logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
+                    self.logger.warning("Could not connect to Redis. The following messages may be inaccurate.")
 
-        logger.warning(f"Derivative step(s) {', '.join([str(s) for s in failure_steps])} failed because a previous step errored.")
-        logger.warning(f"Derivative(s) {', '.join(failure_steps_derivatives)} did not run.")
+        self.logger.warning(f"Derivative step(s) {', '.join([str(s) for s in failure_steps])} failed because a previous step errored.")
+        self.logger.warning(f"Derivative(s) {', '.join(failure_steps_derivatives)} did not run.")
 
     def connect_to_redis(self):
         """
@@ -360,12 +355,10 @@ class RunDerivative(Thread):
 
         self.failure_state = False
 
-        # Also send logs to Redis, only add handler if not present yet
-        if not any(isinstance(h, RedisLoggingHandler) for h in logger.handlers):
-            self.redis_log_handler = RedisLoggingHandler(
-                self.redis_conn, self.nickname
-            )
-            logger.addHandler(self.redis_log_handler)
+        self.logger = logging.getLogger(self.nickname)
+        if not any([isinstance(h, RedisLoggingHandler) for h in self.logger.handlers]):
+            coloredlogs.install(level='DEBUG', logger=self.logger)
+            self.logger.addHandler(RedisLoggingHandler(self.redis_conn, self.nickname))
 
     def connect_to_redis(self):
         """
@@ -393,7 +386,7 @@ class RunDerivative(Thread):
         elif open(self.filepath,'r').readline()[:2] == "#!":
             args = ["./" + self.filepath]
         elif open(self.filepath,'r').readline()[:2] != "#!":
-            logger.error(
+            self.logger.error(
                 f"Derivative {self.nickname} is not Python or a Bin, nor does it "
                 f"contain a shebang (#!) to let the OS know how to run it. "
                 f"The derivative will not be started."
@@ -427,7 +420,7 @@ class RunDerivative(Thread):
         # You can specify a derivative to start after some short delay even 
         # within a set (doesn't overload the CPU maybe). 
         if 'delay_sec' in self.derivative_info:
-            delay_sec = self.derivative_info['delay_sec']
+            delay_sec = str(self.derivative_info['delay_sec'])
             delay_args = ['sleep', delay_sec, "&&"]
         else:
             delay_sec = None
@@ -437,9 +430,9 @@ class RunDerivative(Thread):
         delay_msg = (
             f"in {delay_sec} seconds " if delay_sec is not None else ""
         )
-        logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
+        self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        proc = subprocess.Popen(args)
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
@@ -477,7 +470,7 @@ class RunDerivative(Thread):
             os.kill(self.child.pid, 0)
         except OSError:
             # process doesn't exist, may have crashed
-            logger.warning(f"'{self.nickname}' (pid: {self.child.pid})"
+            self.logger.warning(f"'{self.nickname}' (pid: {self.child.pid})"
                             " isn't running and may have crashed")
             self.send_derivative_exit_status(self.nickname, self.child, "Early termination.")
             self.child = None
@@ -490,7 +483,7 @@ class RunDerivative(Thread):
                 self.child.communicate(timeout=15)
             except subprocess.TimeoutExpired:
                 # SIGINT failed, so send SIGKILL
-                logger.warning(f"Could not stop '{self.nickname}' "
+                self.logger.warning(f"Could not stop '{self.nickname}' "
                                f"(pid: {self.child.pid}) using SIGINT")
                 self._kill_proc_tree(signal.SIGKILL)
                 try:
@@ -502,20 +495,20 @@ class RunDerivative(Thread):
                     pass  # delay error message until after the loop
                 else:
                     # process terminated via SIGKILL
-                    logger.info(f"Killed '{self.nickname}' "
+                    self.logger.info(f"Killed '{self.nickname}' "
                                 f"(pid: {self.child.pid}) using SIGKILL")
                     self.send_derivative_exit_status("Early termination.")
                     self.child = None
             else:
                 # process terminated via SIGINT
-                logger.info(f"Stopped '{self.nickname}' "
+                self.logger.info(f"Stopped '{self.nickname}' "
                             f"(pid: {self.child.pid}) using SIGINT")
                 self.send_derivative_exit_status("Early termination.")
                 self.child = None
 
         # raise an error if nodes are still running
         if self.child is not None:
-            logger.exception(f'Could not kill {self.nickname}')
+            self.logger.exception(f'Could not kill {self.nickname}')
 
     def send_derivative_exit_status(self, stderr=''):
         """
@@ -542,9 +535,9 @@ class RunDerivative(Thread):
             pass
 
         if returncode == 0:
-            logger.info(f"Derivative {self.nickname} completed successfully.")
+            self.logger.info(f"Derivative {self.nickname} completed successfully.")
         else:
-            logger.error(f"Derivative {self.nickname} errored with code {returncode}.\n{stderr}")
+            self.logger.error(f"Derivative {self.nickname} errored with code {returncode}.\n{stderr.decode('utf-8')}")
             self.failure_state = True
     
     def wait_for_child(self):
