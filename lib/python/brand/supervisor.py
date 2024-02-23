@@ -253,9 +253,9 @@ class Supervisor:
             participant_id = 0
 
         # Make paths for saving files
-        session_str = datetime.today().strftime(r'%Y.%m.%d')
-        session_id = f'{participant_id}.{session_str}'
-        save_path = os.path.join(self.data_dir, str(participant_id), session_id)
+        session_str = datetime.today().strftime(r'%Y-%m-%d')
+        session_id = f'{session_str}'
+        save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
         save_path = os.path.abspath(save_path)
         return save_path, str(participant_id)
 
