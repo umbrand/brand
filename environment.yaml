@@ -1,4 +1,4 @@
-name: rt-dev
+name: rt
 channels:
   - defaults
 dependencies:
