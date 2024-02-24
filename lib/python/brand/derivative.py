@@ -420,17 +420,20 @@ class RunDerivative(Thread):
         # You can specify a derivative to start after some short delay even 
         # within a set (doesn't overload the CPU maybe). 
         if 'delay_sec' in self.derivative_info:
-            delay_sec = self.derivative_info['delay_sec']
+            delay_sec = str(self.derivative_info['delay_sec'])
+            delay_args = ['sleep', delay_sec, '&&']
         else:
             delay_sec = None
+            delay_args = []
+
+        args = delay_args + args
 
         delay_msg = (
             f"in {delay_sec} seconds " if delay_sec is not None else ""
         )
         self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        time.sleep(delay_sec)
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
