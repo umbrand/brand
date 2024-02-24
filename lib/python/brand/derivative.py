@@ -433,7 +433,7 @@ class RunDerivative(Thread):
         )
         self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        proc = subprocess.Popen(args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(' '.join(args), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
