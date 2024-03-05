@@ -421,10 +421,11 @@ class RunDerivative(Thread):
         # within a set (doesn't overload the CPU maybe). 
         if 'delay_sec' in self.derivative_info:
             delay_sec = str(self.derivative_info['delay_sec'])
-            delay_args = ['sleep', delay_sec, "&&"]
+            delay_args = ['sleep', delay_sec, '&&']
         else:
             delay_sec = None
             delay_args = []
+
         args = delay_args + args
 
         delay_msg = (
@@ -432,7 +433,7 @@ class RunDerivative(Thread):
         )
         self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(' '.join(args), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
