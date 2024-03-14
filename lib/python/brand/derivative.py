@@ -186,6 +186,9 @@ class AutorunDerivatives(Thread):
                                 derivatives_to_check.remove(nickname)
                     check_id = derivative_status[0][1][-1][0].decode('utf-8')
 
+                    if not derivatives_to_check:
+                        break
+
                 else:
                     # status timeout, so remove the derivatives without running status from the list
                     self.logger.warning(f"Derivative(s) {', '.join(derivatives_to_check)} did not start.")
