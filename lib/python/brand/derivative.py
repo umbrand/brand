@@ -175,7 +175,7 @@ class AutorunDerivatives(Thread):
                 # get latest derivative statuses
                 derivative_status = self.redis_conn.xread(
                     {DERIVATIVES_STATUS_STREAM: check_id},
-                    block=1000)
+                    block=15000)
                 
                 if derivative_status:
                     for entry in derivative_status[0][1]:
