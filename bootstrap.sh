@@ -52,6 +52,8 @@ for dep in ${dependencies[@]}; do
     info "Successfully installed ${dep}"
 done
 
+sudo snap install yq
+
 # check if elm command is available. If not prompt user for installation.
 install_elm=false
 ROOT=`dirname "$0"`

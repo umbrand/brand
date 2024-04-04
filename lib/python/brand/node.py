@@ -2,13 +2,16 @@
 # Author: Mattia Rigotti
 # Adapted from code by: David Brandman and Kushant Patel
 
-import sys
 import argparse
-from redis import Redis
+import gc
+import json
 import logging
 import signal
-import json
-import time
+import sys
+
+from redis import Redis
+
+from .redis import RedisLoggingHandler
 
 class BRANDNode():
     def __init__(self):
@@ -41,7 +44,7 @@ class BRANDNode():
         self.initializeParameters()
 
         # set up logging
-        loglevel = self.parameters['log']
+        loglevel = self.parameters.setdefault('log', 'INFO')
         numeric_level = getattr(logging, loglevel.upper(), None)
 
         if not isinstance(numeric_level, int):
@@ -49,8 +52,12 @@ class BRANDNode():
 
         logging.basicConfig(format=f'[{self.NAME}] %(levelname)s: %(message)s',
                             level=numeric_level)
+        self.redis_log_handler = RedisLoggingHandler(self.r, self.NAME)
+        logging.getLogger().addHandler(self.redis_log_handler)
 
         signal.signal(signal.SIGINT, self.terminate)
+
+        sys.excepthook = self._handle_exception
 
         # # initialize output stream entry data
         # self.sync_dict = {}
@@ -212,8 +219,9 @@ class BRANDNode():
 
     def terminate(self, sig, frame):
         logging.info('SIGINT received, Exiting')
+        self.cleanup()
         self.r.close()
-        #self.sock.close()
+        gc.collect()
         sys.exit(0)
 
     def cleanup(self):
@@ -221,3 +229,12 @@ class BRANDNode():
         # When this function is done, it wriest the following:
         #     XADD nickname_state * code 0 status "done"
         pass
+
+    def _handle_exception(self, exc_type, exc_value, exc_traceback):
+        """
+        Handle uncaught exceptions by logging them.
+        """
+        if self.r.ping():
+            logging.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+        else:
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
