@@ -260,7 +260,7 @@ class Supervisor:
         return save_path, str(participant_id)
 
 
-    def load_graph(self,graph_dict,rdb_filename=None):
+    def load_graph(self,graph_dict,rdb_filename=None, publish_graph=True):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
         Args:
             graph_dict: graph dictionary
@@ -421,7 +421,8 @@ class Supervisor:
 
         self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
         
-        self.publish_graph()
+        if publish_graph:
+            self.publish_graph()
 
     def publish_graph(self):
         model_pub = json.dumps(self.model)
