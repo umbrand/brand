@@ -260,7 +260,7 @@ class Supervisor:
         return save_path, str(participant_id)
 
 
-    def load_graph(self,graph_dict,rdb_filename=None,publish_graph=True):
+    def load_graph(self,graph_dict,rdb_filename=None, publish_graph=True):
         ''' Running logic for the supervisor graph, establishes a redis connection on specified host & port  
         Args:
             graph_dict: graph dictionary
@@ -434,7 +434,7 @@ class Supervisor:
             {'command': 'loadGraph',
              'graph': model_pub})
         logger.info("Supergraph Stream (Model) published successfully with payload")
-        self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is running and supergraph is published
+        self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
 
 
     def start_graph(self):
@@ -788,12 +788,6 @@ class Supervisor:
             {'command': 'loadGraph',
              'graph': model_pub})
         logger.info("Supergraph updated successfully")
-        self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
-        # write previous graph status
-        status = self.r.xrevrange("graph_status", '+', '-', count=2)
-        if status[-1][1][b'status'].decode('utf-8') != self.state[4]:
-            self.r.xadd("graph_status",
-                {'status': status[-1][1][b'status']})
         
 
     def save_rdb(self):
