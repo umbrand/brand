@@ -9,6 +9,6 @@ setup(
         'coloredlogs',
         'redis',
         'pyyaml',
-        'psutil'
+        'psutil==5.9.1'
     ]
 )
