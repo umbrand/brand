@@ -8,6 +8,7 @@ setup(
     install_requires=[
         'coloredlogs',
         'redis',
-        'pyyaml'
+        'pyyaml',
+        'psutil'
     ]
 )
