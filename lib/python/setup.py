@@ -7,7 +7,9 @@ setup(
     # Specify any packages that our package itself requires.
     install_requires=[
         'coloredlogs',
-        'redis',
-        'pyyaml'
+        'numpy',
+        'psutil',
+        'pyyaml',
+        'redis'
     ]
 )
