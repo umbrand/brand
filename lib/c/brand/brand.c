@@ -18,7 +18,7 @@ redisContext* parse_command_line_args_init_redis(int argc, char **argv, char* NI
     int opt;
     int redis_port;
     char redis_host[20];
-    char node_stream_name[20];
+    char node_stream_name[50];
     char redis_socket[40];
 
     int nflg = 0, sflg = 0, iflg = 0, pflg = 0, errflg = 0;
