@@ -42,7 +42,6 @@ libsdl2-gfx-dev
 libsdl2-ttf-dev
 )
 
-sudo add-apt-repository -y ppa:chris-lea/redis-server
 sudo apt-get update
 
 # install pkgs in $dependencies
