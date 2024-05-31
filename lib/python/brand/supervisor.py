@@ -575,6 +575,7 @@ class Supervisor:
         if do_derivatives:
             if self.model:
                 # Run derivatives.
+                logger.info("Starting autorun derivatives...")
                 self.start_autorun_derivatives()
 
         if do_save:
