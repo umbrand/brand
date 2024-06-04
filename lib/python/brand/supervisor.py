@@ -531,7 +531,7 @@ class Supervisor:
         else:
             raise CommandError("Autorun derivatives not running.", 'supervisor', 'killAutorunDerivatives')
 
-    def stop_graph(self, do_save=False, do_derivatives=False, stop_graph_timeout=30):
+    def stop_graph(self, do_save=False, do_derivatives=False, booters_stop_timeout=30):
         '''
         Stops the graph
         '''
@@ -540,37 +540,33 @@ class Supervisor:
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
 
-        time.sleep(3) # time for booter to handle stopGraph command
+        # Get booter count by status
+        get_booter_count_by_status = lambda status_suffix: len([machine for machine, status in self.booter_status_dict.items() if status.endswith(status_suffix)])
 
-        def divide_booters_by_stop_graph_status(booter_status_dict):
-            graph_stopping_booter_list = [] # booters that are still stopping regardless of current graph
-            graph_stopped_booter_list = [] # booters that have stopped successfully regardless of current graph
-            other_status_booter_list = [] # booters in other states
-
-            for machine, status in booter_status_dict.items():
-                if status.endswith('graph stopping'):
-                    graph_stopping_booter_list.append(machine)
-                elif status.endswith('graph stopped successfully'):
-                    graph_stopped_booter_list.append(machine)
-                else:
-                    other_status_booter_list.append(machine)
-            
-            return graph_stopping_booter_list, graph_stopped_booter_list, other_status_booter_list
-
-        self.checkBooter()
-        booters_stopping, _, booters_other = divide_booters_by_stop_graph_status(self.booter_status_dict)
+        num_booters_stopping, num_booters_stopped = -1, -1 # Initialize to invalid values, make sure to wait for at least one iteration
         
-        kill_nodes_wait_start = time.time()
-        while (time.time() - kill_nodes_wait_start < stop_graph_timeout or stop_graph_timeout < 0) and len(booters_stopping) > 0:
+        # Wait for booter to handle stopGraph command
+        booters_handle_stop_command_start = time.time()
+        while time.time() - booters_handle_stop_command_start < 3 and num_booters_stopping + num_booters_stopped < len(self.booter_status_dict):
             self.checkBooter()
-            booters_stopping, _, booters_other = divide_booters_by_stop_graph_status(self.booter_status_dict)
+            num_booters_stopping = get_booter_count_by_status('graph stopping')
+            num_booters_stopped = get_booter_count_by_status('graph stopped successfully')
+
             time.sleep(1)
 
-        if booters_stopping:
-            logger.warning(f"Booters still stopping: {[(machine, self.booter_status_dict[machine]) for machine in booters_stopping]}")
+        logger.info(f"Booters handling stopGraph command: {num_booters_stopping}/{len(self.booter_status_dict)} stopping, {num_booters_stopped}/{len(self.booter_status_dict)} stopped.")
+        
+        # Wait for booters to finish stopping
+        booters_stop_wait_start = time.time()
+        while (time.time() - booters_stop_wait_start < booters_stop_timeout or booters_stop_timeout < 0) and num_booters_stopped < len(self.booter_status_dict):
+            self.checkBooter()
+            num_booters_stopped = get_booter_count_by_status('graph stopped successfully')
+            time.sleep(1)
 
-        if booters_other:
-            logger.warning(f"Booters in other states: {[(machine, self.booter_status_dict[machine]) for machine in booters_other]}")
+        if num_booters_stopped == len(self.booter_status_dict):
+            logger.info(f"Booters stopped successfully!")
+        else:
+            logger.warning(f"Booters did not stop successfully. Booter statuses: {self.booter_status_dict}")
 
         if do_derivatives:
             if self.model:
@@ -1041,7 +1037,7 @@ class Supervisor:
             do_save = bool(int(data.get(b"do_save", False)))
             do_derivatives = bool(int(data.get(b"do_derivatives", False)))
             stop_graph_timeout = int(data.get(b"timeout", 30))
-            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives, stop_graph_timeout=stop_graph_timeout)
+            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives, booters_stop_timeout=stop_graph_timeout)
         elif cmd == "stopchildprocess":
             logger.info("Stop child process command received")
             if b"nickname" not in data:
