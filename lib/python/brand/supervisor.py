@@ -554,7 +554,8 @@ class Supervisor:
 
             time.sleep(1)
 
-        logger.info(f"Booters handling stopGraph command: {num_booters_stopping}/{len(self.booter_status_dict)} stopping, {num_booters_stopped}/{len(self.booter_status_dict)} stopped.")
+        # Log the number of booters handling stopGraph command (in stopping and stopped states)
+        logger.info(f"Booters handling stopGraph command ({num_booters_stopped + num_booters_stopping} / {len(self.booter_status_dict)}): {num_booters_stopping} stopping, {num_booters_stopped} stopped.")
         
         # Wait for booters to finish stopping
         booters_stop_wait_start = time.time()
@@ -563,16 +564,10 @@ class Supervisor:
             num_booters_stopped = get_booter_count_by_status('graph stopped successfully')
             time.sleep(1)
 
-        if num_booters_stopped == len(self.booter_status_dict):
+        if num_booters_stopped == len(self.booter_status_dict): # All booters stopped successfully
             logger.info(f"Booters stopped successfully!")
-        else:
-            logger.warning(f"Booters did not stop successfully. Booter statuses: {self.booter_status_dict}")
-
-        if do_derivatives:
-            if self.model:
-                # Run derivatives.
-                logger.info("Starting autorun derivatives...")
-                self.start_autorun_derivatives()
+        else: # Some booters did not stop successfully (still stopping or errored out)
+            logger.warning(f"Booters did not stop successfully within timeout. Booter statuses: {self.booter_status_dict}")
 
         if do_save:
             # Save the .rdb file.
@@ -593,6 +588,11 @@ class Supervisor:
             self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
             self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
+        if do_derivatives:
+            if self.model:
+                # Run derivatives.
+                logger.info("Starting auto-run derivatives...")
+                self.start_autorun_derivatives()
 
     def kill_nodes(self, node_list=None):
         '''
@@ -1036,8 +1036,8 @@ class Supervisor:
             logger.info("Stop graph command received")
             do_save = bool(int(data.get(b"do_save", False)))
             do_derivatives = bool(int(data.get(b"do_derivatives", False)))
-            stop_graph_timeout = int(data.get(b"timeout", 30))
-            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives, booters_stop_timeout=stop_graph_timeout)
+            timeout = int(data.get(b"timeout", 30))
+            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives, booters_stop_timeout=timeout)
         elif cmd == "stopchildprocess":
             logger.info("Stop child process command received")
             if b"nickname" not in data:
