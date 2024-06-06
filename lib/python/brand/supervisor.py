@@ -555,7 +555,11 @@ class Supervisor:
             time.sleep(1)
 
         # Log the number of booters handling stopGraph command (in stopping and stopped states)
-        logger.info(f"Booters handling stopGraph command ({num_booters_stopped + num_booters_stopping} / {len(self.booter_status_dict)}): {num_booters_stopping} stopping, {num_booters_stopped} stopped.")
+        logging_message = f"Booters handling stopGraph command ({num_booters_stopped + num_booters_stopping} / {len(self.booter_status_dict)}): {num_booters_stopping} stopping, {num_booters_stopped} stopped."
+        if num_booters_stopping + num_booters_stopped < len(self.booter_status_dict):
+            logger.warning(logging_message)
+        else:
+            logger.info(logging_message)
         
         # Wait for booters to finish stopping
         booters_stop_wait_start = time.time()
