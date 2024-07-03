@@ -111,7 +111,7 @@ class Booter():
                 name)
         return filepath
 
-    def load_graph(self, graph: dict):
+    def load_graph(self, graph: dict, verbose=True):
         """
         Load a new supergraph into Booter
 
@@ -138,8 +138,9 @@ class Booter():
                     raise DerivativeError('Derivative filepath does not exist',
                                           deriv,
                                           self.model['graph_name'])
-
-        self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
+        
+        if verbose:
+            self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
 
     def start_graph(self):
         """
@@ -423,7 +424,8 @@ class Booter():
             self.start_graph()
         elif command == 'loadGraph':
             graph_dict = json.loads(entry[b'graph'])
-            self.load_graph(graph_dict)
+            verbose = bool(int(entry.get(b'verbose', b'1').decode()))
+            self.load_graph(graph_dict, verbose=verbose)
         elif command == 'stopGraph':
             self.stop_graph()
         elif command == "stopChildProcess":
