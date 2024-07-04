@@ -66,6 +66,7 @@ class Booter():
         # make a logger
         self.logger = logging.getLogger(f'booter-{self.machine}')
         coloredlogs.install(level=log_level, logger=self.logger)
+        self.verbose_command = True  # global verbosity variable that only lasts for 1 command
         # instatiate run variables
         self.model = {}
         self.child_nodes = {}
@@ -111,7 +112,7 @@ class Booter():
                 name)
         return filepath
 
-    def load_graph(self, graph: dict, verbose=True):
+    def load_graph(self, graph: dict):
         """
         Load a new supergraph into Booter
 
@@ -139,7 +140,7 @@ class Booter():
                                           deriv,
                                           self.model['graph_name'])
         
-        if verbose:
+        if self.verbose_command:
             self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
 
     def start_graph(self):
@@ -178,7 +179,8 @@ class Booter():
                             taskset_args = ['taskset', '-c', str(affinity)]
                             args = taskset_args + args
                     p = subprocess.Popen(args)
-                    self.logger.debug(' '.join(args))
+                    if self.verbose_command:
+                        self.logger.debug(' '.join(args))
                     self.child_nodes[node] = p
 
             self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph started successfully"})
@@ -224,7 +226,8 @@ class Booter():
                     # check if process exists
                     os.kill(proc.pid, 0)
                 except OSError:
-                    self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                    if self.verbose_command:
+                        self.logger.warning(f"'{node}' (pid: {proc.pid})"
                                         " isn't running and may have crashed")
                     self.child_nodes[node] = None
                     node_list.remove(node)
@@ -236,8 +239,9 @@ class Booter():
                         # check if it terminated
                         proc.communicate(timeout=15)
                     except subprocess.TimeoutExpired:
-                        self.logger.warning(f"Could not stop '{node}' "
-                                            f"(pid: {proc.pid}) using SIGINT")
+                        if self.verbose_command:
+                            self.logger.warning(f"Could not stop '{node}' "
+                                                f"(pid: {proc.pid}) using SIGINT")
                         # if not, send SIGKILL
                         kill_proc_tree(proc.pid, signal.SIGKILL)
                         try:
@@ -246,13 +250,15 @@ class Booter():
                         except subprocess.TimeoutExpired:
                             pass  # delay error message until after the loop
                         else:
-                            self.logger.info(f"Killed '{node}' "
+                            if self.verbose_command:
+                                self.logger.info(f"Killed '{node}' "
                                             f"(pid: {proc.pid}) using SIGKILL")
                             self.child_nodes[node] = None
                             node_list.remove(node)
                     else:
-                        self.logger.info(f"Stopped '{node}' "
-                                        f"(pid: {proc.pid}) using SIGINT")
+                        if self.verbose_command:
+                            self.logger.info(f"Stopped '{node}' "
+                                             f"(pid: {proc.pid}) using SIGINT")
                         self.child_nodes[node] = None
                         node_list.remove(node)
         # remove killed processes from self.children
@@ -263,8 +269,9 @@ class Booter():
         # raise an error if nodes are still running
         if node_list:
             message = ', '.join(node_list)
-            self.logger.exception('Could not kill these nodes: '
-                                  f'{message}')
+            if self.verbose_command:
+                self.logger.exception('Could not kill these nodes: '
+                                    f'{message}')
             
     def run_derivatives(self, derivative_names):
         '''
@@ -299,7 +306,8 @@ class Booter():
                     started_derivatives.append(derivative)
 
         if started_derivatives:
-            self.logger.info(f"Started derivative(s): {started_derivatives}")
+            if self.verbose_command:
+                self.logger.info(f"Started derivative(s): {started_derivatives}")
 
         if failed_derivatives:
             raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", f'booter_{self.machine}', 'runDerivative')
@@ -329,7 +337,8 @@ class Booter():
                     failed_derivatives[derivative] = 'not running'
         
         if killed_derivatives:
-            self.logger.info(f"Killed derivative(s): {killed_derivatives}")
+            if self.verbose_command:
+                self.logger.info(f"Killed derivative(s): {killed_derivatives}")
             
         if failed_derivatives:
             raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", f'booter_{self.machine}', 'killDerivative')
@@ -361,7 +370,8 @@ class Booter():
 
         if p_make.returncode == 0:
             self.r.xadd("booter_status", {"machine": self.machine, "status": "Make completed successfully"})
-            self.logger.info(f"Make completed successfully")
+            if self.verbose_command:
+                self.logger.info(f"Make completed successfully")
         elif p_make.returncode > 0:
             raise CommandError(
                 f"Make returned exit code {p_make.returncode}.",
@@ -369,7 +379,8 @@ class Booter():
                 'make',
                 'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
         elif p_make.returncode < 0:
-            self.logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
+            if self.verbose_command:
+                self.logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
     def ping(self):
         '''
@@ -402,7 +413,8 @@ class Booter():
 
             else:
                 # if no response, log a warning and exit
-                self.logger.warning("Ping request timed out, exiting command")
+                if self.verbose_command:
+                    self.logger.warning("Ping request timed out, exiting command")
                 break
 
 
@@ -424,8 +436,7 @@ class Booter():
             self.start_graph()
         elif command == 'loadGraph':
             graph_dict = json.loads(entry[b'graph'])
-            verbose = bool(int(entry.get(b'verbose', b'1').decode()))
-            self.load_graph(graph_dict, verbose=verbose)
+            self.load_graph(graph_dict)
         elif command == 'stopGraph':
             self.stop_graph()
         elif command == "stopChildProcess":
@@ -472,7 +483,8 @@ class Booter():
                 if entry[b'continue_on_error'] not in [b'0', b'1']:
                     raise CommandError("continue_on_error must be 0 or 1", f'booter_{self.machine}', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
-                self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+                if self.verbose_command:
+                    self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
         elif command == "ping":
             self.ping()
 
@@ -486,6 +498,7 @@ class Booter():
         self.logger.info('Listening for commands')
         self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
         while True:
+            self.verbose_command = True
 
             for derivative in list(self.derivative_threads.keys()):
                 if not self.derivative_threads[derivative].is_alive():
@@ -499,8 +512,15 @@ class Booter():
                 if streams:
                     _, stream_data = streams[0]
                     entry_id, entry_data = stream_data[0]
+
+                    if b'verbose' in entry_data:
+                        self.verbose_command = bool(int(entry_data[b'verbose']))
+
                     command = entry_data[b'command'].decode()
-                    self.logger.info(f'Received {command} command')
+                    
+                    if self.verbose_command:
+                        self.logger.info(f'Received {command} command')
+
                     self.parse_command(entry_data)
 
             except redis.exceptions.ConnectionError as exc:

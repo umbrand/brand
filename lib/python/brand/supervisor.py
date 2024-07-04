@@ -815,7 +815,7 @@ class Supervisor:
         self.r.xadd('booter', 
             {'command': 'loadGraph',
              'graph': model_pub,
-             'verbose_command': int(self.verbose_command)})
+             'verbose': int(self.verbose_command)})
         if self.verbose_command:
             logger.info("Supergraph updated successfully")
         
