@@ -141,7 +141,7 @@ class Booter():
                                           self.model['graph_name'])
         
         if self.verbose_command:
-            self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
+            self.logger.info(f'Loaded graph with {len(node_names)} nodes and {len(deriv_names)} derivatives')
 
     def start_graph(self):
         """
