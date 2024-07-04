@@ -1040,7 +1040,7 @@ class Supervisor:
         elif cmd == "updateparameters":
             if self.verbose_command:
                 logger.info("Update parameters command received")
-            new_params = {k:data[k] for k in data if k not in [b"commands"]}
+            new_params = {k:data[k] for k in data if k not in [b"commands", b"verbose"]}
             self.update_params(new_params)
         elif cmd == "stopgraph":
             if self.verbose_command:
