@@ -56,7 +56,8 @@ class Supervisor:
         self.derivative_stop_events = {}
         self.derivative_continue_on_error = True
 
-        self.verbose_command = True  # global verbosity variable that only lasts for 1 command
+        self._default_verbose_command = logging.DEBUG # default verbosity level, applied to all commands
+        self._verbose_command = self._default_verbose_command  # global verbosity variable that only lasts for 1 command
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -71,6 +72,34 @@ class Supervisor:
 
         if self.graph_file is not None:
             self.load_graph(graph_dict)
+
+
+    @property
+    def verbose_command(self):
+        return self._verbose_command
+    
+    @verbose_command.setter
+    def verbose_command(self, value:str):
+        try:
+            self._verbose_command = logging._nameToLevel[value.upper()]
+            self.redis_log_handler.setLevel(self._verbose_command)
+        except KeyError:
+            self.logger.warning(f"Invalid log level: {value}, skipping verbosity change.")
+
+    def set_verbose_command_to_default(self):
+        self.verbose_command = logging.getLevelName(self.default_verbose_command)
+
+    @property
+    def default_verbose_command(self):
+        return self._default_verbose_command
+
+    @default_verbose_command.setter
+    def default_verbose_command(self, value:str):
+        try:
+            self._default_verbose_command = logging._nameToLevel[value.upper()]
+            self.set_verbose_command_to_default()
+        except KeyError:
+            self.logger.warning(f"Invalid log level: {value}, skipping default verbosity change.")
 
 
     def handler(signal_received,self):
@@ -167,8 +196,7 @@ class Supervisor:
             key,messages = state[0]
             current_status = messages[b'status'].decode("utf-8")
         else:
-            if self.verbose_command:
-                logger.info("No status found in redis stream")
+            logger.info("No status found in redis stream")
         return current_status
 
 
@@ -189,16 +217,14 @@ class Supervisor:
             self.r.config_set('dir', rdb_save_path)
             if self.model:
                 self.model["rdb_dirpath"] = rdb_save_path
-            if self.verbose_command:
-                logger.info(f"RDB save directory set to: {rdb_save_path}")
+            logger.info(f"RDB save directory set to: {rdb_save_path}")
 
         if rdb_filename:
             # Set rdb filename
             self.r.config_set('dbfilename', rdb_filename)
             if self.model:
                 self.model["rdb_filename"] = rdb_filename
-            if self.verbose_command:
-                logger.info(f'New RDB filename set to: {rdb_filename}')
+            logger.info(f'New RDB filename set to: {rdb_filename}')
 
     def start_redis_server(self):
         redis_command = ['redis-server'] + self.redis_args
@@ -208,23 +234,20 @@ class Supervisor:
         if self.redis_affinity:
             redis_command = ['taskset', '-c', self.redis_affinity
                              ] + redis_command
-        if self.verbose_command:
-            logger.info('Starting redis: ' + ' '.join(redis_command))
+        logger.info('Starting redis: ' + ' '.join(redis_command))
         # get a process name by psutil
         proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
             if out:
-                if self.verbose_command:
-                    logger.debug(out.decode())
+                logger.debug(out.decode())
             if 'Address already in use' in str(out):
                 raise RedisError("Could not run redis-server (address already in use). Is supervisor already running?")
             else:
                 raise RedisError("Launching redis-server failed for an unknown reason, check supervisor logs. Aborting.")
         except subprocess.TimeoutExpired:  # no error message received
-            if self.verbose_command:
-                logger.info('redis-server is running')
+            logger.info('redis-server is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
         # Set new rdb filename
@@ -336,8 +359,7 @@ class Supervisor:
                 model["nodes"][n["nickname"]].update(n)
                 model["nodes"][n["nickname"]]["binary"] = bin_f
 
-                if self.verbose_command:
-                    logger.info("%s is a valid node" % n["nickname"])                
+                logger.info("%s is a valid node" % n["nickname"])                
 
         except KeyError as exc:
             if "nickname" in n:
@@ -442,9 +464,8 @@ class Supervisor:
         self.r.xadd("booter",
             {'command': 'loadGraph',
              'graph': model_pub,
-             'verbose': int(self.verbose_command)})
-        if self.verbose_command:
-            logger.info("Supergraph Stream (Model) published successfully with payload")
+             'verbose': logging.getLevelName(self.verbose_command)})
+        logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
 
 
@@ -453,12 +474,11 @@ class Supervisor:
         self.r.xadd('booter', {
             'command': 'startGraph',
             'graph': json.dumps(self.model),
-            'verbose': int(self.verbose_command)})
+            'verbose': logging.getLevelName(self.verbose_command)})
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
-        if self.verbose_command:
-            logger.info("Current status of the graph is: %s" % current_graph_status)
-            logger.info("Validation of the graph is successful")
+        logger.info("Current status of the graph is: %s" % current_graph_status)
+        logger.info("Validation of the graph is successful")
         host = self.model["redis_host"]
         port = self.model["redis_port"]
         for node, node_info in self.model["nodes"].items():
@@ -471,9 +491,8 @@ class Supervisor:
 
                 binary = node_info["binary"]
 
-                if self.verbose_command:
-                    logger.info("Binary for %s is %s" % (node,binary))
-                    logger.info("Node Stream Name: %s" % node_stream_name)
+                logger.info("Binary for %s is %s" % (node,binary))
+                logger.info("Node Stream Name: %s" % node_stream_name)
                 # build CLI command
                 args = []
                 if not node_info['root'] and 'SUDO_USER' in os.environ:
@@ -499,12 +518,10 @@ class Supervisor:
                         args = taskset_args + args
                 proc = subprocess.Popen(args)
                 proc.name = node
-                if self.verbose_command:
-                    logger.info("Child process created with pid: %s" % proc.pid)
-                    logger.info("Parent process is running and waiting for commands from redis")
+                logger.info("Child process created with pid: %s" % proc.pid)
+                logger.info("Parent process is running and waiting for commands from redis")
                 self.parent = os.getpid()
-                if self.verbose_command:
-                    logger.info("Parent Running on: %d" % os.getppid())
+                logger.info("Parent Running on: %d" % os.getppid())
                 self.child_nodes[node] = proc
 
         self.checkBooter()
@@ -542,8 +559,7 @@ class Supervisor:
             # delete the event and thread instances
             del self.derivative_stop_events['supervisor_autorun']
             del self.derivative_threads['supervisor_autorun']
-            if self.verbose_command:
-                logger.info(f"Autorun derivatives killed.")
+            logger.info(f"Autorun derivatives killed.")
         else:
             raise CommandError("Autorun derivatives not running.", 'supervisor', 'killAutorunDerivatives')
 
@@ -551,7 +567,9 @@ class Supervisor:
         '''
         Stops the graph
         '''
-        self.r.xadd('booter', {'command': 'stopGraph', 'verbose': int(self.verbose_command)})
+        self.r.xadd('booter', {
+                        'command': 'stopGraph', 
+                        'verbose': logging.getLevelName(self.verbose_command)})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
@@ -559,12 +577,10 @@ class Supervisor:
         if do_save:
             # Save the .rdb file.
             self.r.xadd("supervisor_status", {"status": "Saving rdb"})
-            if self.verbose_command:
-                logger.info("Saving RDB file...")
+            logger.info("Saving RDB file...")
             self.r.save()
             save_filepath = os.path.join(self.save_path_rdb, self.rdb_filename)
-            if self.verbose_command:
-                logger.info(f"RDB file saved as {save_filepath}")
+            logger.info(f"RDB file saved as {save_filepath}")
 
             # Store info about the save.
             last_save_info = {
@@ -610,8 +626,7 @@ class Supervisor:
                     # check if process exists
                     os.kill(proc.pid, 0)
                 except OSError:
-                    if self.verbose_command:
-                        self.logger.warning(f"'{node}' (pid: {proc.pid})"
+                    self.logger.warning(f"'{node}' (pid: {proc.pid})"
                                             " isn't running and may have crashed")
                     self.child_nodes[node] = None
                     node_list.remove(node)
@@ -623,8 +638,7 @@ class Supervisor:
                         # check if it terminated
                         proc.communicate(timeout=15)
                     except subprocess.TimeoutExpired:
-                        if self.verbose_command:
-                            self.logger.warning(f"Could not stop '{node}' "
+                        self.logger.warning(f"Could not stop '{node}' "
                                                 f"(pid: {proc.pid}) using SIGINT")
                         # if not, send SIGKILL
                         kill_proc_tree(proc.pid, signal.SIGKILL)
@@ -634,14 +648,12 @@ class Supervisor:
                         except subprocess.TimeoutExpired:
                             pass  # delay error message until after the loop
                         else:
-                            if self.verbose_command:
-                                self.logger.info(f"Killed '{node}' "
+                            self.logger.info(f"Killed '{node}' "
                                                 f"(pid: {proc.pid}) using SIGKILL")
                             self.child_nodes[node] = None
                             node_list.remove(node)
                     else:
-                        if self.verbose_command:
-                            self.logger.info(f"Stopped '{node}' "
+                        self.logger.info(f"Stopped '{node}' "
                                             f"(pid: {proc.pid}) using SIGINT")
                         self.child_nodes[node] = None
                         node_list.remove(node)
@@ -653,8 +665,7 @@ class Supervisor:
         # raise an error if nodes are still running
         if node_list:
             message = ', '.join(node_list)
-            if self.verbose_command:
-                self.logger.exception('Could not kill these nodes: '
+            self.logger.exception('Could not kill these nodes: '
                                     f'{message}')
             
     def run_derivatives(self, derivative_names):
@@ -673,9 +684,10 @@ class Supervisor:
 
         derivative_names = [d for d in derivative_names if d not in failed_derivatives]
 
-        self.r.xadd('booter', {'command': 'runDerivatives',
-                               'derivatives': ','.join(derivative_names),
-                               'verbose': int(self.verbose_command)})
+        self.r.xadd('booter', {
+                        'command': 'runDerivatives',
+                        'derivatives': ','.join(derivative_names),
+                        'verbose': logging.getLevelName(self.verbose_command)})
 
         # loop through derivatives and start each if able
         for derivative in derivative_names:
@@ -701,8 +713,7 @@ class Supervisor:
                     started_derivatives.append(derivative)
 
         if started_derivatives:
-            if self.verbose_command:
-                logger.info(f"Started derivative(s): {started_derivatives}")
+            logger.info(f"Started derivative(s): {started_derivatives}")
 
         if failed_derivatives:
             raise CommandError(f"Derivative(s) failed to start: {failed_derivatives}", 'supervisor', 'runDerivative')
@@ -723,9 +734,10 @@ class Supervisor:
 
         derivative_names = [d for d in derivative_names if d not in failed_derivatives]
 
-        self.r.xadd('booter', {'command': 'killDerivatives',
-                               'derivatives': ','.join(derivative_names),
-                               'verbose': self.verbose_command})
+        self.r.xadd('booter', {
+                        'command': 'killDerivatives',
+                        'derivatives': ','.join(derivative_names),
+                        'verbose': logging.getLevelName(self.verbose_command)})
 
         # loop through derivatives and kill each if able
         for derivative in derivative_names:
@@ -749,8 +761,7 @@ class Supervisor:
                 failed_derivatives[derivative] = 'not in graph'
         
         if killed_derivatives:
-            if self.verbose_command:
-                logger.info(f"Killed derivative(s): {killed_derivatives}")
+            logger.info(f"Killed derivative(s): {killed_derivatives}")
 
         if failed_derivatives:
             raise CommandError(f"Derivative(s) failed to kill: {failed_derivatives}", 'supervisor', 'killDerivative')
@@ -815,9 +826,8 @@ class Supervisor:
         self.r.xadd('booter', 
             {'command': 'loadGraph',
              'graph': model_pub,
-             'verbose': int(self.verbose_command)})
-        if self.verbose_command:
-            logger.info("Supergraph updated successfully")
+             'verbose': logging.getLevelName(self.verbose_command)})
+        logger.info("Supergraph updated successfully")
         
 
     def save_rdb(self):
@@ -826,8 +836,7 @@ class Supervisor:
         '''
         # Save rdb file
         self.r.save()
-        if self.verbose_command:
-            logger.info(f"RDB data saved to file: {self.rdb_filename}")
+        logger.info(f"RDB data saved to file: {self.rdb_filename}")
 
     def flush_db(self):
         '''
@@ -849,7 +858,7 @@ class Supervisor:
         '''
         self.check_graph_not_running(cmd='make')
 
-        booter_cmd = {'command': 'make', 'verbose': int(self.verbose_command)}
+        booter_cmd = {'command': 'make', 'verbose': logging.getLevelName(self.verbose_command)}
         proc_cmd = ['make', '-j']
 
         if (graph == "true" or graph == "1"):
@@ -880,8 +889,7 @@ class Supervisor:
                                 capture_output=True)
 
         if p_make.returncode == 0:
-            if self.verbose_command:
-                logger.info(f"Make completed successfully")
+            logger.info(f"Make completed successfully")
         elif p_make.returncode > 0:
             raise CommandError(
                 f"Make returned exit code {p_make.returncode}.",
@@ -889,15 +897,16 @@ class Supervisor:
                 'make',
                 'STDOUT:\n' + p_make.stdout.decode('utf-8') + '\nSTDERR:\n' + p_make.stderr.decode('utf-8'))
         elif p_make.returncode < 0:
-            if self.verbose_command:
-                logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
+            logger.info(f"Make was halted during execution with return code {p_make.returncode}, {signal.Signals(-p_make.returncode).name}")
 
     def ping(self):
         '''
         Instructs supervisor to ping booters
         '''
         # send the ping instruction to booters
-        self.r.xadd("booter", {'command': 'ping', 'verbose': int(self.verbose_command)})
+        self.r.xadd("booter", {
+                        'command': 'ping', 
+                        'verbose': logging.getLevelName(self.verbose_command)})
 
         # wait for booters to respond
         booter_ping_request_id = '$'
@@ -940,20 +949,16 @@ class Supervisor:
                                 int(ping_response_entry[b'timestamp_ns'])]}
                         got_ping = True
                     else:
-                        if self.verbose_command:
-                            logger.warning(f"Booter {ping_response_entry[b'machine'].decode('utf-8')}"
+                        logger.warning(f"Booter {ping_response_entry[b'machine'].decode('utf-8')}"
                                         f" responded to ping when {machine_to_ping} was expected")
                 else:
-                    if self.verbose_command:
-                        logger.warning(f"Booter {machine_to_ping} did not respond to ping")
+                    logger.warning(f"Booter {machine_to_ping} did not respond to ping")
             else:
                 if got_ping:
-                    if self.verbose_command:
-                        logger.info(f"Booter ping times: {booter_ping_times}")
+                    logger.info(f"Booter ping times: {booter_ping_times}")
                     self.r.xadd("ping_times", {machine: json.dumps(times) for machine, times in booter_ping_times.items()})
                 else:
-                    if self.verbose_command:
-                        logger.warning("No booters responded to ping")
+                    logger.warning("No booters responded to ping")
                 break
 
 
@@ -1002,8 +1007,7 @@ class Supervisor:
                 rdb_filename = None
 
             if b'file' in data:
-                if self.verbose_command:
-                    logger.info(f"{cmd} command received with file")
+                logger.info(f"{cmd} command received with file")
 
                 file = data[b'file'].decode("utf-8")
                 if data.get(b'relative'):
@@ -1023,65 +1027,55 @@ class Supervisor:
                 if cmd == "startgraph":
                     self.start_graph()
             elif b'graph' in data:
-                if self.verbose_command:
-                    logger.info(f"{cmd} command received with graph dict")
+                logger.info(f"{cmd} command received with graph dict")
                 self.load_graph(json.loads(data[b'graph']))
                 if cmd == "startgraph":
                     self.start_graph()
             elif cmd == "startgraph":
-                if self.verbose_command:
-                    logger.info(f"{cmd} command received")
+                logger.info(f"{cmd} command received")
                 if not self.model:
-                    raise GraphError("No graph provided with startGgraph command and no graph previously loaded",
+                    raise GraphError("No graph provided with startGraph command and no graph previously loaded",
                     self.graph_file)
                 self.start_graph()
             else: # command was loadGraph with insufficient inputs
                 raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
         elif cmd == "updateparameters":
-            if self.verbose_command:
-                logger.info("Update parameters command received")
-            new_params = {k:data[k] for k in data if k not in [b"commands", b"verbose"]}
+            logger.info("Update parameters command received")
+            new_params = {k:data[k] for k in data if k not in [b"commands", b"verbose", b"verbose_global"]}
             self.update_params(new_params)
         elif cmd == "stopgraph":
-            if self.verbose_command:
-                logger.info("Stop graph command received")
+            logger.info("Stop graph command received")
             do_save = bool(int(data.get(b"do_save", False)))
             do_derivatives = bool(int(data.get(b"do_derivatives", False)))
             self.stop_graph(do_save=do_save, do_derivatives=do_derivatives)
         elif cmd == "stopchildprocess":
-            if self.verbose_command:
-                logger.info("Stop child process command received")
+            logger.info("Stop child process command received")
             if b"nickname" not in data:
                 raise CommandError("stopChildProcess command requires a 'nickname' key", 'supervisor', 'stopChildProcess')
             nickname = data[b"nickname"].decode('utf-8')
             # Forward the command to booter as well
             self.r.xadd("booter", {
-                "command": "stopChildProcess",
-                "nickname": nickname,
-                "verbose": int(self.verbose_command)
-            })
+                            "command": "stopChildProcess",
+                            "nickname": nickname,
+                            "verbose": logging.getLevelName(self.verbose_command)})
             # Kill the process if it is here
             if nickname in self.child_nodes:
                 self.kill_nodes([nickname])
             elif nickname in self.derivative_threads:
                 self.kill_derivatives([nickname])
         elif cmd == "saverdb":
-            if self.verbose_command:
-                logger.info("Save RDB command received")
+            logger.info("Save RDB command received")
             self.save_rdb()
         elif cmd == "flushredis":
-            if self.verbose_command:
-                logger.info("Flush Redis command received")
+            logger.info("Flush Redis command received")
             self.flush_db()
         elif cmd == "setdatadir":
             rel_path = os.path.relpath(self.save_path, self.data_dir)
             if b'path' in data:
-                if self.verbose_command:
-                    logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
+                logger.info(f"Set data directory command received, setting to {data[b'path'].decode('utf-8')}")
                 self.data_dir = data[b'path'].decode('utf-8')
             else:
-                if self.verbose_command:
-                    logger.info(f"Set data directory command received, setting to the default {self.DEFAULT_DATA_DIR}")
+                logger.info(f"Set data directory command received, setting to the default {self.DEFAULT_DATA_DIR}")
                 self.data_dir = self.DEFAULT_DATA_DIR
             self.save_path = os.path.join(self.data_dir, rel_path)
             self.save_path_rdb = os.path.join(self.save_path, 'RDB')
@@ -1089,20 +1083,16 @@ class Supervisor:
         elif cmd == "setrdbfilename":
             if b'filename' in data:
                 self.rdb_filename = data[b'filename'].decode('utf-8')
-                if self.verbose_command:
-                    logger.info(f"Set data filename command received, setting to {self.rdb_filename}")
+                logger.info(f"Set data filename command received, setting to {self.rdb_filename}")
 
                 self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
             else:
-                if self.verbose_command:
-                    logger.info(f"Set data filename command received, no new filename specified, keeping the default filename: {self.rdb_filename}")
+                logger.info(f"Set data filename command received, no new filename specified, keeping the default filename: {self.rdb_filename}")
         elif cmd == "killautorunderivatives":
-            if self.verbose_command:
-                logger.info("Kill autorun derivatives command received")
+            logger.info("Kill autorun derivatives command received")
             self.kill_autorun_derivatives()
         elif cmd in ["runderivative", "runderivatives"]:
-            if self.verbose_command:
-                logger.info("Run derivative(s) command received")
+            logger.info("Run derivative(s) command received")
             if b'derivatives' in data:
                 derivatives = data[b'derivatives']
             elif b'derivative' in data:
@@ -1113,8 +1103,7 @@ class Supervisor:
             derivatives = derivatives.decode('utf-8').split(',')
             self.run_derivatives(derivatives)
         elif cmd in ["killderivative", "killderivatives"]:
-            if self.verbose_command:
-                logger.info("Kill derivative(s) command received")
+            logger.info("Kill derivative(s) command received")
             if b'derivatives' in data:
                 derivatives = data[b'derivatives']
             elif b'derivative' in data:
@@ -1125,8 +1114,7 @@ class Supervisor:
             derivatives = derivatives.decode('utf-8').split(',')
             self.kill_derivatives(derivatives)
         elif cmd == "make":
-            if self.verbose_command:
-                logger.info("Make command received")
+            logger.info("Make command received")
             graph = data[b'graph'].decode('utf-8') if b'graph' in data else None
             node = data[b'node'].decode('utf-8') if b'node' in data else None
             derivative = data[b'derivative'].decode('utf-8') if b'derivative' in data else None
@@ -1137,18 +1125,16 @@ class Supervisor:
                 if data[b'continue_on_error'] not in [b'0', b'1']:
                     raise CommandError("continue_on_error must be 0 or 1", 'supervisor', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(data[b'continue_on_error']))
-                self.r.xadd("booter", {'command': 'setDerivativeContinueOnError',
-                                       'continue_on_error': int(self.derivative_continue_on_error),
-                                       'verbose': int(self.verbose_command)})
-                if self.verbose_command:
-                    logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+                self.r.xadd("booter", {
+                                'command': 'setDerivativeContinueOnError',
+                                'continue_on_error': int(self.derivative_continue_on_error),
+                                'verbose': logging.getLevelName(self.verbose_command)})
+                logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
         elif cmd == "ping":
-            if self.verbose_command:
-                logger.info("Ping command received")
+            logger.info("Ping command received")
             self.ping()
         else:
-            if self.verbose_command:
-                logger.warning("Invalid command")
+            logger.warning("Invalid command")
 
 
     def checkBooter(self):
@@ -1275,7 +1261,7 @@ class Supervisor:
         logger.info('Listening for commands')
         self.r.xadd("supervisor_status", {"status": "Listening for commands"})
         while True:
-            self.verbose_command = True
+            self.set_verbose_command_to_default()
 
             for derivative in list(self.derivative_threads.keys()):
                 if not self.derivative_threads[derivative].is_alive():
@@ -1290,10 +1276,15 @@ class Supervisor:
                 if cmd:
                     key,messages = cmd[0]
                     last_id,data = messages[0]
+
+                    if b'verbose_global' in data: # update verbose for all commands
+                        self.default_verbose_command = data[b'verbose_global'].decode()
+                        self.r.xadd("booter", {
+                                        "verbose_global": logging.getLevelName(self.default_verbose_command)})
                     
-                    if b'verbose' in data:
-                        self.verbose_command = bool(int(data[b'verbose'].decode()))
-                    
+                    if b'verbose' in data: # update verbose for this command
+                        self.verbose_command = data[b'verbose'].decode()
+
                     if b'commands' in data:
                         self.parseCommands(data)
                     else:
