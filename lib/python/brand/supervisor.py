@@ -472,9 +472,9 @@ class Supervisor:
     def start_graph(self):
         ''' Start the graph '''
         self.r.xadd('booter', {
-            'command': 'startGraph',
-            'graph': json.dumps(self.model),
-            'verbose': logging.getLevelName(self.verbose_command)})
+                        'command': 'startGraph',
+                        'graph': json.dumps(self.model),
+                        'verbose': logging.getLevelName(self.verbose_command)})
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
@@ -823,10 +823,10 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream", payload)
-        self.r.xadd('booter', 
-            {'command': 'loadGraph',
-             'graph': model_pub,
-             'verbose': logging.getLevelName(self.verbose_command)})
+        self.r.xadd('booter', {
+                        'command': 'loadGraph',
+                        'graph': model_pub,
+                        'verbose': logging.getLevelName(self.verbose_command)})
         logger.info("Supergraph updated successfully")
         
 
