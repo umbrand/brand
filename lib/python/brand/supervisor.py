@@ -461,17 +461,17 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream",payload)
-        self.r.xadd("booter",
-            {'command': 'loadGraph',
-             'graph': model_pub,
-             'verbose': logging.getLevelName(self.verbose_command)})
+        self.r.xadd("booter", {
+                        'command': 'loadGraph',
+                        'graph': model_pub,
+                        'verbose': logging.getLevelName(self.verbose_command)})
         logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
 
 
     def start_graph(self):
         ''' Start the graph '''
-        self.r.xadd('booter', {
+        self.r.xadd("booter", {
                         'command': 'startGraph',
                         'graph': json.dumps(self.model),
                         'verbose': logging.getLevelName(self.verbose_command)})
@@ -567,7 +567,7 @@ class Supervisor:
         '''
         Stops the graph
         '''
-        self.r.xadd('booter', {
+        self.r.xadd("booter", {
                         'command': 'stopGraph', 
                         'verbose': logging.getLevelName(self.verbose_command)})
         # Kill child processes (nodes)
@@ -684,7 +684,7 @@ class Supervisor:
 
         derivative_names = [d for d in derivative_names if d not in failed_derivatives]
 
-        self.r.xadd('booter', {
+        self.r.xadd("booter", {
                         'command': 'runDerivatives',
                         'derivatives': ','.join(derivative_names),
                         'verbose': logging.getLevelName(self.verbose_command)})
@@ -734,7 +734,7 @@ class Supervisor:
 
         derivative_names = [d for d in derivative_names if d not in failed_derivatives]
 
-        self.r.xadd('booter', {
+        self.r.xadd("booter", {
                         'command': 'killDerivatives',
                         'derivatives': ','.join(derivative_names),
                         'verbose': logging.getLevelName(self.verbose_command)})
@@ -823,7 +823,7 @@ class Supervisor:
             "data": model_pub
         }
         self.r.xadd("supergraph_stream", payload)
-        self.r.xadd('booter', {
+        self.r.xadd("booter", {
                         'command': 'loadGraph',
                         'graph': model_pub,
                         'verbose': logging.getLevelName(self.verbose_command)})
@@ -883,7 +883,7 @@ class Supervisor:
             proc_cmd += [f'module="{module}"']
             booter_cmd['module'] = module        
 
-        self.r.xadd('booter', booter_cmd)
+        self.r.xadd("booter", booter_cmd)
 
         p_make = subprocess.run(proc_cmd,
                                 capture_output=True)
