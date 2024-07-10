@@ -100,7 +100,7 @@ class Supervisor:
             self.set_verbose_command_to_default()
         except KeyError:
             self.logger.warning(f"Invalid log level: {value}, skipping default verbosity change.")
-
+        self.logger.info(f"Default verbosity level set to {value.upper()}")
 
     def handler(signal_received,self):
         raise KeyboardInterrupt("SIGTERM received")
