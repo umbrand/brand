@@ -1281,15 +1281,15 @@ class Supervisor:
                         self.default_verbose_command = data[b'verbose_global'].decode()
                         self.r.xadd("booter", {
                                         "verbose_global": logging.getLevelName(self.default_verbose_command)})
-                    
-                    if b'verbose' in data: # update verbose for this command
-                        self.verbose_command = data[b'verbose'].decode()
 
                     if b'commands' in data:
+                        if b'verbose' in data: # update verbose for this command
+                            self.verbose_command = data[b'verbose'].decode()
                         self.parseCommands(data)
-                    else:
-                        self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
-                        logger.error("'commands' key not in supervisor_ipstream entry")
+                    
+                    if b'commands' not in data and b'verbose_global' not in data:
+                        self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' or 'verbose_global' key found in the supervisor_ipstream entry"})
+                        logger.error("'commands' or 'verbose_global' key not in supervisor_ipstream entry")
 
                 self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
