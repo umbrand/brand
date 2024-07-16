@@ -1144,7 +1144,7 @@ class Supervisor:
                                 'continue_on_error': int(self.derivative_continue_on_error),
                                 'verbose': self.command_log_level})
                 logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
-        elif cmd == "setLogLevel":
+        elif cmd == "setloglevel":
             if b'level' in data:
                 self.persistent_log_level = data[b'level'].decode()
         elif cmd == "ping":
