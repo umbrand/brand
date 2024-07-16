@@ -66,8 +66,8 @@ class Booter():
         # make a logger
         self.logger = logging.getLogger(f'booter-{self.machine}')
         coloredlogs.install(level=log_level, logger=self.logger)
-        self._default_verbose_command = logging.DEBUG # default verbosity level, applied to all commands
-        self._verbose_command = self._default_verbose_command  # global verbosity variable that only lasts for 1 command
+        self._persistent_log_level = "DEBUG" # default verbosity level, applied to all commands
+        self._command_log_level = self._persistent_log_level  # verbosity variable that only lasts for 1 command
         # instatiate run variables
         self.model = {}
         self.child_nodes = {}
@@ -87,32 +87,39 @@ class Booter():
         self.booter_ping_stream = 'booter_ping'
         self.booter_ping_request_stream = 'booter_ping_request'
 
+
     @property
-    def verbose_command(self):
-        return self._verbose_command
+    def command_log_level(self):
+        return self._command_log_level
     
-    @verbose_command.setter
-    def verbose_command(self, value:str):
+    @command_log_level.setter
+    def command_log_level(self, value:str):
         try:
-            self._verbose_command = logging._nameToLevel[value.upper()]
-            self.redis_log_handler.setLevel(self._verbose_command)
-        except KeyError:
-            self.logger.warning(f"Invalid log level: {value}, skipping verbosity change.")
+            logging._checkLevel(value.upper())
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid command log level: {value}, skipping verbosity change.")
+        else:
+            self._command_log_level = value.upper()
+            self.redis_log_handler.setLevel(self._command_log_level)
 
-    def set_verbose_command_to_default(self):
-        self.verbose_command = logging.getLevelName(self.default_verbose_command)
+    def set_command_log_level_to_default(self):
+        self.command_log_level = self.persistent_log_level
 
     @property
-    def default_verbose_command(self):
-        return self._default_verbose_command
+    def persistent_log_level(self):
+        return self._persistent_log_level
 
-    @default_verbose_command.setter
-    def default_verbose_command(self, value:str):
+    @persistent_log_level.setter
+    def persistent_log_level(self, value:str):
         try:
-            self._default_verbose_command = logging._nameToLevel[value.upper()]
-            self.set_verbose_command_to_default()
-        except KeyError:
+            logging._checkLevel(value.upper())
+        except (ValueError, TypeError):
             self.logger.warning(f"Invalid log level: {value}, skipping default verbosity change.")
+        else:
+            self._persistent_log_level = value.upper()
+            self.set_command_log_level_to_default()
+            self.logger.info(f"Default verbosity level set to {self.persistent_log_level}")
+
 
     def get_node_executable(self, module, name):
         """
@@ -444,7 +451,13 @@ class Booter():
         entry : dict
             An entry from the 'booter' stream containing a 'command' key
         """
+        self.set_command_log_level_to_default()
+        verbose = entry.get(b'verbose')
+        if verbose is not None:
+            self.command_log_level = verbose.decode()
+
         command = entry[b'command'].decode()
+
         if command == 'startGraph':
             if b'graph' in entry:
                 graph_dict = json.loads(entry[b'graph'])
@@ -500,6 +513,9 @@ class Booter():
                     raise CommandError("continue_on_error must be 0 or 1", f'booter_{self.machine}', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
                 self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+        elif command == "setLogLevel":
+            if b'level' in entry:
+                self.persistent_log_level = entry[b'level'].decode()
         elif command == "ping":
             self.ping()
 
@@ -513,7 +529,6 @@ class Booter():
         self.logger.info('Listening for commands')
         self.r.xadd("booter_status", {"machine": self.machine, "status": "Listening for commands"})
         while True:
-            self.set_verbose_command_to_default()
 
             for derivative in list(self.derivative_threads.keys()):
                 if not self.derivative_threads[derivative].is_alive():
@@ -527,18 +542,9 @@ class Booter():
                 if streams:
                     _, stream_data = streams[0]
                     entry_id, entry_data = stream_data[0]
-
-                    if b'verbose_global' in entry_data: # update verbose for all commands
-                        self.default_verbose_command = entry_data[b'verbose_global'].decode()
-                    
-                    if b'verbose' in entry_data: # update verbose for this command
-                        self.verbose_command = entry_data[b'verbose'].decode()
-
-                    if b'command' in entry_data:
-                        command = entry_data[b'command'].decode()
-                        self.logger.info(f'Received {command} command')
-
-                        self.parse_command(entry_data)
+                    command = entry_data[b'command'].decode()
+                    self.logger.info(f'Received {command} command')
+                    self.parse_command(entry_data)
 
             except redis.exceptions.ConnectionError as exc:
                 self.logger.error('Could not connect to Redis: ' + repr(exc))
