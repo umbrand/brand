@@ -66,8 +66,8 @@ class Booter():
         # make a logger
         self.logger = logging.getLogger(f'booter-{self.machine}')
         coloredlogs.install(level=log_level, logger=self.logger)
-        self._persistent_log_level = "DEBUG" # default verbosity level, applied to all commands
-        self._command_log_level = self._persistent_log_level  # verbosity variable that only lasts for 1 command
+        self._persistent_log_level = "DEBUG" # default log level, applied to all commands
+        self._command_log_level = self._persistent_log_level  # log level for current command
         # instatiate run variables
         self.model = {}
         self.child_nodes = {}
@@ -97,7 +97,7 @@ class Booter():
         try:
             logging._checkLevel(value.upper())
         except (ValueError, TypeError):
-            self.logger.warning(f"Invalid command log level: {value}, skipping verbosity change.")
+            self.logger.warning(f"Invalid command log level: {value}, skipping log level change.")
         else:
             self._command_log_level = value.upper()
             self.redis_log_handler.setLevel(self._command_log_level)
@@ -114,11 +114,11 @@ class Booter():
         try:
             logging._checkLevel(value.upper())
         except (ValueError, TypeError):
-            self.logger.warning(f"Invalid log level: {value}, skipping default verbosity change.")
+            self.logger.warning(f"Invalid log level: {value}, skipping default log level change.")
         else:
             self._persistent_log_level = value.upper()
             self.set_command_log_level_to_default()
-            self.logger.info(f"Default verbosity level set to {self.persistent_log_level}")
+            self.logger.info(f"Default log level set to {self.persistent_log_level}")
 
 
     def get_node_executable(self, module, name):
@@ -452,9 +452,9 @@ class Booter():
             An entry from the 'booter' stream containing a 'command' key
         """
         self.set_command_log_level_to_default()
-        verbose = entry.get(b'verbose')
-        if verbose is not None:
-            self.command_log_level = verbose.decode()
+        log_level = entry.get(b'log_level')
+        if log_level is not None:
+            self.command_log_level = log_level.decode()
 
         command = entry[b'command'].decode()
 

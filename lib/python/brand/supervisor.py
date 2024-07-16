@@ -56,8 +56,8 @@ class Supervisor:
         self.derivative_stop_events = {}
         self.derivative_continue_on_error = True
 
-        self._persistent_log_level = "DEBUG" # default verbosity level, applied to all commands
-        self._command_log_level = self._persistent_log_level  # verbosity variable that only lasts for 1 command
+        self._persistent_log_level = "DEBUG" # default log level, applied to all commands
+        self._command_log_level = self._persistent_log_level  # log level for current command
 
         signal.signal(signal.SIGINT, self.terminate)
 
@@ -83,7 +83,7 @@ class Supervisor:
         try:
             logging._checkLevel(value.upper())
         except (ValueError, TypeError):
-            self.logger.warning(f"Invalid command log level: {value}, skipping verbosity change.")
+            self.logger.warning(f"Invalid command log level: {value}, skipping log level change.")
         else:
             self._command_log_level = value.upper()
             self.redis_log_handler.setLevel(self.command_log_level)
@@ -100,15 +100,15 @@ class Supervisor:
         try:
             logging._checkLevel(value.upper())
         except (ValueError, TypeError):
-            self.logger.warning(f"Invalid log level: {value}, skipping default verbosity change.")
+            self.logger.warning(f"Invalid log level: {value}, skipping default log level change.")
         else:
             self._persistent_log_level = value.upper()
             self.set_command_log_level_to_default()
-            self.logger.info(f"Default verbosity level set to {self.persistent_log_level}")
+            self.logger.info(f"Default log level set to {self.persistent_log_level}")
             self.r.xadd("booter", { # sync the log level with the booter
                             'command': 'setLogLevel',
                             'level': self.persistent_log_level,
-                            'verbose': self.command_log_level})
+                            'log_level': self.command_log_level})
 
 
     def handler(signal_received,self):
@@ -473,7 +473,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'loadGraph',
                         'graph': model_pub,
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
         logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
 
@@ -483,7 +483,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'startGraph',
                         'graph': json.dumps(self.model),
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
         current_state = self.r.xrevrange("graph_status", count=1)
         current_graph_status = self.get_graph_status(current_state)
         logger.info("Current status of the graph is: %s" % current_graph_status)
@@ -578,7 +578,7 @@ class Supervisor:
         '''
         self.r.xadd("booter", {
                         'command': 'stopGraph', 
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
@@ -696,7 +696,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'runDerivatives',
                         'derivatives': ','.join(derivative_names),
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
 
         # loop through derivatives and start each if able
         for derivative in derivative_names:
@@ -746,7 +746,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'killDerivatives',
                         'derivatives': ','.join(derivative_names),
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
 
         # loop through derivatives and kill each if able
         for derivative in derivative_names:
@@ -835,7 +835,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'loadGraph',
                         'graph': model_pub,
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
         logger.info("Supergraph updated successfully")
         
 
@@ -867,7 +867,7 @@ class Supervisor:
         '''
         self.check_graph_not_running(cmd='make')
 
-        booter_cmd = {'command': 'make', 'verbose': self.command_log_level}
+        booter_cmd = {'command': 'make', 'log_level': self.command_log_level}
         proc_cmd = ['make', '-j']
 
         if (graph == "true" or graph == "1"):
@@ -915,7 +915,7 @@ class Supervisor:
         # send the ping instruction to booters
         self.r.xadd("booter", {
                         'command': 'ping', 
-                        'verbose': self.command_log_level})
+                        'log_level': self.command_log_level})
 
         # wait for booters to respond
         booter_ping_request_id = '$'
@@ -1005,9 +1005,9 @@ class Supervisor:
                 and other information needed to execute the command.
         '''
         self.set_command_log_level_to_default()
-        verbose = data.get(b'verbose')
-        if verbose is not None:
-            self.command_log_level = verbose.decode()
+        log_level = data.get(b'log_level')
+        if log_level is not None:
+            self.command_log_level = log_level.decode()
         
         cmd = (data[b'commands']).decode("utf-8").lower()
 
@@ -1055,7 +1055,7 @@ class Supervisor:
                 raise GraphError("Error loading graph, a graph YAML must be provided with the 'file' key or a graph dictionary must be provided with the 'graph' key", self.graph_file)
         elif cmd == "updateparameters":
             logger.info("Update parameters command received")
-            new_params = {k:data[k] for k in data if k not in [b"commands", b"verbose"]}
+            new_params = {k:data[k] for k in data if k not in [b"commands", b"log_level"]}
             self.update_params(new_params)
         elif cmd == "stopgraph":
             logger.info("Stop graph command received")
@@ -1071,7 +1071,7 @@ class Supervisor:
             self.r.xadd("booter", {
                             "command": "stopChildProcess",
                             "nickname": nickname,
-                            "verbose": self.command_log_level})
+                            "log_level": self.command_log_level})
             # Kill the process if it is here
             if nickname in self.child_nodes:
                 self.kill_nodes([nickname])
@@ -1142,7 +1142,7 @@ class Supervisor:
                 self.r.xadd("booter", {
                                 'command': 'setDerivativeContinueOnError',
                                 'continue_on_error': int(self.derivative_continue_on_error),
-                                'verbose': self.command_log_level})
+                                'log_level': self.command_log_level})
                 logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
         elif cmd == "setloglevel":
             if b'level' in data:
