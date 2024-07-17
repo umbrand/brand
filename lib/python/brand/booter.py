@@ -452,14 +452,12 @@ class Booter():
             An entry from the 'booter' stream containing a 'command' key
         """
         self.set_command_log_level_to_default()
-        command = entry[b'command'].decode()
-        self.logger.info(f'Received {command} command')
-
         log_level = entry.get(b'log_level')
         if log_level is not None:
             self.command_log_level = log_level.decode()
 
         command = entry[b'command'].decode()
+        self.logger.info(f'Received {command} command')
 
         if command == 'startGraph':
             if b'graph' in entry:
