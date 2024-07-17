@@ -452,6 +452,9 @@ class Booter():
             An entry from the 'booter' stream containing a 'command' key
         """
         self.set_command_log_level_to_default()
+        command = entry[b'command'].decode()
+        self.logger.info(f'Received {command} command')
+
         log_level = entry.get(b'log_level')
         if log_level is not None:
             self.command_log_level = log_level.decode()
@@ -542,8 +545,6 @@ class Booter():
                 if streams:
                     _, stream_data = streams[0]
                     entry_id, entry_data = stream_data[0]
-                    command = entry_data[b'command'].decode()
-                    self.logger.info(f'Received {command} command')
                     self.parse_command(entry_data)
 
             except redis.exceptions.ConnectionError as exc:
