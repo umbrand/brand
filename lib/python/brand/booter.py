@@ -140,6 +140,7 @@ class Booter():
                                           self.model['graph_name'])
 
         self.logger.info(f'Loaded graph with nodes {node_names} and derivatives {deriv_names}')
+        self.r.xadd("booter_status", {"machine": self.machine, "status": f"{self.model['graph_name']} graph loaded successfully"})
 
     def start_graph(self):
         """
@@ -188,11 +189,12 @@ class Booter():
         """
         Stop the nodes on this machine that correspond to the running graph
         """
-        self.kill_nodes()
         if 'graph_name' in self.model:
             graph = self.model['graph_name']
         else:
             graph = 'None'
+        self.r.xadd("booter_status", {"machine": self.machine, "status": f"{graph} graph stopping"})
+        self.kill_nodes()
         self.r.xadd("booter_status", {"machine": self.machine, "status": f"{graph} graph stopped successfully"})
 
     def kill_nodes(self, node_list=None):
