@@ -66,6 +66,8 @@ class Booter():
         # make a logger
         self.logger = logging.getLogger(f'booter-{self.machine}')
         coloredlogs.install(level=log_level, logger=self.logger)
+        self._persistent_log_level = "DEBUG" # default log level, applied to all commands
+        self._command_log_level = self._persistent_log_level  # log level for current command
         # instatiate run variables
         self.model = {}
         self.child_nodes = {}
@@ -84,6 +86,40 @@ class Booter():
         # get ping-related streams
         self.booter_ping_stream = 'booter_ping'
         self.booter_ping_request_stream = 'booter_ping_request'
+
+
+    @property
+    def command_log_level(self):
+        return self._command_log_level
+    
+    @command_log_level.setter
+    def command_log_level(self, value:str):
+        try:
+            logging._checkLevel(value.upper())
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid command log level: {value}, skipping log level change.")
+        else:
+            self._command_log_level = value.upper()
+            self.redis_log_handler.setLevel(self._command_log_level)
+
+    def set_command_log_level_to_default(self):
+        self.command_log_level = self.persistent_log_level
+
+    @property
+    def persistent_log_level(self):
+        return self._persistent_log_level
+
+    @persistent_log_level.setter
+    def persistent_log_level(self, value:str):
+        try:
+            logging._checkLevel(value.upper())
+        except (ValueError, TypeError):
+            self.logger.warning(f"Invalid log level: {value}, skipping default log level change.")
+        else:
+            self._persistent_log_level = value.upper()
+            self.set_command_log_level_to_default()
+            self.logger.info(f"Default log level set to {self.persistent_log_level}")
+
 
     def get_node_executable(self, module, name):
         """
@@ -238,7 +274,7 @@ class Booter():
                         proc.communicate(timeout=15)
                     except subprocess.TimeoutExpired:
                         self.logger.warning(f"Could not stop '{node}' "
-                                            f"(pid: {proc.pid}) using SIGINT")
+                                                f"(pid: {proc.pid}) using SIGINT")
                         # if not, send SIGKILL
                         kill_proc_tree(proc.pid, signal.SIGKILL)
                         try:
@@ -253,7 +289,7 @@ class Booter():
                             node_list.remove(node)
                     else:
                         self.logger.info(f"Stopped '{node}' "
-                                        f"(pid: {proc.pid}) using SIGINT")
+                                             f"(pid: {proc.pid}) using SIGINT")
                         self.child_nodes[node] = None
                         node_list.remove(node)
         # remove killed processes from self.children
@@ -265,7 +301,7 @@ class Booter():
         if node_list:
             message = ', '.join(node_list)
             self.logger.exception('Could not kill these nodes: '
-                                  f'{message}')
+                                    f'{message}')
             
     def run_derivatives(self, derivative_names):
         '''
@@ -417,7 +453,14 @@ class Booter():
         entry : dict
             An entry from the 'booter' stream containing a 'command' key
         """
+        self.set_command_log_level_to_default()
+        log_level = entry.get(b'log_level')
+        if log_level is not None:
+            self.command_log_level = log_level.decode()
+
         command = entry[b'command'].decode()
+        self.logger.info(f'Received {command} command')
+
         if command == 'startGraph':
             if b'graph' in entry:
                 graph_dict = json.loads(entry[b'graph'])
@@ -473,6 +516,9 @@ class Booter():
                     raise CommandError("continue_on_error must be 0 or 1", f'booter_{self.machine}', 'setDerivativeContinueOnError')
                 self.derivative_continue_on_error = bool(int(entry[b'continue_on_error']))
                 self.logger.info(f"Set derivative continue on error to {self.derivative_continue_on_error}")
+        elif command == "setLogLevel":
+            if b'level' in entry:
+                self.persistent_log_level = entry[b'level'].decode()
         elif command == "ping":
             self.ping()
 
@@ -499,8 +545,6 @@ class Booter():
                 if streams:
                     _, stream_data = streams[0]
                     entry_id, entry_data = stream_data[0]
-                    command = entry_data[b'command'].decode()
-                    self.logger.info(f'Received {command} command')
                     self.parse_command(entry_data)
 
             except redis.exceptions.ConnectionError as exc:
