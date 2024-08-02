@@ -51,6 +51,7 @@ class Supervisor:
         self.redis_pid = None
 
         self.booter_status_id = '0-0'
+        self.booter_status_dict = {}
 
         self.derivative_threads = {}
         self.derivative_stop_events = {}
@@ -572,7 +573,7 @@ class Supervisor:
         else:
             raise CommandError("Autorun derivatives not running.", 'supervisor', 'killAutorunDerivatives')
 
-    def stop_graph(self, do_save=False, do_derivatives=False):
+    def stop_graph(self, do_save=False, do_derivatives=False, booters_stop_timeout=30):
         '''
         Stops the graph
         '''
@@ -582,6 +583,39 @@ class Supervisor:
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
         self.kill_nodes()
+
+        # Get booter count by status
+        get_booter_count_by_status = lambda status_suffix: len([machine for machine, status in self.booter_status_dict.items() if status.endswith(status_suffix)])
+
+        num_booters_stopping, num_booters_stopped = -1, -1 # Initialize to invalid values, make sure to wait for at least one iteration
+        
+        # Wait for booter to handle stopGraph command
+        booters_handle_stop_command_start = time.time()
+        while time.time() - booters_handle_stop_command_start < 3 and num_booters_stopping + num_booters_stopped < len(self.booter_status_dict):
+            self.checkBooter()
+            num_booters_stopping = get_booter_count_by_status('graph stopping')
+            num_booters_stopped = get_booter_count_by_status('graph stopped successfully')
+
+            time.sleep(1)
+
+        # Log the number of booters handling stopGraph command (in stopping and stopped states)
+        logging_message = f"Booters handling stopGraph command ({num_booters_stopped + num_booters_stopping} / {len(self.booter_status_dict)}): {num_booters_stopping} stopping, {num_booters_stopped} stopped."
+        if num_booters_stopping + num_booters_stopped < len(self.booter_status_dict):
+            logger.warning(logging_message)
+        else:
+            logger.info(logging_message)
+        
+        # Wait for booters to finish stopping
+        booters_stop_wait_start = time.time()
+        while (time.time() - booters_stop_wait_start < booters_stop_timeout or booters_stop_timeout < 0) and num_booters_stopped < len(self.booter_status_dict):
+            self.checkBooter()
+            num_booters_stopped = get_booter_count_by_status('graph stopped successfully')
+            time.sleep(1)
+
+        if num_booters_stopped == len(self.booter_status_dict): # All booters stopped successfully
+            logger.info(f"Booters stopped successfully!")
+        else: # Some booters did not stop successfully (still stopping or errored out)
+            logger.warning(f"Booters did not stop successfully within timeout. Booter statuses: {self.booter_status_dict}")
 
         if do_save:
             # Save the .rdb file.
@@ -605,6 +639,7 @@ class Supervisor:
         if do_derivatives:
             if self.model:
                 # Run derivatives.
+                logger.info("Starting auto-run derivatives...")
                 self.start_autorun_derivatives()
 
     def kill_nodes(self, node_list=None):
@@ -1061,7 +1096,8 @@ class Supervisor:
             logger.info("Stop graph command received")
             do_save = bool(int(data.get(b"do_save", False)))
             do_derivatives = bool(int(data.get(b"do_derivatives", False)))
-            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives)
+            timeout = int(data.get(b"timeout", 30))
+            self.stop_graph(do_save=do_save, do_derivatives=do_derivatives, booters_stop_timeout=timeout)
         elif cmd == "stopchildprocess":
             logger.info("Stop child process command received")
             if b"nickname" not in data:
@@ -1161,18 +1197,18 @@ class Supervisor:
         statuses = self.r.xrange('booter_status', '('+self.booter_status_id, '+')
         if len(statuses) > 0:
             for entry in statuses:
+                self.booter_status_id = entry[0].decode('utf-8')
                 status = entry[1][b'status'].decode('utf-8')
                 if status in ['NodeError', 'GraphError', 'CommandError']:
                     # get messages starting from the error
-                    self.booter_status_id = entry[0].decode('utf-8')
                     raise BooterError(
                         f"{entry[1][b'machine'].decode('utf-8')} machine encountered an error: {entry[1][b'message'].decode('utf-8')}",
                         entry[1][b'machine'].decode('utf-8'),
                         self.graph_file,
                         entry[1][b'traceback'].decode('utf-8'),
                         status)
-
-            self.booter_status_id = statuses[-1][0].decode('utf-8')
+                else:
+                    self.booter_status_dict[entry[1][b'machine'].decode('utf-8')] = status
 
     def handle_redis_connection_error(self, exc):
         logger.error('Could not connect to Redis: ' + repr(exc))
