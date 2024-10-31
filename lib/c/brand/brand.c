@@ -354,10 +354,6 @@ void emit_status(redisContext *c, const char *node_name, enum node_state state, 
     freeReplyObject(reply);
 }
 
-<<<<<<< HEAD
-
-
-=======
 int start_new_redis_instance(char *host, int port)
 {
     char *new_redis_command = malloc(sizeof(char) * 512);    
@@ -393,4 +389,3 @@ void stop_new_redis_instance(char *host, int port)
     free(new_redis_command); 
     free(redis_port_string);
 }
->>>>>>> upstream/dev
