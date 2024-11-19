@@ -123,8 +123,8 @@ class Supervisor:
         '''
         ap =  argparse.ArgumentParser()
         ap.add_argument("-g", "--graph", required=False, help="path to graph file")
-        ap.add_argument("-i", "--host", required=False, help="ip address to bind redis server to")
-        ap.add_argument("-p", "--port", required=False, help="port to bind redis server to")
+        ap.add_argument("-i", "--host", required=False, help="ip address of the redis server (default: 127.0.0.1)")
+        ap.add_argument("-p", "--port", required=False, help="port of the redis server (default: 6379)")
         ap.add_argument("-s", "--socket", required=False, help="unix socket to bind redis server to")
         ap.add_argument("-c", "--cfg", required=False, help="cfg file for redis server")
         ap.add_argument("-m", "--machine", type=str, default='supervisor', required=False, help="machine on which this supervisor is running")
@@ -132,6 +132,14 @@ class Supervisor:
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
         ap.add_argument("-d", "--data-dir", type=str, default=self.DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
+        ap.add_argument(
+            "--bind",
+            type=str,
+            required=False,
+            help=
+            "network interfaces to bind the redis-server to (defaults to the"
+            " same IP address as --host). To use the bind directives listed in"
+            " the Redis config, set this to an empty string ('').")
         args = ap.parse_args()
 
         self.redis_args = []
@@ -142,12 +150,23 @@ class Supervisor:
             self.redis_args.append(
                 os.path.join(self.BRAND_BASE_DIR,
                              'lib/python/brand/redis.supervisor.conf'))
-        if args.host is not None:
+
+        if args.bind is not None:
+            # --bind specified
+            if args.bind:
+                self.redis_args.append('--bind')
+                self.redis_args += args.bind.split()
+            # do nothing if --bind is an empty string ('')
+        elif args.host is not None:
+            # --bind not specified, but --host is
             self.redis_args.append('--bind')
             self.redis_args.append(args.host)
+
+        if args.host is not None:
             self.host = args.host
         else:
             self.host = '127.0.0.1'
+
         if args.port is not None:
             self.redis_args.append('--port')
             self.redis_args.append(args.port)
