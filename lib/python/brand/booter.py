@@ -183,7 +183,6 @@ class Booter():
         Start the nodes in the graph that are assigned to this machine
         """
         if self.model:
-            host, port = self.model['redis_host'], self.model['redis_port']
             for node, cfg in self.model['nodes'].items():
                 # specify defaults
                 cfg.setdefault('root', True)
@@ -199,8 +198,9 @@ class Booter():
                             f"PATH={os.environ['PATH']}"
                         ]
                     args += [
-                        cfg['binary'], '-n', node_stream_name, '-i', host, '-p',
-                        str(port)
+                        cfg['binary'], '-n', node_stream_name, '-i', self.host,
+                        '-p',
+                        str(self.port)
                     ]
                     # root permissions are needed to set real-time priority
                     if 'run_priority' in cfg:  # if priority is specified
