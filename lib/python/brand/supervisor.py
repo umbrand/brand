@@ -132,9 +132,13 @@ class Supervisor:
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
         ap.add_argument("-d", "--data-dir", type=str, default=self.DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
+        ap.add_argument("-e", "--exec", type=str, default='redis-server', required=False, help="executable to use when starting the database server")
         args = ap.parse_args()
 
         self.redis_args = []
+
+        # database executable
+        self.db_exec = args.exec
 
         if args.cfg is not None:
             self.redis_args.append(args.cfg)
@@ -237,7 +241,7 @@ class Supervisor:
             logger.info(f'New RDB filename set to: {rdb_filename}')
 
     def start_redis_server(self):
-        redis_command = ['redis-server'] + self.redis_args
+        redis_command = [self.db_exec] + self.redis_args
         if self.redis_priority:
             chrt_args = ['chrt', '-f', f'{self.redis_priority :d}']
             redis_command = chrt_args + redis_command
@@ -253,11 +257,11 @@ class Supervisor:
             if out:
                 logger.debug(out.decode())
             if 'Address already in use' in str(out):
-                raise RedisError("Could not run redis-server (address already in use). Is supervisor already running?")
+                raise RedisError(f"Could not run {self.db_exec} (address already in use). Is supervisor already running?")
             else:
-                raise RedisError("Launching redis-server failed for an unknown reason, check supervisor logs. Aborting.")
+                raise RedisError(f"Launching {self.db_exec} failed for an unknown reason, check supervisor logs. Aborting.")
         except subprocess.TimeoutExpired:  # no error message received
-            logger.info('redis-server is running')
+            logger.info(f'{self.db_exec} is running')
         self.r = Redis(self.host,self.port,socket_connect_timeout=1)
 
         # Set new rdb filename
