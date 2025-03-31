@@ -1,22 +1,25 @@
 import argparse
-import coloredlogs
 import json
 import logging
+import numbers
 import os
-import psutil
-import redis
+import re
 import signal
 import subprocess
 import sys
 import time
 import traceback
+from copy import deepcopy
+from datetime import datetime
+from threading import Event
+
+import coloredlogs
+import numexpr
+import psutil
 import yaml
 
-from datetime import datetime
-
+import redis
 from redis import Redis
-
-from threading import Event
 
 from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
@@ -78,7 +81,7 @@ class Supervisor:
     @property
     def command_log_level(self):
         return self._command_log_level
-    
+
     @command_log_level.setter
     def command_log_level(self, value:str):
         try:
@@ -237,7 +240,7 @@ class Supervisor:
         graph_status = self.r.xrevrange('graph_status', '+', '-', count=1)
         if self.get_graph_status(graph_status) == self.state[3]:
             raise CommandError(f'Cannot run {cmd} command while a graph is running', 'supervisor', cmd)
-        
+
     def update_rdb_save_configs(self, rdb_save_path=None, rdb_filename=None):
         if rdb_save_path:
             # Set rdb save directory
@@ -368,7 +371,7 @@ class Supervisor:
                         f"Duplicate node nicknames found: {n['nickname']}",
                         self.graph_name,
                         n["nickname"])
-                
+
                 # supervisor defaults to running all nodes without a machine specified
                 if 'machine' not in n:
                     n.setdefault('machine', self.machine)
@@ -388,7 +391,7 @@ class Supervisor:
                 model["nodes"][n["nickname"]].update(n)
                 model["nodes"][n["nickname"]]["binary"] = bin_f
 
-                logger.info("%s is a valid node" % n["nickname"])                
+                logger.info("%s is a valid node" % n["nickname"])
 
         except KeyError as exc:
             if "nickname" in n:
@@ -405,7 +408,7 @@ class Supervisor:
                 f"{exc} field missing in graph YAML "
                 f"for node {name}",
                 self.graph_name) from exc
-        
+
         try:
             derivatives = graph_dict.get("derivatives", [])
             model['derivatives'] = {}
@@ -420,7 +423,7 @@ class Supervisor:
                 # supervisor defaults to running all derivatives without a machine specified
                 if 'machine' not in d:
                     d['machine'] = self.machine
-                
+
                 # ensure sufficient file paths are provided
                 if 'name' in d and 'module' in d:
                     filepath = os.path.join(
@@ -437,7 +440,7 @@ class Supervisor:
                         f"Derivative {d['nickname']} does not have complete path information",
                         d['nickname'],
                         self.graph_name)
-                
+
                 # ensure the file exists
                 if (d['machine'] == self.machine and not os.path.exists(filepath)):
                     raise DerivativeError(
@@ -445,9 +448,9 @@ class Supervisor:
                         d['nickname'],
                         self.graph_name)
                 d['filepath'] = filepath
-                
+
                 model['derivatives'][d['nickname']] = {}
-                model['derivatives'][d['nickname']].update(d)                
+                model['derivatives'][d['nickname']].update(d)
 
         except KeyError as exc:
             if "nickname" in d:
@@ -464,7 +467,7 @@ class Supervisor:
                 f"{exc} field missing in graph YAML "
                 f"for derivative {name}",
                 self.graph_name) from exc
-        
+
         # ensure that node and derivative nicknames are not shared
         node_nicknames = set(model['nodes'].keys())
         derivative_nicknames = set(model['derivatives'].keys())
@@ -480,7 +483,12 @@ class Supervisor:
         self.model = model
 
         self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
-        
+
+        # Load stream information
+        streams = self.load_stream_definitions()
+        prev_supergraph = deepcopy(self.model)
+        self.parse_stream_definitions(streams, prev_supergraph)
+
         if publish_graph:
             self.publish_graph()
 
@@ -497,6 +505,240 @@ class Supervisor:
         logger.info("Supergraph Stream (Model) published successfully with payload")
         self.r.xadd("graph_status", {'status': self.state[4]}) # status 4 means graph is published
 
+    def get_node_yaml_path(self, module, name) -> str:
+        """
+        Get the path to a node YAML file
+
+        Args:
+            module: module name
+            name: node name
+        """
+        filepath = os.path.join(self.BRAND_BASE_DIR, module, 'nodes', name,
+            f'{name}.yaml')
+        filepath = os.path.abspath(filepath)
+        if os.path.exists(filepath):
+            return filepath
+        else:
+            return None
+
+    def load_stream_definitions(self):
+        """
+        Extract stream definitions from all nodes in the model.
+
+        This function:
+        1. Iterates through all nodes in the model
+        2. Reads each node's YAML configuration file
+        3. Extracts stream definitions based on redis_outputs mappings
+        4. Returns a dictionary of all stream definitions
+
+        Returns:
+            dict: A dictionary mapping graph stream names to their definitions
+        """
+        # Dictionary to store all stream definitions
+        streams = {}
+
+        # Iterate through all nodes in the model
+        for node_name, node_info in self.model['nodes'].items():
+            # Get the YAML file path for this node
+            yaml_file_path = self.get_node_yaml_path(node_info["module"],
+                                                     node_info["name"])
+
+            # Skip nodes that don't have redis_outputs or a YAML file
+            if not (yaml_file_path and 'redis_outputs' in node_info
+                    and isinstance(node_info['redis_outputs'], dict)):
+                continue
+
+            # Read the node's YAML configuration
+            try:
+                with open(yaml_file_path, 'r') as file:
+                    node_yaml = yaml.safe_load(file)
+
+                # Check if YAML has RedisStreams and Outputs sections
+                has_redis_streams = 'RedisStreams' in node_yaml
+                has_outputs = has_redis_streams and 'Outputs' in node_yaml[
+                    'RedisStreams']
+
+                # Process each stream mapping defined in redis_outputs
+                for graph_stream, yaml_stream in node_info[
+                        'redis_outputs'].items():
+                    # Check if the stream is defined in the YAML
+                    if has_outputs and yaml_stream in node_yaml[
+                            'RedisStreams']['Outputs']:
+                        # Extract stream definition and add the source node
+                        streams[graph_stream] = node_yaml['RedisStreams'][
+                            'Outputs'][yaml_stream]
+                        streams[graph_stream]['source_nickname'] = node_name
+                    else:
+                        # Log warning for missing stream definition
+                        self.logger.warning(
+                            f'{yaml_stream} stream not found in '
+                            f'{yaml_file_path}')
+            except Exception as e:
+                # Log error if YAML file could not be processed
+                self.logger.error(
+                    f'Error processing YAML file {yaml_file_path}: {str(e)}')
+
+        return streams
+
+    def parse_stream_definitions(self, streams, prev_supergraph):
+        """Parse stream definitions, evaluate variables and validate types."""
+        # cycle through nodes, extract their streams
+        streams = {}
+        for n, n_info in self.model['nodes'].items():
+            yaml_f = self.get_node_yaml_path(n_info["module"], n_info["name"])
+            # if we have stream names defined and we have a node YAML file
+            if 'redis_outputs' in n_info and isinstance(
+                    n_info['redis_outputs'], dict) and yaml_f is not None:
+                with open(yaml_f, 'r') as f:
+                    node_yaml = yaml.safe_load(f)
+                for graph_stream, yaml_stream in n_info['redis_outputs'].items(
+                ):
+                    # if we have stream definitions, load them into the model
+                    if 'RedisStreams' in node_yaml and 'Outputs' in node_yaml[
+                            'RedisStreams'] and yaml_stream in node_yaml[
+                                'RedisStreams']['Outputs']:
+                        streams[graph_stream] = node_yaml['RedisStreams'][
+                            'Outputs'][yaml_stream]
+                        streams[graph_stream]['source_nickname'] = n
+                    else:
+                        self.logger.warning(
+                            f'{yaml_stream} stream not found in {yaml_f}')
+
+        # Process all streams
+        for stream_name, stream_info in streams.items():
+            if not isinstance(stream_info, dict):
+                continue  # Skip if not a dictionary
+
+            # Process keys in each stream
+            for key_name, key_info in stream_info.items():
+                if not isinstance(key_info, dict):
+                    continue  # Skip if not a dictionary
+
+                # Process definitions in each key
+                for def_name, def_value in key_info.items():
+                    field_path = f"{stream_name}[{key_name}][{def_name}]"
+                    # Handle numeric fields
+                    if def_name in ['chan_per_stream', 'samp_per_stream']:
+                        if isinstance(def_value, str):
+                            try:
+                                # Replace variables and evaluate expression
+                                if '$' in def_value:
+                                    key_info[def_name] = (
+                                        self._evaluate_numeric_expression(
+                                            def_value,
+                                            stream_info['source_nickname'],
+                                            field_path))
+                                else:
+                                    # Value must be or use numeric parameters
+                                    self._revert_and_raise_error(
+                                        prev_supergraph,
+                                        f"{def_value} is an invalid parameter "
+                                        f"for '{field_path}' in the "
+                                        f"{stream_info['source_nickname']} "
+                                        "nickname, must be or use parameters "
+                                        "of type 'numbers.Number'",
+                                        stream_info['source_nickname'])
+                            except (KeyError, ValueError) as e:
+                                self._revert_and_raise_error(
+                                    prev_supergraph, str(e),
+                                    stream_info['source_nickname'])
+
+                    # Handle sample_type field
+                    elif def_name == 'sample_type':
+                        if not isinstance(def_value, str):
+                            self._revert_and_raise_error(
+                                prev_supergraph,
+                                f"{def_value} is an invalid parameter for "
+                                f"'{field_path}' in the "
+                                f"{stream_info['source_nickname']} nickname, "
+                                "must be of type 'str'",
+                                stream_info['source_nickname'])
+                        # Handle variable reference
+                        if def_value.startswith('$'):
+                            param_name = def_value[1:]
+                            try:
+                                param_value = self._get_node_parameter(
+                                    stream_info['source_nickname'], param_name)
+                                if not isinstance(param_value, str):
+                                    self._revert_and_raise_error(
+                                        prev_supergraph,
+                                        f"{param_value} is an invalid "
+                                        f"parameter for '{field_path}' in the "
+                                        f"{stream_info['source_nickname']} "
+                                        "nickname, must be of type 'str'",
+                                        stream_info['source_nickname'])
+                                key_info[def_name] = param_value
+                            except KeyError as e:
+                                self._revert_and_raise_error(
+                                    prev_supergraph, str(e),
+                                    stream_info['source_nickname'])
+
+        # Store processed streams
+        self.model['streams'] = streams
+
+    def _evaluate_numeric_expression(self, expression, node_nickname,
+                                     field_path):
+        """Evaluate a string expression containing variables.
+
+        Args:
+            expression: String expression with variables
+                (e.g., "$var1 * 2 + $var2")
+            node_nickname: Name of the node containing the parameters
+            field_path: Path to the field (for error messages)
+
+        Returns:
+            int: Result of the evaluated expression
+        """
+        # Function to replace variables with their values
+        def replace_var(match):
+            var_name = match.group(1)
+            node_params = self.model['nodes'][node_nickname]['parameters']
+
+            if var_name not in node_params:
+                raise KeyError(
+                    f"'{var_name}' was referenced in node YAML but "
+                    f"not found in graph parameters for '{node_nickname}'")
+
+            value = node_params[var_name]
+            # Handle single-item lists
+            if isinstance(value, list) and len(value) == 1:
+                value = value[0]
+
+            # Validate numeric type
+            if not isinstance(value, numbers.Number):
+                raise ValueError(
+                    f"{value} is an invalid parameter for '{field_path}' in "
+                    f"the {node_nickname} nickname, must be of type "
+                    "'numbers.Number'")
+
+            return str(value)
+
+        # Replace all $var occurrences with their values
+        processed_expr = re.sub(r'\$(\w+)', replace_var, expression)
+
+        # Evaluate expression
+        result = numexpr.evaluate(processed_expr).item()
+
+        # Ensure integer result
+        if not isinstance(result, int):
+            self.logger.warning(f"{field_path} value is not an 'int' type "
+                                f"({result}), truncating")
+
+        return int(result)
+
+    def _get_node_parameter(self, node_nickname, param_name):
+        """Get a parameter value from a node."""
+        node_params = self.model['nodes'][node_nickname]['parameters']
+        if param_name not in node_params:
+            raise KeyError(
+                f"'{param_name}' was referenced in node YAML but "
+                f"not found in graph parameters for '{node_nickname}'")
+        return node_params[param_name]
+
+    def _revert_and_raise_error(self, prev_supergraph, message, node_nickname):
+        """Revert to previous graph state and raise an error."""
+        self.model = prev_supergraph  # Revert changes
+        raise NodeError(message, self.graph_name, node_nickname)
 
     def start_graph(self):
         ''' Start the graph '''
@@ -560,12 +802,12 @@ class Supervisor:
 
     def start_autorun_derivatives(self):
         """Starts autorun derivatives"""
-    
+
         # check if autorun derivatives are already running
         if 'supervisor_autorun' in self.derivative_threads:
             if self.derivative_threads['supervisor_autorun'].is_alive():
                 raise CommandError("Autorun derivatives already running.", 'supervisor', 'startAutorunDerivatives')
-            
+
         # create a stop event for the autorun derivatives
         self.derivative_stop_events['supervisor_autorun'] = Event()
         # create the thread that will keep track of autorunning derivatives
@@ -579,7 +821,7 @@ class Supervisor:
         autorun_derivative_thread.start()
         # add the thread to track it
         self.derivative_threads['supervisor_autorun'] = autorun_derivative_thread
-        
+
     def kill_autorun_derivatives(self):
         """Kills autorun derivatives"""
         if 'supervisor_autorun' in self.derivative_threads:
@@ -597,7 +839,7 @@ class Supervisor:
         Stops the graph
         '''
         self.r.xadd("booter", {
-                        'command': 'stopGraph', 
+                        'command': 'stopGraph',
                         'log_level': self.command_log_level})
         # Kill child processes (nodes)
         self.r.xadd("graph_status", {'status': self.state[5]})
@@ -607,7 +849,7 @@ class Supervisor:
         get_booter_count_by_status = lambda status_suffix: len([machine for machine, status in self.booter_status_dict.items() if status.endswith(status_suffix)])
 
         num_booters_stopping, num_booters_stopped = -1, -1 # Initialize to invalid values, make sure to wait for at least one iteration
-        
+
         # Wait for booter to handle stopGraph command
         booters_handle_stop_command_start = time.time()
         while time.time() - booters_handle_stop_command_start < 3 and num_booters_stopping + num_booters_stopped < len(self.booter_status_dict):
@@ -623,7 +865,7 @@ class Supervisor:
             logger.warning(logging_message)
         else:
             logger.info(logging_message)
-        
+
         # Wait for booters to finish stopping
         booters_stop_wait_start = time.time()
         while (time.time() - booters_stop_wait_start < booters_stop_timeout or booters_stop_timeout < 0) and num_booters_stopped < len(self.booter_status_dict):
@@ -679,7 +921,7 @@ class Supervisor:
                     p.send_signal(sig)
                 except psutil.NoSuchProcess:
                     pass
-        
+
         if node_list is None:
             node_list = list(self.child_nodes.keys())
 
@@ -730,7 +972,7 @@ class Supervisor:
             message = ', '.join(node_list)
             self.logger.exception('Could not kill these nodes: '
                                     f'{message}')
-            
+
     def run_derivatives(self, derivative_names):
         '''
         Runs a list of derivatives
@@ -822,7 +1064,7 @@ class Supervisor:
             else:
                 # derivative is not in graph
                 failed_derivatives[derivative] = 'not in graph'
-        
+
         if killed_derivatives:
             logger.info(f"Killed derivative(s): {killed_derivatives}")
 
@@ -891,7 +1133,7 @@ class Supervisor:
                         'graph': model_pub,
                         'log_level': self.command_log_level})
         logger.info("Supergraph updated successfully")
-        
+
 
     def save_rdb(self):
         '''
@@ -944,7 +1186,7 @@ class Supervisor:
 
         if module is not None:
             proc_cmd += [f'module="{module}"']
-            booter_cmd['module'] = module        
+            booter_cmd['module'] = module
 
         self.r.xadd("booter", booter_cmd)
 
@@ -968,7 +1210,7 @@ class Supervisor:
         '''
         # send the ping instruction to booters
         self.r.xadd("booter", {
-                        'command': 'ping', 
+                        'command': 'ping',
                         'log_level': self.command_log_level})
 
         # wait for booters to respond
@@ -1062,7 +1304,7 @@ class Supervisor:
         log_level = data.get(b'log_level')
         if log_level is not None:
             self.command_log_level = log_level.decode()
-        
+
         cmd = (data[b'commands']).decode("utf-8").lower()
 
         if cmd in ["loadgraph", "startgraph"]:
@@ -1080,7 +1322,7 @@ class Supervisor:
                 file = data[b'file'].decode("utf-8")
                 if data.get(b'relative'):
                     file = os.path.join(self.BRAND_ROOT_DIR, file)
-                    
+
                 graph_dict = {}
                 try:
                     with open(file, 'r') as stream:
@@ -1179,7 +1421,7 @@ class Supervisor:
                 derivatives = data[b'derivative']
             else:
                 raise CommandError("killDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'killDerivatives')
-            
+
             derivatives = derivatives.decode('utf-8').split(',')
             self.kill_derivatives(derivatives)
         elif cmd == "make":
@@ -1257,7 +1499,7 @@ class Supervisor:
             'traceback': 'Supervisor ' + traceback.format_exc()})
         logger.error(f"Error with the {exc.node} node in the {exc.graph} graph")
         logger.error(str(exc))
-    
+
     def handle_booter_error(self, exc):
         # if a booter has a CommandError, report it
         if exc.source_exc == 'CommandError':
