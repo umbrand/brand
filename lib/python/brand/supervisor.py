@@ -582,28 +582,6 @@ class Supervisor:
 
     def parse_stream_definitions(self, streams, prev_supergraph):
         """Parse stream definitions, evaluate variables and validate types."""
-        # cycle through nodes, extract their streams
-        streams = {}
-        for n, n_info in self.model['nodes'].items():
-            yaml_f = self.get_node_yaml_path(n_info["module"], n_info["name"])
-            # if we have stream names defined and we have a node YAML file
-            if 'redis_outputs' in n_info and isinstance(
-                    n_info['redis_outputs'], dict) and yaml_f is not None:
-                with open(yaml_f, 'r') as f:
-                    node_yaml = yaml.safe_load(f)
-                for graph_stream, yaml_stream in n_info['redis_outputs'].items(
-                ):
-                    # if we have stream definitions, load them into the model
-                    if 'RedisStreams' in node_yaml and 'Outputs' in node_yaml[
-                            'RedisStreams'] and yaml_stream in node_yaml[
-                                'RedisStreams']['Outputs']:
-                        streams[graph_stream] = node_yaml['RedisStreams'][
-                            'Outputs'][yaml_stream]
-                        streams[graph_stream]['source_nickname'] = n
-                    else:
-                        self.logger.warning(
-                            f'{yaml_stream} stream not found in {yaml_f}')
-
         # Process all streams
         for stream_name, stream_info in streams.items():
             if not isinstance(stream_info, dict):
