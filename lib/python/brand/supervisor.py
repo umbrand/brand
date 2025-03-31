@@ -485,9 +485,7 @@ class Supervisor:
         self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
 
         # Load stream information
-        streams = self.load_stream_definitions()
-        prev_supergraph = deepcopy(self.model)
-        self.parse_stream_definitions(streams, prev_supergraph)
+        self.parse_stream_definitions()
 
         if publish_graph:
             self.publish_graph()
@@ -521,7 +519,7 @@ class Supervisor:
         else:
             return None
 
-    def load_stream_definitions(self):
+    def extract_node_streams(self):
         """
         Extract stream definitions from all nodes in the model.
 
@@ -580,8 +578,12 @@ class Supervisor:
 
         return streams
 
-    def parse_stream_definitions(self, streams, prev_supergraph):
+    def parse_stream_definitions(self):
         """Parse stream definitions, evaluate variables and validate types."""
+        # Load stream definitions from the node YAML files
+        streams = self.extract_node_streams()
+        # Keep a copy of the previous model for rollback in case of errors
+        prev_supergraph = deepcopy(self.model)
         # Process all streams
         for stream_name, stream_info in streams.items():
             if not isinstance(stream_info, dict):
