@@ -122,6 +122,24 @@ def xread_sync(self,
 
     return out  # Return the synchronized output
 
+# ──────────────────────────────────────────────────────────────
+# Colour formatter (console only)
+# ──────────────────────────────────────────────────────────────
+class _ColourFormatter(logging.Formatter):
+    _CLR = {
+        logging.DEBUG:    "\033[36m",   # cyan
+        logging.INFO:     "\033[0m",    # reset
+        logging.WARNING:  "\033[33m",   # yellow
+        logging.ERROR:    "\033[31m",   # red
+        logging.CRITICAL: "\033[41m",   # red background
+    }
+    _RESET = "\033[0m"
+
+    def format(self, record):
+        colour = self._CLR.get(record.levelno, self._RESET)
+        record.levelname = f"{colour}{record.levelname}{self._RESET}"
+        return super().format(record)
+
 class RedisLoggingHandler(logging.Handler):
     """
     Send `logging` messages to a particular stream in Redis. (This stream can then be
