@@ -8,20 +8,22 @@ import json
 import logging
 import signal
 import sys
-
+import time
+import numpy as np
+import uuid
 from redis import Redis
 
-from .redis import RedisLoggingHandler
+from .redis import RedisLoggingHandler, _ColourFormatter
 
 class BRANDNode():
     def __init__(self):
-
         # parse input arguments
         argp = argparse.ArgumentParser()
         argp.add_argument('-n', '--nickname', type=str, required=True, default='node')
         argp.add_argument('-i', '--redis_host', type=str, required=True, default='localhost')
         argp.add_argument('-p', '--redis_port', type=int, required=True, default=6379)
         argp.add_argument('-s', '--redis_socket', type=str, required=False)
+        argp.add_argument('--parameters', type=str, required=False, default='')
         args = argp.parse_args()
 
         len_args = len(vars(args))
@@ -34,6 +36,9 @@ class BRANDNode():
         redis_host = args.redis_host
         redis_port = args.redis_port
         redis_socket = args.redis_socket
+        
+        # Setup basic console logging first
+        self.setup_logging()
 
         # connect to Redis
         self.r = self.connectToRedis(redis_host, redis_port, redis_socket)
@@ -41,23 +46,53 @@ class BRANDNode():
         # initialize parameters
         self.parameters = {}
         self.supergraph_id = '0-0'
-        self.initializeParameters()
+        self.initializeParameters(args.parameters)
 
-        # set up logging
-        loglevel = self.parameters.setdefault('log', 'INFO')
-        numeric_level = getattr(logging, loglevel.upper(), None)
-
-        if not isinstance(numeric_level, int):
-            raise ValueError('Invalid log level: %s' % loglevel)
-
-        logging.basicConfig(format=f'[{self.NAME}] %(levelname)s: %(message)s',
-                            level=numeric_level)
-        self.redis_log_handler = RedisLoggingHandler(self.r, self.NAME)
-        logging.getLogger().addHandler(self.redis_log_handler)
+        # Now that we have Redis and parameters, add Redis logging
+        self.add_redis_logging(loglevel=self.parameters.get("log", "INFO"))
 
         signal.signal(signal.SIGINT, self.terminate)
-
         sys.excepthook = self._handle_exception
+
+        # Generate a unique ID for the node
+        self.producer_gid_hex = uuid.uuid4().hex
+        
+        self._cursor = {}
+    
+    def setup_logging(self, loglevel: str = "INFO"):
+        """
+        Configure root logger with colourful console output.
+        """
+        # Build handlers
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_fmt = _ColourFormatter(
+            fmt=f"%(asctime)s [{self.NAME}] %(levelname)s: %(message)s",
+            datefmt="%H:%M:%S")
+        console_handler.setFormatter(console_fmt)
+        console_handler.setLevel(getattr(logging, loglevel.upper(), "INFO"))
+        
+        # Configure root logger
+        logging.basicConfig(
+            handlers=[console_handler],
+            level=getattr(logging, loglevel.upper(), "INFO"),
+            force=True,           # ← override any earlier basicConfig
+        )
+        
+        # Store logger reference
+        self.logger = logging.getLogger()
+    
+    def add_redis_logging(self, loglevel: str = "INFO"):
+        """
+        Add Redis logging to the logger
+
+        Parameters
+        ----------
+        loglevel : str
+            The log level to use for the Redis logging
+        """
+        redis_handler = RedisLoggingHandler(self.r, self.NAME)
+        redis_handler.setLevel(getattr(logging, loglevel.upper(), "INFO"))
+        self.logger.addHandler(redis_handler)
 
     def connectToRedis(self, redis_host, redis_port, redis_socket=None):
         """
@@ -70,14 +105,14 @@ class BRANDNode():
         try:
             if redis_socket:
                 r = Redis(unix_socket_path=redis_socket)
-                print(f"[{self.NAME}] Redis connection established on socket:"
+                self.logger.info(f"Redis connection established on socket:"
                       f" {redis_socket}")
             else:
                 r = Redis(redis_host, redis_port, retry_on_timeout=True)
-                print(f"[{self.NAME}] Redis connection established on host:"
+                self.logger.info(f"Redis connection established on host:"
                       f" {redis_host}, port: {redis_port}")
         except ConnectionError as e:
-            print(f"[{self.NAME}] Error with Redis connection, check again: {e}")
+            self.logger.error(f"Error with Redis connection, check again: {e}")
             sys.exit(1)
 
         initial_data = {
@@ -128,14 +163,41 @@ class BRANDNode():
 
         return new_params
 
-    def initializeParameters(self):
+    def initializeParameters(self, fallback_parameters: str = ''):
         """
         Read node parameters from Redis.
-        ...
+        If no parameters are found, use the fallback parameters.
+
+        Parameters
+        ----------
+        fallback_parameters : str
+            The fallback parameters to use if no parameters are found in Redis
         """
+        if fallback_parameters != '':
+            try:
+                fallback_parameters = json.loads(fallback_parameters)
+            except json.JSONDecodeError:
+                self.logger.error(f"Invalid fallback parameters: {fallback_parameters}")
+                sys.exit(1)
+        else:
+            fallback_parameters = None
+
         node_parameters = self.getParametersFromSupergraph()
-        if node_parameters is None:
-            print(f"[{self.NAME}] No model published to supergraph_stream in Redis")
+        if node_parameters is None or len(node_parameters[-1].keys()) == 0:
+            if fallback_parameters is None:
+                self.logger.error(f"No model published to supergraph_stream in Redis")
+                sys.exit(1)
+            else:
+                node_parameters = [fallback_parameters]
+        
+        # Make sure input and output streams are defined
+        if 'input_streams' not in node_parameters[-1] or 'output_streams' not in node_parameters[-1]:
+            self.logger.error(f"No input or output streams defined in node parameters")
+            sys.exit(1)
+        
+        # Make sure input and output streams are dictionaries
+        if not isinstance(node_parameters[-1]['input_streams'], dict) or not isinstance(node_parameters[-1]['output_streams'], dict):
+            self.logger.error(f"Input and output streams must be dictionaries")
             sys.exit(1)
 
         for key,value in node_parameters[-1].items():
@@ -184,7 +246,7 @@ class BRANDNode():
         pass
 
     def terminate(self, sig, frame):
-        logging.info('SIGINT received, Exiting')
+        self.logger.info('SIGINT received, Exiting')
         self.cleanup()
         self.r.close()
         gc.collect()
@@ -201,6 +263,43 @@ class BRANDNode():
         Handle uncaught exceptions by logging them.
         """
         if self.r.ping():
-            logging.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+            self.logger.exception('', exc_info=(exc_type, exc_value, exc_traceback))
         else:
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    
+    def _next_seq(self):
+        self._seq = getattr(self, "_seq", 0) + 1
+        return self._seq
+    
+    def publish(self, stream: str, data: dict, parents: dict = None):
+        hdr = {
+            "ts": int(time.monotonic_ns()),
+            "seq": self._next_seq(),
+            "producer_gid": self.producer_gid_hex,
+            "node": self.NAME
+        }
+        if parents:
+            hdr["parents"] = parents
+        data_out = {"_hdr": json.dumps(hdr).encode()}
+        
+        data_out.update(data)
+        self.r.xadd(stream, data_out)
+    
+    def read_one(self, stream: str, block_ms: int = 0) -> dict:
+        last = self._cursor.get(stream, "$")
+        resp = self.r.xread({stream.encode(): last}, block=block_ms, count=1)
+        if not resp:
+            return None                  # timeout
+        _, entries = resp[0]
+        entry_id, fields = entries[0]
+        entry_id = entry_id.decode()
+        # Decode dictionary keys from bytes to strings
+        decoded_fields = {}
+        for key, value in fields.items():
+            if isinstance(key, bytes):
+                decoded_key = key.decode()
+                decoded_fields[decoded_key] = value
+            else:
+                decoded_fields[key] = value
+        self._cursor[stream] = entry_id  # advance cursor
+        return entry_id, decoded_fields
