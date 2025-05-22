@@ -303,3 +303,67 @@ class BRANDNode():
                 decoded_fields[key] = value
         self._cursor[stream] = entry_id  # advance cursor
         return entry_id, decoded_fields
+        
+    def read_n(self, stream: str, n: int = 1000, block_ms: int = None):
+        """
+        Read messages from a stream.
+        
+        Parameters
+        ----------
+        stream : str
+            The stream to read from
+        n : int
+            Max number of entries to read at once (default: 1000)
+        block_ms : int or None
+            Milliseconds to block waiting for messages:
+            - None (default): Non-blocking, returns immediately if no messages
+            - 0: Block indefinitely until at least one message is available
+            - >0: Wait up to block_ms milliseconds for messages
+            
+        Returns
+        -------
+        tuple or None
+            A tuple containing (entry_ids, data_dict) where:
+            - entry_ids: List of entry IDs corresponding to each message
+            - data_dict: Dictionary with fields where each value is a list of values from all messages
+            
+            For example, if read_one returns (id, {'field': [1,2,3]}), read_n might return
+            (['1234-0', '1235-0', '1236-0'], {'field': [[1,2,3], [4,5,6], [7,8,9]]})
+            
+            Returns None if no messages are available (or timeout occurred).
+        """
+        last = self._cursor.get(stream, "$")
+        resp = self.r.xread({stream.encode(): last}, block=block_ms, count=n)
+        if not resp:
+            return None  # No messages available or timeout
+            
+        _, entries = resp[0]
+        if not entries:
+            return None  # No entries in stream
+            
+        # Initialize result dictionary with lists for each field
+        result = {}
+        entry_ids = []
+        
+        # Process each message
+        for entry in entries:
+            entry_id, fields = entry
+            entry_id = entry_id.decode()
+            entry_ids.append(entry_id)
+            
+            # Decode dictionary keys from bytes to strings
+            for key, value in fields.items():
+                if isinstance(key, bytes):
+                    key = key.decode()
+                if key == "_hdr":
+                    value = json.loads(value.decode())
+                
+                # Add this value to the appropriate list in the result
+                if key not in result:
+                    result[key] = []
+                result[key].append(value)
+            
+            # Update cursor to the latest entry
+            self._cursor[stream] = entry_id
+        
+        return entry_ids, result
