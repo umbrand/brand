@@ -307,7 +307,43 @@ class BRANDNode():
                 decoded_fields[key] = value
         self._cursor[stream] = entry_id  # advance cursor
         return entry_id, decoded_fields
+    
+    def read_latest(self, stream: str, count: int = 1):
+        """
+        Read the latest entries from a stream (equivalent to xrevrange).
         
+        Parameters
+        ----------
+        stream : str or bytes
+            The stream to read from
+        count : int
+            Number of latest entries to read (default: 1)
+            
+        Returns
+        -------
+        list
+            List of (entry_id, fields) tuples, ordered from newest to oldest
+        """
+        if isinstance(stream, str):
+            stream = stream.encode()
+        
+        resp = self.r.xrevrange(stream, '+', '-', count)
+        
+        result = []
+        for entry_id, fields in resp:
+            entry_id = entry_id.decode()
+            # Decode dictionary keys from bytes to strings  
+            decoded_fields = {}
+            for key, value in fields.items():
+                if isinstance(key, bytes):
+                    decoded_key = key.decode()
+                    decoded_fields[decoded_key] = value
+                else:
+                    decoded_fields[key] = value
+            result.append((entry_id, decoded_fields))
+        
+        return result
+    
     def read_n(self, stream: str, n: int = 1000, block_ms: int = None):
         """
         Read messages from a stream.
