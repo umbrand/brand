@@ -271,7 +271,7 @@ class BRANDNode():
         self._seq = getattr(self, "_seq", 0) + 1
         return self._seq
     
-    def publish(self, stream: str, data: dict, parents: dict = None):
+    def publish(self, stream: str, data: dict, parents: dict = None, pipeline=None):
         hdr = {
             "ts": int(time.monotonic_ns()),
             "seq": self._next_seq(),
@@ -283,7 +283,11 @@ class BRANDNode():
         data_out = {"_hdr": json.dumps(hdr).encode()}
         
         data_out.update(data)
-        self.r.xadd(stream, data_out)
+        
+        if pipeline is not None:
+            pipeline.xadd(stream, data_out)
+        else:
+            self.r.xadd(stream, data_out)
     
     def read_one(self, stream: str, block_ms: int = 0) -> dict:
         last = self._cursor.get(stream, "$")
@@ -303,7 +307,43 @@ class BRANDNode():
                 decoded_fields[key] = value
         self._cursor[stream] = entry_id  # advance cursor
         return entry_id, decoded_fields
+    
+    def read_latest(self, stream: str, count: int = 1):
+        """
+        Read the latest entries from a stream (equivalent to xrevrange).
         
+        Parameters
+        ----------
+        stream : str or bytes
+            The stream to read from
+        count : int
+            Number of latest entries to read (default: 1)
+            
+        Returns
+        -------
+        list
+            List of (entry_id, fields) tuples, ordered from newest to oldest
+        """
+        if isinstance(stream, str):
+            stream = stream.encode()
+        
+        resp = self.r.xrevrange(stream, '+', '-', count)
+        
+        result = []
+        for entry_id, fields in resp:
+            entry_id = entry_id.decode()
+            # Decode dictionary keys from bytes to strings  
+            decoded_fields = {}
+            for key, value in fields.items():
+                if isinstance(key, bytes):
+                    decoded_key = key.decode()
+                    decoded_fields[decoded_key] = value
+                else:
+                    decoded_fields[key] = value
+            result.append((entry_id, decoded_fields))
+        
+        return result
+    
     def read_n(self, stream: str, n: int = 1000, block_ms: int = None):
         """
         Read messages from a stream.
@@ -367,3 +407,28 @@ class BRANDNode():
             self._cursor[stream] = entry_id
         
         return entry_ids, result
+    
+    def pipeline(self):
+        """
+        Create a Redis pipeline for batching multiple commands.
+        
+        Returns
+        -------
+        Redis pipeline
+            A Redis pipeline object that can be passed to publish() and other methods
+            
+        Example
+        -------
+        # Using the pipeline with context manager (recommended)
+        with self.pipeline() as pipe:
+            self.publish("stream1", {"data": "value1"}, pipeline=pipe)
+            self.publish("stream2", {"data": "value2"}, pipeline=pipe)
+            # execute() is called automatically when exiting the context
+            
+        # Manual usage
+        pipe = self.pipeline()
+        self.publish("stream1", {"data": "value1"}, pipeline=pipe)
+        self.publish("stream2", {"data": "value2"}, pipeline=pipe)
+        pipe.execute()
+        """
+        return self.r.pipeline()
