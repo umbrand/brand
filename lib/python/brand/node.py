@@ -58,6 +58,9 @@ class BRANDNode():
         self.producer_gid_hex = uuid.uuid4().hex
         
         self._cursor = {}
+        
+        # Add shutdown flag for graceful termination
+        self._shutdown_requested = False
     
     def setup_logging(self, loglevel: str = "INFO"):
         """
@@ -205,7 +208,7 @@ class BRANDNode():
 
     def run(self):
 
-        while True:
+        while not self._shutdown_requested:
             self.work()
             self.updateParameters()
 
@@ -247,8 +250,21 @@ class BRANDNode():
 
     def terminate(self, sig, frame):
         self.logger.info('SIGINT received, Exiting')
+        self._shutdown_requested = True
+        
+        # Give a brief moment for ongoing operations to complete
+        time.sleep(0.1)
+        
         self.cleanup()
-        self.r.close()
+        
+        # Check if Redis connection is still alive before trying to close it
+        try:
+            if self.r and self.r.ping():
+                self.r.close()
+        except Exception as e:
+            # Log but don't fail on Redis close errors
+            self.logger.debug(f"Error closing Redis connection: {e}")
+        
         gc.collect()
         sys.exit(0)
 
@@ -262,9 +278,13 @@ class BRANDNode():
         """
         Handle uncaught exceptions by logging them.
         """
-        if self.r.ping():
-            self.logger.exception('', exc_info=(exc_type, exc_value, exc_traceback))
-        else:
+        try:
+            if self.r and self.r.ping():
+                self.logger.exception('', exc_info=(exc_type, exc_value, exc_traceback))
+            else:
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        except Exception:
+            # If Redis is not available, fall back to default exception handling
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
     
     def _next_seq(self):
@@ -272,6 +292,10 @@ class BRANDNode():
         return self._seq
     
     def publish(self, stream: str, data: dict, parents: dict = None, pipeline=None):
+        # Check if shutdown is requested
+        if self._shutdown_requested:
+            return
+            
         hdr = {
             "ts": int(time.monotonic_ns()),
             "seq": self._next_seq(),
@@ -284,29 +308,53 @@ class BRANDNode():
         
         data_out.update(data)
         
-        if pipeline is not None:
-            pipeline.xadd(stream, data_out)
-        else:
-            self.r.xadd(stream, data_out)
+        try:
+            if pipeline is not None:
+                pipeline.xadd(stream, data_out)
+            else:
+                self.r.xadd(stream, data_out)
+        except Exception as e:
+            if not self._shutdown_requested:
+                self.logger.error(f"Error publishing to stream {stream}: {e}")
     
     def read_one(self, stream: str, block_ms: int = 0) -> dict:
-        last = self._cursor.get(stream, "$")
-        resp = self.r.xread({stream.encode(): last}, block=block_ms, count=1)
-        if not resp:
-            return None                  # timeout
-        _, entries = resp[0]
-        entry_id, fields = entries[0]
-        entry_id = entry_id.decode()
-        # Decode dictionary keys from bytes to strings
-        decoded_fields = {}
-        for key, value in fields.items():
-            if isinstance(key, bytes):
-                decoded_key = key.decode()
-                decoded_fields[decoded_key] = value
-            else:
-                decoded_fields[key] = value
-        self._cursor[stream] = entry_id  # advance cursor
-        return entry_id, decoded_fields
+        # Check if shutdown is requested
+        if self._shutdown_requested:
+            return None, None
+            
+        try:
+            last = self._cursor.get(stream, "$")
+            resp = self.r.xread({stream.encode(): last}, block=block_ms, count=1)
+            if not resp:
+                return None, None                  # timeout
+            _, entries = resp[0]
+            entry_id, fields = entries[0]
+            entry_id = entry_id.decode()
+            # Decode dictionary keys from bytes to strings
+            decoded_fields = {}
+            for key, value in fields.items():
+                if isinstance(key, bytes):
+                    decoded_key = key.decode()
+                    decoded_fields[decoded_key] = value
+                else:
+                    decoded_fields[key] = value
+            self._cursor[stream] = entry_id  # advance cursor
+            return entry_id, decoded_fields
+        except Exception as e:
+            if not self._shutdown_requested:
+                self.logger.error(f"Error reading from stream {stream}: {e}")
+            return None, None
+    
+    def is_shutdown_requested(self):
+        """
+        Check if shutdown has been requested.
+        
+        Returns
+        -------
+        bool
+            True if shutdown has been requested, False otherwise
+        """
+        return self._shutdown_requested
     
     def read_latest(self, stream: str, count: int = 1):
         """
@@ -324,25 +372,34 @@ class BRANDNode():
         list
             List of (entry_id, fields) tuples, ordered from newest to oldest
         """
-        if isinstance(stream, str):
-            stream = stream.encode()
-        
-        resp = self.r.xrevrange(stream, '+', '-', count)
-        
-        result = []
-        for entry_id, fields in resp:
-            entry_id = entry_id.decode()
-            # Decode dictionary keys from bytes to strings  
-            decoded_fields = {}
-            for key, value in fields.items():
-                if isinstance(key, bytes):
-                    decoded_key = key.decode()
-                    decoded_fields[decoded_key] = value
-                else:
-                    decoded_fields[key] = value
-            result.append((entry_id, decoded_fields))
-        
-        return result
+        # Check if shutdown is requested
+        if self._shutdown_requested:
+            return []
+            
+        try:
+            if isinstance(stream, str):
+                stream = stream.encode()
+            
+            resp = self.r.xrevrange(stream, '+', '-', count)
+            
+            result = []
+            for entry_id, fields in resp:
+                entry_id = entry_id.decode()
+                # Decode dictionary keys from bytes to strings  
+                decoded_fields = {}
+                for key, value in fields.items():
+                    if isinstance(key, bytes):
+                        decoded_key = key.decode()
+                        decoded_fields[decoded_key] = value
+                    else:
+                        decoded_fields[key] = value
+                result.append((entry_id, decoded_fields))
+            
+            return result
+        except Exception as e:
+            if not self._shutdown_requested:
+                self.logger.error(f"Error reading latest from stream {stream}: {e}")
+            return []
     
     def read_n(self, stream: str, n: int = 1000, block_ms: int = None):
         """
@@ -372,41 +429,50 @@ class BRANDNode():
             
             Returns None if no messages are available (or timeout occurred).
         """
-        last = self._cursor.get(stream, "$")
-        resp = self.r.xread({stream.encode(): last}, block=block_ms, count=n)
-        if not resp:
-            return None  # No messages available or timeout
+        # Check if shutdown is requested
+        if self._shutdown_requested:
+            return None
             
-        _, entries = resp[0]
-        if not entries:
-            return None  # No entries in stream
-            
-        # Initialize result dictionary with lists for each field
-        result = {}
-        entry_ids = []
-        
-        # Process each message
-        for entry in entries:
-            entry_id, fields = entry
-            entry_id = entry_id.decode()
-            entry_ids.append(entry_id)
-            
-            # Decode dictionary keys from bytes to strings
-            for key, value in fields.items():
-                if isinstance(key, bytes):
-                    key = key.decode()
-                if key == "_hdr":
-                    value = json.loads(value.decode())
+        try:
+            last = self._cursor.get(stream, "$")
+            resp = self.r.xread({stream.encode(): last}, block=block_ms, count=n)
+            if not resp:
+                return None  # No messages available or timeout
                 
-                # Add this value to the appropriate list in the result
-                if key not in result:
-                    result[key] = []
-                result[key].append(value)
+            _, entries = resp[0]
+            if not entries:
+                return None  # No entries in stream
+                
+            # Initialize result dictionary with lists for each field
+            result = {}
+            entry_ids = []
             
-            # Update cursor to the latest entry
-            self._cursor[stream] = entry_id
-        
-        return entry_ids, result
+            # Process each message
+            for entry in entries:
+                entry_id, fields = entry
+                entry_id = entry_id.decode()
+                entry_ids.append(entry_id)
+                
+                # Decode dictionary keys from bytes to strings
+                for key, value in fields.items():
+                    if isinstance(key, bytes):
+                        key = key.decode()
+                    if key == "_hdr":
+                        value = json.loads(value.decode())
+                    
+                    # Add this value to the appropriate list in the result
+                    if key not in result:
+                        result[key] = []
+                    result[key].append(value)
+                
+                # Update cursor to the latest entry
+                self._cursor[stream] = entry_id
+            
+            return entry_ids, result
+        except Exception as e:
+            if not self._shutdown_requested:
+                self.logger.error(f"Error reading from stream {stream}: {e}")
+            return None
     
     def pipeline(self):
         """
@@ -431,4 +497,8 @@ class BRANDNode():
         self.publish("stream2", {"data": "value2"}, pipeline=pipe)
         pipe.execute()
         """
+        # Check if shutdown is requested
+        if self._shutdown_requested:
+            return None
+            
         return self.r.pipeline()
