@@ -5,6 +5,9 @@
 import argparse
 import gc
 import json
+import msgpack
+import msgpack_numpy as m
+m.patch()
 import logging
 import signal
 import sys
@@ -291,22 +294,24 @@ class BRANDNode():
         self._seq = getattr(self, "_seq", 0) + 1
         return self._seq
     
+    def get_timestamp(self):
+        return int(time.monotonic_ns())
+    
     def publish(self, stream: str, data: dict, parents: dict = None, pipeline=None):
         # Check if shutdown is requested
         if self._shutdown_requested:
             return
             
         hdr = {
-            "ts": int(time.monotonic_ns()),
+            "ts": self.get_timestamp(),
             "seq": self._next_seq(),
             "producer_gid": self.producer_gid_hex,
             "node": self.NAME
         }
         if parents:
             hdr["parents"] = parents
-        data_out = {"_hdr": json.dumps(hdr).encode()}
-        
-        data_out.update(data)
+        data_out = {b"_hdr": msgpack.packb(hdr)}
+        data_out[b"data"] = msgpack.packb(data)
         
         try:
             if pipeline is not None:
@@ -317,33 +322,104 @@ class BRANDNode():
             if not self._shutdown_requested:
                 self.logger.error(f"Error publishing to stream {stream}: {e}")
     
-    def read_one(self, stream: str, block_ms: int = 0) -> dict:
+    
+    def read(self, streams_in, count: int = 1, block_ms: int = 0):
+        """
+        Read entries from multiple streams.
+        
+        Parameters
+        ----------
+        streams_in : list or str
+            List of stream names to read from or single stream name
+        count : int
+            Number of entries to read from each stream (default: 1)
+        block_ms : int
+            Milliseconds to block waiting for data (default: 0). Set to None for non-blocking read.
+            
+        Returns
+        -------
+        dict or tuple
+            When n=1: Dictionary mapping stream names to (entry_id, fields) tuples.
+            When n>1: Dictionary mapping stream names to (entry_ids, data_dict) tuples.
+            For single stream input, returns the tuple directly instead of a dict.
+            Returns None for streams that had no data or errors.
+        """
+        if isinstance(streams_in, str):
+            streams = [streams_in]
+        else:
+            streams = streams_in
+        
         # Check if shutdown is requested
         if self._shutdown_requested:
-            return None, None
+            if count == 1:
+                return {stream: (None, None) for stream in streams}
+            else:
+                return {stream: (None, None) for stream in streams}
             
         try:
-            last = self._cursor.get(stream, "$")
-            resp = self.r.xread({stream.encode(): last}, block=block_ms, count=1)
-            if not resp:
-                return None, None                  # timeout
-            _, entries = resp[0]
-            entry_id, fields = entries[0]
-            entry_id = entry_id.decode()
-            # Decode dictionary keys from bytes to strings
-            decoded_fields = {}
-            for key, value in fields.items():
-                if isinstance(key, bytes):
-                    decoded_key = key.decode()
-                    decoded_fields[decoded_key] = value
-                else:
-                    decoded_fields[key] = value
-            self._cursor[stream] = entry_id  # advance cursor
-            return entry_id, decoded_fields
+            # Build the streams dictionary with cursors
+            streams_dict = {}
+            for stream in streams:
+                last = self._cursor.get(stream, "$")
+                if block_ms is None and last == "$":
+                    block_ms = 1 # blocking read
+                streams_dict[stream.encode()] = last
+            
+            resp = self.r.xread(streams_dict, block=block_ms, count=count)
+            
+            # Initialize result with None values
+            if count == 1:
+                result = {stream: (None, None) for stream in streams}
+            else:
+                result = {stream: (None, None) for stream in streams}
+            
+            # Process response
+            for stream_data in resp:
+                stream_name, entries = stream_data
+                stream_name = stream_name.decode()
+                
+                if entries:
+                    if count == 1:
+                        # Single entry case - return values directly (not in lists)
+                        entry_id, fields = entries[0]
+                        entry_id = entry_id.decode()
+                        out_dict = {"_hdr": msgpack.unpackb(fields[b"_hdr"])}
+                        out_dict.update(msgpack.unpackb(fields[b"data"]))
+                        
+                        result[stream_name] = (entry_id, out_dict)
+                        self._cursor[stream_name] = entry_id  # advance cursor
+                    else:
+                        # Multiple entries case - return lists for each field
+                        entry_ids = []
+                        data_dict = {'_hdr': []}
+                        
+                        for entry in entries:
+                            entry_id, fields = entry
+                            entry_id = entry_id.decode()
+                            entry_ids.append(entry_id)
+                            data_dict['_hdr'].append(msgpack.unpackb(fields[b"_hdr"]))
+                            
+                            # Decode dictionary keys from bytes to strings
+                            out_dict = msgpack.unpackb(fields[b"data"])
+                            for key, value in out_dict.items():
+                                if key not in data_dict:
+                                    data_dict[key] = []
+                                data_dict[key].append(value)
+                            
+                            # Update cursor to the latest entry
+                            self._cursor[stream_name] = entry_id
+                        
+                        result[stream_name] = (entry_ids, data_dict)
+            
+            return result if isinstance(streams_in, list) else result[streams_in]
+            
         except Exception as e:
             if not self._shutdown_requested:
-                self.logger.error(f"Error reading from stream {stream}: {e}")
-            return None, None
+                self.logger.error(f"Error reading from streams {streams}: {e}")
+            if count == 1:
+                return {stream: (None, None) for stream in streams}
+            else:
+                return {stream: (None, None) for stream in streams}
     
     def is_shutdown_requested(self):
         """
@@ -385,15 +461,19 @@ class BRANDNode():
             result = []
             for entry_id, fields in resp:
                 entry_id = entry_id.decode()
-                # Decode dictionary keys from bytes to strings  
-                decoded_fields = {}
-                for key, value in fields.items():
-                    if isinstance(key, bytes):
-                        decoded_key = key.decode()
-                        decoded_fields[decoded_key] = value
-                    else:
-                        decoded_fields[key] = value
-                result.append((entry_id, decoded_fields))
+                out_dict = {}
+                if b"_hdr" in fields:
+                    out_dict["_hdr"] = msgpack.unpackb(fields[b"_hdr"])
+                if b"data" in fields:
+                    # FIXME: for now, allowing json encoding for task configs only
+                    try:
+                        out_dict.update(msgpack.unpackb(fields[b"data"]))
+                    except msgpack.exceptions.ExtraData as e:
+                        # Try to unpack as string
+                        out_dict.update({"data": fields[b"data"].decode()})
+                    except Exception as e:
+                        self.logger.error(f"Error unpacking data from stream {stream}: {e}")
+                result.append((entry_id, out_dict))
             
             return result
         except Exception as e:
@@ -401,78 +481,7 @@ class BRANDNode():
                 self.logger.error(f"Error reading latest from stream {stream}: {e}")
             return []
     
-    def read_n(self, stream: str, n: int = 1000, block_ms: int = None):
-        """
-        Read messages from a stream.
-        
-        Parameters
-        ----------
-        stream : str
-            The stream to read from
-        n : int
-            Max number of entries to read at once (default: 1000)
-        block_ms : int or None
-            Milliseconds to block waiting for messages:
-            - None (default): Non-blocking, returns immediately if no messages
-            - 0: Block indefinitely until at least one message is available
-            - >0: Wait up to block_ms milliseconds for messages
-            
-        Returns
-        -------
-        tuple or None
-            A tuple containing (entry_ids, data_dict) where:
-            - entry_ids: List of entry IDs corresponding to each message
-            - data_dict: Dictionary with fields where each value is a list of values from all messages
-            
-            For example, if read_one returns (id, {'field': [1,2,3]}), read_n might return
-            (['1234-0', '1235-0', '1236-0'], {'field': [[1,2,3], [4,5,6], [7,8,9]]})
-            
-            Returns None if no messages are available (or timeout occurred).
-        """
-        # Check if shutdown is requested
-        if self._shutdown_requested:
-            return None
-            
-        try:
-            last = self._cursor.get(stream, "$")
-            resp = self.r.xread({stream.encode(): last}, block=block_ms, count=n)
-            if not resp:
-                return None  # No messages available or timeout
-                
-            _, entries = resp[0]
-            if not entries:
-                return None  # No entries in stream
-                
-            # Initialize result dictionary with lists for each field
-            result = {}
-            entry_ids = []
-            
-            # Process each message
-            for entry in entries:
-                entry_id, fields = entry
-                entry_id = entry_id.decode()
-                entry_ids.append(entry_id)
-                
-                # Decode dictionary keys from bytes to strings
-                for key, value in fields.items():
-                    if isinstance(key, bytes):
-                        key = key.decode()
-                    if key == "_hdr":
-                        value = json.loads(value.decode())
-                    
-                    # Add this value to the appropriate list in the result
-                    if key not in result:
-                        result[key] = []
-                    result[key].append(value)
-                
-                # Update cursor to the latest entry
-                self._cursor[stream] = entry_id
-            
-            return entry_ids, result
-        except Exception as e:
-            if not self._shutdown_requested:
-                self.logger.error(f"Error reading from stream {stream}: {e}")
-            return None
+
     
     def pipeline(self):
         """
