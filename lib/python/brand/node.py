@@ -61,6 +61,9 @@ class BRANDNode():
         self.producer_gid_hex = uuid.uuid4().hex
         
         self._cursor = {}
+        # Potentially, get latest ID for each input stream
+        input_stream_names = [self.parameters['input_streams'][key]['name'] for key in self.parameters['input_streams'].keys()]
+        self.get_latest_id_per_stream(input_stream_names)
         
         # Add shutdown flag for graceful termination
         self._shutdown_requested = False
@@ -208,6 +211,17 @@ class BRANDNode():
 
         for key,value in node_parameters[-1].items():
             self.parameters[key] = value
+    
+    def get_latest_id_per_stream(self, streams:list[str]):
+        """
+        Get the latest ID for each stream in the list
+        """
+        for stream in streams:
+            try:
+                self._cursor[stream] = self.r.xinfo_stream(stream)['last-generated-id']
+            except Exception as e:
+                self.logger.warning(f"Error getting latest ID for stream {stream}: {e}")
+                self._cursor[stream] = "$"
 
     def run(self):
 
