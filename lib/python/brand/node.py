@@ -201,7 +201,7 @@ class BRANDNode():
         
         # Make sure input and output streams are defined
         if 'input_streams' not in node_parameters[-1] or 'output_streams' not in node_parameters[-1]:
-            self.logger.error(f"No input or output streams defined in node parameters")
+            self.logger.error(f"Either input or output streams (or both) are undefined in node parameters")
             sys.exit(1)
         
         # Make sure input and output streams are dictionaries
