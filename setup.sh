@@ -16,7 +16,7 @@ if [ ! -d "$SERVER_PATH" ]; then
     else
         # Native Linux environment - use different mount command or approach
         read -p "Enter username for CNPL server: " username
-        sudo mkdir -p /mnt/z && sudo mount -t cifs //cnpl-drmanhattan.engin.umich.edu/share /mnt/z -o user=$username,domain=UMROOT,vers=3.0
+        sudo mkdir -p /mnt/z && sudo mount -t cifs //cnpl-drmanhattan.engin.umich.edu/share /mnt/z -o user=$username,domain=UMROOT,vers=3.0,dir_mode=0777,file_mode=0666
     fi
 fi
 export BRAND_BASE_DIR # save brand base dir to the environment
