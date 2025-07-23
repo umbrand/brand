@@ -267,8 +267,8 @@ class Supervisor:
             redis_command = ['taskset', '-c', self.redis_affinity
                              ] + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
-        # get a process name by psutil
-        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        # Start Redis in its own process group to prevent SIGINT propagation
+        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE, preexec_fn=os.setsid)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
@@ -299,26 +299,22 @@ class Supervisor:
         save_path : str
             Path where data should be saved
         """
-        # Check if the participant file exists
-        has_participant_file = (
-            'metadata' in graph_dict
-            and 'participant_file' in graph_dict['metadata']
-            and os.path.exists(graph_dict['metadata']['participant_file']))
-
-        # Get participant and session info
-        if has_participant_file:
-            with open(graph_dict['metadata']['participant_file'], 'r') as f:
-                participant_info = yaml.safe_load(f)
-            participant_id = participant_info['metadata']['participant_id']
-        elif 'metadata' in graph_dict and 'participant_id' in graph_dict['metadata']:
-            participant_id = graph_dict['metadata']['participant_id']
+        # Get participant_id from graph parameters
+        if 'participant_id' in graph_dict:
+            participant_id = graph_dict['participant_id']
         else:
-            participant_id = 0
+            participant_id = 'Monkeys/Test'
+
+        # Get SERVER_PATH from environment variables
+        server_path = os.environ.get('SERVER_PATH')
+        if server_path is None:
+            # Fall back to self.data_dir if SERVER_PATH is not set
+            logger.warning("SERVER_PATH environment variable not set, using default data_dir")
+            server_path = self.data_dir
 
         # Make paths for saving files
         session_str = datetime.today().strftime(r'%Y-%m-%d')
-        session_id = f'{session_str}'
-        save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
+        save_path = os.path.join(server_path, str(participant_id), session_str)
         save_path = os.path.abspath(save_path)
         return save_path, str(participant_id)
 
@@ -354,7 +350,7 @@ class Supervisor:
 
         # Set rdb filename
         if rdb_filename is None:
-            self.rdb_filename =  self.participant_id + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
+            self.rdb_filename =  self.participant_id.split('/')[-1] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
         else:
             self.rdb_filename = rdb_filename
 
@@ -835,7 +831,8 @@ class Supervisor:
                 taskset_args = ['taskset', '-c', str(affinity)]
                 args = taskset_args + args
         
-        proc = subprocess.Popen(args)
+        # Start node in its own process group to prevent SIGINT propagation
+        proc = subprocess.Popen(args, preexec_fn=os.setsid)
         proc.name = nickname
         logger.info("Child process created with pid: %s" % proc.pid)
         logger.info("Parent process is running and waiting for commands from redis")
@@ -925,7 +922,7 @@ class Supervisor:
             # Save the .rdb file.
             self.r.xadd("supervisor_status", {"status": "Saving rdb"})
             logger.info("Saving RDB file...")
-            self.r.save()
+            self.save_rdb()
             save_filepath = os.path.join(self.save_path_rdb, self.rdb_filename)
             logger.info(f"RDB file saved as {save_filepath}")
 
@@ -1183,8 +1180,8 @@ class Supervisor:
         Saves an RDB file of the current database
         '''
         # Save rdb file
-        self.r.save()
-        logger.info(f"RDB data saved to file: {self.rdb_filename}")
+        self.r.bgsave()
+        logger.info(f"Started RDB save to file: {self.rdb_filename}")
 
     def flush_db(self):
         '''
@@ -1311,8 +1308,37 @@ class Supervisor:
 
 
     def terminate(self, sig, frame):
-        logger.info('SIGINT received, Exiting')
-        self.cleanup()
+        logger.info('SIGINT received')
+        print('\nReceived interrupt signal (CTRL+C)')
+        
+        # Check if we have active processes that would be affected
+        active_nodes = [name for name, proc in self.child_nodes.items() if proc is not None]
+        active_derivatives = [name for name in self.derivative_threads.keys() if self.derivative_threads[name].is_alive()]
+        
+        if active_nodes or active_derivatives:
+            print(f'Active nodes: {active_nodes if active_nodes else "None"}')
+            print(f'Active derivatives: {active_derivatives if active_derivatives else "None"}')
+            print('This will stop all running processes and exit the supervisor.')
+        
+        try:
+            while True:
+                response = input('Are you sure you want to exit? (y/n): ').strip().lower()
+                if response in ['y', 'yes']:
+                    logger.info('Exit confirmed by user')
+                    self.cleanup()
+                    break
+                elif response in ['n', 'no']:
+                    logger.info('Exit cancelled by user')
+                    print('Continuing...')
+                    return  # Continue running
+                else:
+                    print('Please enter y/yes or n/no')
+        except (EOFError, KeyboardInterrupt):
+            # Handle case where stdin is not available or another CTRL+C is pressed
+            logger.info('Cannot get user confirmation, forcing exit')
+            print('\nForcing exit...')
+            self.cleanup()
+
 
     def cleanup(self):
         # attempt to kill nodes
