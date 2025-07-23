@@ -267,8 +267,8 @@ class Supervisor:
             redis_command = ['taskset', '-c', self.redis_affinity
                              ] + redis_command
         logger.info('Starting redis: ' + ' '.join(redis_command))
-        # get a process name by psutil
-        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE)
+        # Start Redis in its own process group to prevent SIGINT propagation
+        proc = subprocess.Popen(redis_command, stdout=subprocess.PIPE, preexec_fn=os.setsid)
         self.redis_pid = proc.pid
         try:
             out, _ = proc.communicate(timeout=1)
@@ -299,26 +299,22 @@ class Supervisor:
         save_path : str
             Path where data should be saved
         """
-        # Check if the participant file exists
-        has_participant_file = (
-            'metadata' in graph_dict
-            and 'participant_file' in graph_dict['metadata']
-            and os.path.exists(graph_dict['metadata']['participant_file']))
-
-        # Get participant and session info
-        if has_participant_file:
-            with open(graph_dict['metadata']['participant_file'], 'r') as f:
-                participant_info = yaml.safe_load(f)
-            participant_id = participant_info['metadata']['participant_id']
-        elif 'metadata' in graph_dict and 'participant_id' in graph_dict['metadata']:
-            participant_id = graph_dict['metadata']['participant_id']
+        # Get participant_id from graph parameters
+        if 'participant_id' in graph_dict:
+            participant_id = graph_dict['participant_id']
         else:
-            participant_id = 0
+            participant_id = 'Monkeys/Test'
+
+        # Get SERVER_PATH from environment variables
+        server_path = os.environ.get('SERVER_PATH')
+        if server_path is None:
+            # Fall back to self.data_dir if SERVER_PATH is not set
+            logger.warning("SERVER_PATH environment variable not set, using default data_dir")
+            server_path = self.data_dir
 
         # Make paths for saving files
         session_str = datetime.today().strftime(r'%Y-%m-%d')
-        session_id = f'{session_str}'
-        save_path = os.path.join(self.data_dir, str(participant_id), session_id, 'RawData')
+        save_path = os.path.join(server_path, str(participant_id), session_str)
         save_path = os.path.abspath(save_path)
         return save_path, str(participant_id)
 
@@ -354,7 +350,7 @@ class Supervisor:
 
         # Set rdb filename
         if rdb_filename is None:
-            self.rdb_filename =  self.participant_id + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
+            self.rdb_filename =  self.participant_id.split('/')[-1] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'
         else:
             self.rdb_filename = rdb_filename
 
@@ -733,52 +729,116 @@ class Supervisor:
         host = self.model["redis_host"]
         port = self.model["redis_port"]
         for node, node_info in self.model["nodes"].items():
-            # specify defaults
-            node_info.setdefault('root', True)
-            # run the node if it is assigned to this machine
-            node_stream_name = node_info["nickname"]
-            if ('machine' not in node_info
-                    or node_info["machine"] == self.machine):
-
-                binary = node_info["binary"]
-
-                logger.info("Binary for %s is %s" % (node,binary))
-                logger.info("Node Stream Name: %s" % node_stream_name)
-                # build CLI command
-                args = []
-                if not node_info['root'] and 'SUDO_USER' in os.environ:
-                    # run nodes as the current user, not root
-                    args += [
-                        'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
-                        f"PATH={os.environ['PATH']}"
-                    ]
-                args += [binary, '-n', node_stream_name]
-                args += ['-i', host, '-p', str(port)]
-                if self.unixsocket:
-                    args += ['-s', self.unixsocket]
-                # root permissions are needed to set real-time priority
-                if 'run_priority' in node_info:  # if priority is specified
-                    priority = node_info['run_priority']
-                    if priority:  # if priority is not None or empty
-                        chrt_args = ['chrt', '-f', str(int(priority))]
-                        args = chrt_args + args
-                if 'cpu_affinity' in node_info:  # if affinity is specified
-                    affinity = node_info['cpu_affinity']
-                    if affinity:  # if affinity is not None or empty
-                        taskset_args = ['taskset', '-c', str(affinity)]
-                        args = taskset_args + args
-                proc = subprocess.Popen(args)
-                proc.name = node
-                logger.info("Child process created with pid: %s" % proc.pid)
-                logger.info("Parent process is running and waiting for commands from redis")
-                self.parent = os.getpid()
-                logger.info("Parent Running on: %d" % os.getppid())
-                self.child_nodes[node] = proc
+            # Check if this node should be auto-launched (default: True for backward compatibility)
+            auto_launch = node_info.get('auto_launch', True)
+            
+            # run the node if it is assigned to this machine and set to auto-launch
+            if (('machine' not in node_info or node_info["machine"] == self.machine) and auto_launch):
+                logger.info(f"Auto-launching node: {node}")
+                self._launch_node(node, node_info)
+            elif not auto_launch:
+                logger.info(f"Skipping auto-launch for node '{node}' (auto_launch=False)")
+            else:
+                logger.info(f"Skipping node '{node}' (assigned to different machine: {node_info.get('machine', 'unknown')})")
 
         self.checkBooter()
 
         # status 3 means graph is running and publishing data
         self.r.xadd("graph_status", {'status': self.state[3]})
+
+    def start_node(self, nickname):
+        """
+        Start a specific node by nickname.
+        
+        This allows launching individual nodes on-demand via the 'startNode' or 
+        'startChildProcess' command. Useful for nodes with auto_launch=False.
+        
+        Args:
+            nickname (str): The nickname of the node to start
+            
+        Raises:
+            CommandError: If graph not loaded, node not found, node already running, 
+                         or binary not found
+        """
+        # Check if we have a loaded graph
+        if not self.model:
+            raise CommandError("No graph loaded, cannot start node", 'supervisor', 'startNode')
+        
+        # Check if node exists in the graph
+        if nickname not in self.model["nodes"]:
+            raise CommandError(f"Node '{nickname}' not found in graph", 'supervisor', 'startNode')
+        
+        # Check if node is already running
+        if nickname in self.child_nodes and self.child_nodes[nickname] is not None:
+            try:
+                os.kill(self.child_nodes[nickname].pid, 0)  # Check if process exists
+                raise CommandError(f"Node '{nickname}' is already running", 'supervisor', 'startNode')
+            except OSError:
+                # Process is dead, remove it from tracking
+                self.child_nodes[nickname] = None
+        
+        # Start the specific node
+        node_info = self.model["nodes"][nickname]
+        
+        # Only start if assigned to this machine
+        if ('machine' not in node_info or node_info["machine"] == self.machine):
+            self._launch_node(nickname, node_info)
+            
+            # Forward command to booter as well
+            self.r.xadd("booter", {
+                "command": "startChildProcess", 
+                "nickname": nickname,
+                "log_level": self.command_log_level
+            })
+        else:
+            logger.info(f"Node '{nickname}' is assigned to machine '{node_info['machine']}', not starting here")
+
+    def _launch_node(self, nickname, node_info):
+        """Internal method to launch a single node process"""
+        node_info.setdefault('root', True)
+        binary = node_info["binary"]
+        
+        if not binary or not os.path.exists(binary):
+            raise CommandError(f"Binary for node '{nickname}' not found at {binary}", 'supervisor', 'startNode')
+        
+        host = self.model["redis_host"]
+        port = self.model["redis_port"]
+        
+        logger.info("Binary for %s is %s" % (nickname, binary))
+        logger.info("Node Stream Name: %s" % nickname)
+        
+        # Build CLI command
+        args = []
+        if not node_info['root'] and 'SUDO_USER' in os.environ:
+            # run nodes as the current user, not root
+            args += [
+                'sudo', '-u', os.environ['SUDO_USER'], '-E', 'env',
+                f"PATH={os.environ['PATH']}"
+            ]
+        args += [binary, '-n', nickname]
+        args += ['-i', host, '-p', str(port)]
+        if self.unixsocket:
+            args += ['-s', self.unixsocket]
+        # root permissions are needed to set real-time priority
+        if 'run_priority' in node_info:  # if priority is specified
+            priority = node_info['run_priority']
+            if priority:  # if priority is not None or empty
+                chrt_args = ['chrt', '-f', str(int(priority))]
+                args = chrt_args + args
+        if 'cpu_affinity' in node_info:  # if affinity is specified
+            affinity = node_info['cpu_affinity']
+            if affinity:  # if affinity is not None or empty
+                taskset_args = ['taskset', '-c', str(affinity)]
+                args = taskset_args + args
+        
+        # Start node in its own process group to prevent SIGINT propagation
+        proc = subprocess.Popen(args, preexec_fn=os.setsid)
+        proc.name = nickname
+        logger.info("Child process created with pid: %s" % proc.pid)
+        logger.info("Parent process is running and waiting for commands from redis")
+        self.parent = os.getpid()
+        logger.info("Parent Running on: %d" % os.getppid())
+        self.child_nodes[nickname] = proc
 
     def start_autorun_derivatives(self):
         """Starts autorun derivatives"""
@@ -862,7 +922,7 @@ class Supervisor:
             # Save the .rdb file.
             self.r.xadd("supervisor_status", {"status": "Saving rdb"})
             logger.info("Saving RDB file...")
-            self.r.save()
+            self.save_rdb()
             save_filepath = os.path.join(self.save_path_rdb, self.rdb_filename)
             logger.info(f"RDB file saved as {save_filepath}")
 
@@ -1120,8 +1180,8 @@ class Supervisor:
         Saves an RDB file of the current database
         '''
         # Save rdb file
-        self.r.save()
-        logger.info(f"RDB data saved to file: {self.rdb_filename}")
+        self.r.bgsave()
+        logger.info(f"Started RDB save to file: {self.rdb_filename}")
 
     def flush_db(self):
         '''
@@ -1248,8 +1308,37 @@ class Supervisor:
 
 
     def terminate(self, sig, frame):
-        logger.info('SIGINT received, Exiting')
-        self.cleanup()
+        logger.info('SIGINT received')
+        print('\nReceived interrupt signal (CTRL+C)')
+        
+        # Check if we have active processes that would be affected
+        active_nodes = [name for name, proc in self.child_nodes.items() if proc is not None]
+        active_derivatives = [name for name in self.derivative_threads.keys() if self.derivative_threads[name].is_alive()]
+        
+        if active_nodes or active_derivatives:
+            print(f'Active nodes: {active_nodes if active_nodes else "None"}')
+            print(f'Active derivatives: {active_derivatives if active_derivatives else "None"}')
+            print('This will stop all running processes and exit the supervisor.')
+        
+        try:
+            while True:
+                response = input('Are you sure you want to exit? (y/n): ').strip().lower()
+                if response in ['y', 'yes']:
+                    logger.info('Exit confirmed by user')
+                    self.cleanup()
+                    break
+                elif response in ['n', 'no']:
+                    logger.info('Exit cancelled by user')
+                    print('Continuing...')
+                    return  # Continue running
+                else:
+                    print('Please enter y/yes or n/no')
+        except (EOFError, KeyboardInterrupt):
+            # Handle case where stdin is not available or another CTRL+C is pressed
+            logger.info('Cannot get user confirmation, forcing exit')
+            print('\nForcing exit...')
+            self.cleanup()
+
 
     def cleanup(self):
         # attempt to kill nodes
@@ -1424,6 +1513,13 @@ class Supervisor:
         elif cmd == "setloglevel":
             if b'level' in data:
                 self.persistent_log_level = data[b'level'].decode()
+        elif cmd in ["startnode", "startchildprocess"]:
+            logger.info("Start node command received")
+            if b"nickname" not in data:
+                raise CommandError("startNode command requires a 'nickname' key", 'supervisor', 'startNode')
+            
+            nickname = data[b"nickname"].decode('utf-8')
+            self.start_node(nickname)
         elif cmd == "ping":
             logger.info("Ping command received")
             self.ping()

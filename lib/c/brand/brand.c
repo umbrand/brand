@@ -169,29 +169,34 @@ const nx_json *get_supergraph_json(redisContext *c, redisReply *reply, char *sup
 
     char buffer[512]; 
     sprintf(buffer, "XREVRANGE supergraph_stream + %s COUNT 1", supergraph_id);
-
     reply = redisCommand(c, buffer);
     if (reply->type == REDIS_REPLY_ERROR) {
         printf("Error: %s\n", reply->str);
         exit(1);
     }
-
+    
     // This is a valid response, and there's nothing new to see, so we return
     if (reply->type == REDIS_REPLY_NIL || reply->elements == 0)  
-        return NULL;
-
-    // Now we get the stream data in string format (should be a valid JSON, produced by supervisor.py)
-    char *data = reply->element[0]->element[1]->element[1]->str;
+    return NULL;
     
+    // Now we get the stream data in string format (should be a valid JSON, produced by supervisor.py)
+    char *data = reply->element[0]->element[1]->element[1]->str;    
     // Get the ID corresponding to the supergraph
     //strcpy(supergraph_id, reply->element[0]->element[0]->str);
-
-    // Now we parse the data into JSON, and ensure that it's valid
-    const nx_json *json = nx_json_parse_utf8(data);
+    
+    // Make a copy of the JSON string before freeing the reply
+    char *json_copy = malloc(strlen(data) + 1);
+    strcpy(json_copy, data);
+    
+    // free Redis reply BEFORE parsing JSON
+    freeReplyObject(reply);
+    
+    // Now we parse the copied data into JSON, and ensure that it's valid
+    const nx_json *json = nx_json_parse_utf8(json_copy);
     assert_object(json, NX_JSON_OBJECT);
 
-    // free Redis reply
-    freeReplyObject(reply);
+    // Note: json_copy will be freed when nx_json_free() is called on the returned json object
+    // The nx_json library manages the memory of the original string
 
     return json;
 
