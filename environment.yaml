@@ -5,6 +5,7 @@ dependencies:
   - _libgcc_mutex=0.1
   - ca-certificates=2020.1.1
   - certifi=2020.4.5.1
+  - glfw==3.4
   - ld_impl_linux-64=2.33.1
   - libedit=3.1.20181209
   - libffi=3.3
@@ -78,6 +79,7 @@ dependencies:
     - mistune==0.8.4
     - monotonic==1.6
     - mpmath==1.1.0
+    - mujoco==3.3.4
     - multidict==6.0.2
     - nbconvert==5.6.1
     - nbformat==5.0.6
