@@ -1419,6 +1419,42 @@ class Supervisor:
             self.r.xadd("supervisor_status", {"status": "SIGINT received, Exiting"})
         except Exception as exc:
             logger.warning(f"Could not write exit message to Redis. Exiting anyway. {repr(exc)}")
+
+        # attempt to kill Redis server
+        if self.redis_pid is not None:
+            try:
+                # Check if Redis process is still running
+                os.kill(self.redis_pid, 0)
+                logger.info(f"Terminating Redis server (pid: {self.redis_pid})")
+                
+                # Try SIGINT first (graceful shutdown)
+                os.killpg(os.getpgid(self.redis_pid), signal.SIGINT)
+                
+                # Wait for graceful shutdown
+                timeout = 5  # seconds
+                start_time = time.time()
+                while time.time() - start_time < timeout:
+                    try:
+                        os.kill(self.redis_pid, 0)  # Check if process still exists
+                        time.sleep(0.1)
+                    except OSError:
+                        logger.info(f"Redis server (pid: {self.redis_pid}) terminated gracefully")
+                        break
+                else:
+                    # If still running after timeout, use SIGKILL
+                    logger.warning(f"Redis server (pid: {self.redis_pid}) did not terminate gracefully, using SIGKILL")
+                    try:
+                        os.killpg(os.getpgid(self.redis_pid), signal.SIGKILL)
+                        logger.info(f"Redis server (pid: {self.redis_pid}) killed with SIGKILL")
+                    except OSError as e:
+                        logger.warning(f"Could not kill Redis server with SIGKILL: {repr(e)}")
+                        
+            except OSError:
+                # Process doesn't exist or we don't have permission
+                logger.info(f"Redis server (pid: {self.redis_pid}) is not running or already terminated")
+            except Exception as exc:
+                logger.warning(f"Could not kill Redis server before exiting. Exiting anyway. {repr(exc)}")
+        
         sys.exit(0)
 
 

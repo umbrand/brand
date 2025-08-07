@@ -6,6 +6,8 @@
 
 BRAND_BASE_DIR=$(pwd)
 BRAND_MOD_DIR=$BRAND_BASE_DIR/../brand-modules/
+DECODER_CONFIGS_DIR=$(pwd)/../decoder_configs
+NEURALDECODING_CONFIGS_DIR=$(pwd)/../neuraldecoding/configs
 # Check if server path exists, if not mount the disk
 export SERVER_PATH=/mnt/z/Data
 if [ ! -d "$SERVER_PATH" ]; then
@@ -20,7 +22,8 @@ if [ ! -d "$SERVER_PATH" ]; then
     fi
 fi
 export BRAND_BASE_DIR # save brand base dir to the environment
-
+export DECODER_CONFIGS_DIR
+export NEURALDECODING_CONFIGS_DIR
 # Activate the rt environment to get to work
 conda activate rt
 
