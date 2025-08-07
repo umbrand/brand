@@ -303,7 +303,7 @@ class Booter():
             self.logger.exception('Could not kill these nodes: '
                                     f'{message}')
             
-    def run_derivatives(self, derivative_names):
+    def run_derivatives(self, derivative_names, extra_args:list[dict] = []):
         '''
         Runs a list of derivatives
         '''
@@ -327,6 +327,7 @@ class Booter():
                     # start the derivative
                     derivative_thread = RunDerivative(
                         derivative_info=self.model['derivatives'][derivative],
+                        extra_args=extra_args[derivative_names.index(derivative)],
                         host=self.host,
                         port=self.port,
                         stop_event=self.derivative_stop_events[derivative])
@@ -497,9 +498,14 @@ class Booter():
                 derivatives = entry[b'derivative']
             else:
                 raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", f'booter_{self.machine}', 'runDerivatives')
-
+    
             derivatives = derivatives.decode('utf-8').split(',')
-            self.run_derivatives(derivatives)
+            if b'extra_args' in entry:
+                extra_args = entry[b'extra_args']
+                extra_args = json.loads(extra_args.decode('utf-8'))
+            else:
+                extra_args = [{}] * len(derivatives)
+            self.run_derivatives(derivatives, extra_args)
         elif command in ["killDerivative", "killDerivatives"]:
             if b'derivatives' in entry:
                 derivatives = entry[b'derivatives']
@@ -510,6 +516,19 @@ class Booter():
             
             derivatives = derivatives.decode('utf-8').split(',')
             self.kill_derivatives(derivatives)
+        elif command == "runNWBExport":
+            if b'rdb_file' not in entry:
+                raise CommandError("runNWBExport command requires 'rdb_file' key", f'booter_{self.machine}', 'runNWBExport')
+            if b'participant_id' not in entry:
+                raise CommandError("runNWBExport command requires 'participant_id' key", f'booter_{self.machine}', 'runNWBExport')
+            if b'participant_folder_path' not in entry:
+                raise CommandError("runNWBExport command requires 'participant_folder_path' key", f'booter_{self.machine}', 'runNWBExport')
+            
+            rdb_file = entry[b'rdb_file'].decode('utf-8')
+            participant_id = entry[b'participant_id'].decode('utf-8')
+            participant_folder_path = entry[b'participant_folder_path'].decode('utf-8')
+            
+            self.run_nwb_export(rdb_file, participant_id, participant_folder_path)
         elif command == "setDerivativeContinueOnError":
             if b'continue_on_error' in entry:
                 if entry[b'continue_on_error'] not in [b'0', b'1']:

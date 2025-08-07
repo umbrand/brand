@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 import time
-
+import json
 from redis import Redis
 
 from threading import Thread
@@ -307,6 +307,7 @@ class AutorunDerivatives(Thread):
 class RunDerivative(Thread):
     def __init__(self,
                  derivative_info,
+                 extra_args:dict,
                  host,
                  port,
                  stop_event) -> None:
@@ -336,7 +337,7 @@ class RunDerivative(Thread):
         self.derivative_info = derivative_info
         self.nickname = self.derivative_info['nickname']
         self.filepath = self.derivative_info['filepath']
-
+        self.extra_args = extra_args
         self.redis_host = host
         self.redis_port = port 
         # Connect to redis.
@@ -404,6 +405,16 @@ class RunDerivative(Thread):
             )
             return None
         
+        # Add extra command line arguments from derivative_info
+        if 'parameters' in self.derivative_info:
+            parameters = self.derivative_info['parameters']
+            # Add parameters to the command line arguments
+            args.extend([f"--parameters", json.dumps(parameters)])
+
+        # Add extra command line arguments from extra_args
+        if self.extra_args:
+            args.extend([f"--extra_args", json.dumps(self.extra_args)])
+
         # Build the actual args to the command. 
         args += ['-n', self.nickname, '-i', self.redis_host, '-p', str(self.redis_port)]    
         # Add in the args about controlling priortiy and affinity.
@@ -433,7 +444,7 @@ class RunDerivative(Thread):
         )
         self.logger.info(f"Starting derivative {self.nickname} {delay_msg}...")
 
-        proc = subprocess.Popen(' '.join(args), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(subprocess.list2cmdline(args), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         start_timestamp = time.time()
 
         self.redis_conn.xadd(
