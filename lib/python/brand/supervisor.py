@@ -243,9 +243,6 @@ class Supervisor:
 
     def update_rdb_save_configs(self, rdb_save_path=None, rdb_filename=None):
         if rdb_save_path:
-            # Set rdb save directory
-            if not os.path.exists(rdb_save_path):
-                os.makedirs(rdb_save_path)
             self.r.config_set('dir', rdb_save_path)
             if self.model:
                 self.model["rdb_dirpath"] = rdb_save_path
@@ -284,7 +281,7 @@ class Supervisor:
 
         # Set new rdb filename
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
-        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
+        self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
 
     def get_save_path(self, graph_dict:dict={}):
@@ -347,6 +344,9 @@ class Supervisor:
         # Set rdb save directory
         self.save_path, self.participant_id = self.get_save_path(graph_dict)
         self.save_path_rdb = os.path.join(self.save_path, 'RDB')
+        
+        # Add participant_id to model so CLI can access it
+        model["participant_id"] = self.participant_id
 
         # Set rdb filename
         if rdb_filename is None:
@@ -478,7 +478,7 @@ class Supervisor:
         # model is valid if we make it here
         self.model = model
 
-        self.update_rdb_save_configs(self.save_path_rdb, self.rdb_filename)
+        self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
         # Load stream information
         self.parse_stream_definitions()
@@ -1013,7 +1013,7 @@ class Supervisor:
             self.logger.exception('Could not kill these nodes: '
                                     f'{message}')
 
-    def run_derivatives(self, derivative_names):
+    def run_derivatives(self, derivative_names, extra_args:list[dict] = []):
         '''
         Runs a list of derivatives
         '''
@@ -1032,6 +1032,7 @@ class Supervisor:
         self.r.xadd("booter", {
                         'command': 'runDerivatives',
                         'derivatives': ','.join(derivative_names),
+                        'extra_args': json.dumps(extra_args),
                         'log_level': self.command_log_level})
 
         # loop through derivatives and start each if able
@@ -1049,6 +1050,7 @@ class Supervisor:
                     # start the derivative
                     derivative_thread = RunDerivative(
                         derivative_info=self.model['derivatives'][derivative],
+                        extra_args=extra_args[derivative_names.index(derivative)],
                         host=self.host,
                         port=self.port,
                         stop_event=self.derivative_stop_events[derivative])
@@ -1187,6 +1189,11 @@ class Supervisor:
         '''
         Flushes the RDB
         '''
+        # Wait until save is finished (if running)
+        while True:
+            if self.r.info('persistence')['rdb_bgsave_in_progress'] == 0:
+                break
+            time.sleep(1)
         # Flush database
         self.r.flushdb()
 
@@ -1196,6 +1203,59 @@ class Supervisor:
 
         # New RDB, so need to reset graph status
         self.r.xadd("graph_status", {'status': self.state[5]})
+
+    def save_rdb_and_flush(self, participant_id, run_number):
+        """
+        Saves the current RDB file and flushes the Redis database,
+        creating the proper folder structure: SERVER_PATH/participant_id/date/Run-XXX/
+        with RDB filename: Run-XXX.rdb
+        """
+        try:
+            # Get SERVER_PATH from environment
+            server_path = os.environ.get('SERVER_PATH')
+            if not server_path:
+                raise CommandError("SERVER_PATH environment variable not set", 'supervisor', 'saveRdbAndFlush')
+            
+            # Create folder structure: SERVER_PATH/participant_id/date/Run-XXX/
+            session_str = datetime.today().strftime(r'%Y-%m-%d')
+            run_num = int(run_number)  # Convert to int for zero-padding
+            run_folder_name = f"Run-{run_num:03d}"  # Zero-padded run number
+            run_path = os.path.join(server_path, participant_id, session_str, run_folder_name)
+            
+            # Create the directory structure if it doesn't exist
+            os.makedirs(run_path, exist_ok=True)
+            
+            # Set the RDB save directory and filename
+            rdb_filename = f"Run-{run_num:03d}.rdb"
+            
+            # Update Redis config to save in the run folder
+            self.r.config_set('dir', run_path)
+            self.r.config_set('dbfilename', rdb_filename)
+            
+            # Save the RDB file
+            self.r.bgsave()
+            logger.info(f"Started RDB save to: {os.path.join(run_path, rdb_filename)}")
+            
+            # Wait until finished
+            while True:
+                if self.r.info('persistence')['rdb_bgsave_in_progress'] == 0:
+                    break
+                time.sleep(1)
+            
+            # Flush the database
+            self.r.flushdb()
+            
+            # Reset to idle filename for future operations
+            self.rdb_filename = 'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
+            self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
+            
+            # Reset graph status
+            self.r.xadd("graph_status", {'status': self.state[5]})
+            logger.info(f"RDB saved to {run_folder_name} and Redis flushed.")
+            
+        except Exception as e:
+            logger.error(f"Error in save_rdb_and_flush: {e}")
+            raise CommandError(f"Failed to save RDB and flush: {e}", 'supervisor', 'saveRdbAndFlush')
 
     def make(self, graph=None, node=None, derivative=None, module=None):
         '''
@@ -1446,6 +1506,15 @@ class Supervisor:
         elif cmd == "saverdb":
             logger.info("Save RDB command received")
             self.save_rdb()
+        elif cmd == "saverdbandflush":
+            logger.info("Save RDB and Flush command received")
+            if b'participant_id' not in data or b'run_number' not in data:
+                raise CommandError("saveRdbAndFlush command requires 'participant_id' and 'run_number' keys", 'supervisor', 'saveRdbAndFlush')
+            
+            participant_id = data[b'participant_id'].decode('utf-8')
+            run_number = data[b'run_number'].decode('utf-8')
+            
+            self.save_rdb_and_flush(participant_id, run_number)
         elif cmd == "flushredis":
             logger.info("Flush Redis command received")
             self.flush_db()
@@ -1459,7 +1528,8 @@ class Supervisor:
                 self.data_dir = self.DEFAULT_DATA_DIR
             self.save_path = os.path.join(self.data_dir, rel_path)
             self.save_path_rdb = os.path.join(self.save_path, 'RDB')
-            self.update_rdb_save_configs(rdb_save_path=self.save_path_rdb)
+            # Don't create RDB directory automatically, only set Redis config without path
+            self.r.config_set('dbfilename', self.rdb_filename)
         elif cmd == "setrdbfilename":
             if b'filename' in data:
                 self.rdb_filename = data[b'filename'].decode('utf-8')
@@ -1479,9 +1549,13 @@ class Supervisor:
                 derivatives = data[b'derivative']
             else:
                 raise CommandError("runDerivative(s) command requires a 'derivative' or 'derivatives' key", 'supervisor', 'runDerivatives')
-
             derivatives = derivatives.decode('utf-8').split(',')
-            self.run_derivatives(derivatives)
+            if b'extra_args' in data:
+                extra_args = data[b'extra_args']
+                extra_args = json.loads(extra_args.decode('utf-8'))
+            else:
+                extra_args = [{}] * len(derivatives)
+            self.run_derivatives(derivatives, extra_args)
         elif cmd in ["killderivative", "killderivatives"]:
             logger.info("Kill derivative(s) command received")
             if b'derivatives' in data:
@@ -1648,6 +1722,7 @@ class Supervisor:
 
     def main(self):
         last_id = '$'
+        last_log_id = '$'
         logger.info('Listening for commands')
         self.r.xadd("supervisor_status", {"status": "Listening for commands"})
         while True:
@@ -1661,17 +1736,35 @@ class Supervisor:
 
             try:
                 self.checkBooter()
-                cmd = self.r.xread({"supervisor_ipstream": last_id},
-                                    count=1,
-                                    block=5000)
-                if cmd:
-                    key,messages = cmd[0]
-                    last_id,data = messages[0]
-                    if b'commands' in data:
-                        self.parseCommands(data)
-                    else:
-                        self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
-                        logger.error("'commands' key not in supervisor_ipstream entry")
+                
+                # Read from both command stream and console logging stream
+                streams = {
+                    "supervisor_ipstream": last_id,
+                    "console_logging": last_log_id
+                }
+                
+                results = self.r.xread(streams, count=1, block=5000)
+                
+                if results:
+                    for stream_name, messages in results:
+                        stream_name = stream_name.decode('utf-8')
+                        
+                        if stream_name == "supervisor_ipstream":
+                            # Process commands
+                            last_id, data = messages[0]
+                            if b'commands' in data:
+                                self.parseCommands(data)
+                            else:
+                                self.r.xadd("supervisor_status", {"status": "Invalid supervisor_ipstream entry", "message": "No 'commands' key found in the supervisor_ipstream entry"})
+                                logger.error("'commands' key not in supervisor_ipstream entry")
+                                
+                        elif stream_name == "console_logging":
+                            # Display logs from nodes and derivatives
+                            for log_id, log_data in messages:
+                                last_log_id = log_id
+                                if b'message' in log_data:
+                                    # Print the log message directly to console (bypassing logger to avoid recursion)
+                                    print(log_data[b'message'].decode('utf-8'))
 
                 self.r.xadd("supervisor_status", {"status": "Listening for commands"})
 
