@@ -221,7 +221,7 @@ class BRANDNode():
                 self._cursor[stream] = self.r.xinfo_stream(stream)['last-generated-id']
             except Exception as e:
                 self.logger.warning(f"Error getting latest ID for stream {stream}: {e}")
-                self._cursor[stream] = "$"
+                self._cursor[stream] = "0-0"
 
     def run(self):
 
