@@ -20,6 +20,7 @@ import yaml
 
 import redis
 from redis import Redis
+from envyaml import EnvYAML
 
 from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
@@ -1490,10 +1491,9 @@ class Supervisor:
 
                 graph_dict = {}
                 try:
-                    with open(file, 'r') as stream:
-                        graph_dict = yaml.safe_load(stream)
-                        graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
-                        self.graph_file = file
+                    graph_dict = dict(EnvYAML(file))
+                    graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
+                    self.graph_file = file
                 except FileNotFoundError as exc:
                     raise GraphError(f"Could not find the graph at {file}", file) from exc
                 except yaml.YAMLError as exc:
