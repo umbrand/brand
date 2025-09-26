@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include <msgpack.hpp>
+
 // Brand libraries
 extern "C" {
 #include "../../hiredis/hiredis.h"
@@ -20,14 +22,21 @@ extern "C" {
 
 namespace brand {
 
+struct Header {
+  // C++ member variables matching the Python keys
+  int32_t ts;
+  int32_t seq;
+  std::string producer_gid;
+  std::string node;
+
+  // This macro enables automatic serialization and deserialization.
+  // The names must match the member variables exactly.
+  MSGPACK_DEFINE_MAP(ts, seq, producer_gid, node);
+};
+
 struct StreamEntry {
   std::string id;
   std::map<std::string, std::string> fields;
-};
-
-struct StreamEntries {
-  std::vector<std::string> entry_ids;
-  std::map<std::string, std::vector<std::string>> data;
 };
 
 class BRANDNode {
@@ -49,16 +58,30 @@ public:
 
   // Redis stream operations
   void publish(const std::string &stream,
-               const std::map<std::string, std::string> &data,
+               const std::map<std::string, msgpack::type::variant> &data,
                const std::map<std::string, std::string> &parents = {});
 
-  StreamEntry *read_one(const std::string &stream, int block_ms = 0);
+  // Read methods matching Python interface
+  std::map<
+      std::string,
+      std::pair<std::vector<std::string>,
+                std::map<std::string, std::vector<msgpack::type::variant>>>>
+  read(const std::vector<std::string> &streams, int count = 1,
+       int block_ms = 0);
+  std::pair<std::vector<std::string>,
+            std::map<std::string, std::vector<msgpack::type::variant>>>
+  read(const std::string &stream, int count = 1, int block_ms = 0);
 
   std::vector<StreamEntry> read_latest(const std::string &stream,
                                        int count = 1);
 
-  StreamEntries *read_n(const std::string &stream, int n = 1000,
-                        int block_ms = -1);
+  // Removed read_one/read_n in favor of generic read
+
+  // Additional utility methods matching Python
+  void get_latest_id_per_stream(const std::vector<std::string> &streams);
+  bool is_shutdown_requested() const { return shutdown_requested_; }
+  int64_t get_timestamp() { return getTimestampNs(); }
+  int next_seq() { return ++seq_; }
 
   // Parameter management
   std::vector<std::map<std::string, std::string>>
@@ -84,8 +107,9 @@ protected:
   // Update parameters from supergraph
   void updateParameters();
 
-  // Setup logging
-  void setupLogging(const std::string &log_level = "INFO");
+  // Setup logging (matching Python interface)
+  void setup_logging(const std::string &log_level = "INFO");
+  void add_redis_logging(const std::string &log_level = "INFO");
 
   // Connect to Redis
   bool connectToRedis(const std::string &host, int port,
@@ -94,7 +118,7 @@ protected:
   // Initialize parameters
   void initializeParameters(const std::string &fallback_params = "");
 
-  // Generate unique sequence number
+  // Generate unique sequence number (deprecated, use next_seq)
   int nextSeq() { return ++seq_; }
 
   // Get current timestamp in nanoseconds
@@ -118,13 +142,17 @@ private:
 
   redisContext *redis_context_;
   int seq_;
+  bool shutdown_requested_;
 
   // Static instance for signal handling
   static BRANDNode *instance_;
 
   // Helper methods
   void terminate(int sig);
-  void handleException(const std::string &error);
+  void handle_exception(const std::string &error);
+  void handleException(const std::string &error) {
+    handle_exception(error);
+  } // legacy
   std::string generateUUID();
   void parseArguments(int argc, char *argv[]);
   bool validateParameters();

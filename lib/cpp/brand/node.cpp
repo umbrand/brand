@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <random>
 #include <signal.h>
+#include <time.h>
 #include <unistd.h>
 
 namespace brand {
@@ -15,7 +16,7 @@ BRANDNode *BRANDNode::instance_ = nullptr;
 
 BRANDNode::BRANDNode()
     : redis_context_(nullptr), redis_port_(6379), seq_(0),
-      supergraph_id_("0-0") {
+      supergraph_id_("0-0"), shutdown_requested_(false) {
   instance_ = this;
   producer_gid_hex_ = generateUUID();
 }
@@ -31,7 +32,9 @@ BRANDNode::~BRANDNode() {
 bool BRANDNode::initialize(int argc, char *argv[]) {
   try {
     parseArguments(argc, argv);
-    setupLogging();
+
+    // Setup basic console logging first (matching Python)
+    setup_logging();
 
     if (!connectToRedis(redis_host_, redis_port_, redis_socket_)) {
       log_error("Failed to connect to Redis");
@@ -41,9 +44,23 @@ bool BRANDNode::initialize(int argc, char *argv[]) {
     // Initialize parameters (will be parsed from command line)
     initializeParameters();
 
+    // Now that we have Redis and parameters, add Redis logging (matching
+    // Python)
+    std::string log_level =
+        parameters_.count("log") ? parameters_["log"] : "INFO";
+    add_redis_logging(log_level);
+
     // Setup signal handlers
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
+
+    // Get latest ID for each input stream (matching Python)
+    if (parameters_.count("input_streams")) {
+      // Parse input stream names from parameters - simplified for now
+      std::vector<std::string> input_streams;
+      // TODO: Parse JSON input_streams to get actual stream names
+      get_latest_id_per_stream(input_streams);
+    }
 
     // Post initialized status to Redis
     std::map<std::string, std::string> initial_data = {
@@ -61,7 +78,7 @@ bool BRANDNode::initialize(int argc, char *argv[]) {
     return true;
 
   } catch (const std::exception &e) {
-    handleException(std::string("Initialization failed: ") + e.what());
+    handle_exception(std::string("Initialization failed: ") + e.what());
     return false;
   }
 }
@@ -69,20 +86,31 @@ bool BRANDNode::initialize(int argc, char *argv[]) {
 void BRANDNode::run() {
   log_info("Starting main run loop");
 
-  while (true) {
+  while (!shutdown_requested_) {
     try {
       work();
       updateParameters();
     } catch (const std::exception &e) {
-      handleException(std::string("Error in run loop: ") + e.what());
+      handle_exception(std::string("Error in run loop: ") + e.what());
       break;
     }
   }
+
+  // Perform graceful shutdown outside of signal handler context
+  if (shutdown_requested_) {
+    terminate(0);
+  }
 }
 
-void BRANDNode::publish(const std::string &stream,
-                        const std::map<std::string, std::string> &data,
-                        const std::map<std::string, std::string> &parents) {
+void BRANDNode::publish(
+    const std::string &stream,
+    const std::map<std::string, msgpack::type::variant> &data,
+    const std::map<std::string, std::string> &parents) {
+  // Check if shutdown is requested (matching Python)
+  if (shutdown_requested_) {
+    return;
+  }
+
   if (!redis_context_) {
     log_error("Redis context not available for publishing");
     return;
@@ -90,8 +118,8 @@ void BRANDNode::publish(const std::string &stream,
 
   // Create header
   std::map<std::string, std::string> header = {
-      {"ts", std::to_string(getTimestampNs())},
-      {"seq", std::to_string(nextSeq())},
+      {"ts", std::to_string(get_timestamp())},
+      {"seq", std::to_string(next_seq())},
       {"producer_gid", producer_gid_hex_},
       {"node", name_}};
 
@@ -99,14 +127,46 @@ void BRANDNode::publish(const std::string &stream,
     header["parents"] = mapToJson(parents);
   }
 
-  // Build command
-  std::string cmd = "XADD " + stream + " * _hdr " + mapToJson(header);
+  // Build argv for binary-safe publish using msgpack for values
+  std::vector<std::string> string_args_storage;
+  std::vector<const char *> argv;
+  std::vector<size_t> argvlen;
+  std::vector<std::unique_ptr<msgpack::sbuffer>> packed_value_buffers;
 
-  for (const auto &pair : data) {
-    cmd += " " + pair.first + " " + pair.second;
+  auto push_arg = [&](const std::string &s) {
+    string_args_storage.push_back(s);
+    argv.push_back(string_args_storage.back().c_str());
+    argvlen.push_back(string_args_storage.back().size());
+  };
+
+  // Command and base arguments
+  push_arg("XADD");
+  push_arg(stream);
+  push_arg("*");
+
+  // Header key/value
+  push_arg("_hdr");
+  {
+    auto header_buffer = std::make_unique<msgpack::sbuffer>();
+    // Pack the whole header map directly, similar to Python
+    msgpack::pack(*header_buffer, header);
+    argv.push_back(header_buffer->data());
+    argvlen.push_back(header_buffer->size());
+    packed_value_buffers.emplace_back(std::move(header_buffer));
   }
 
-  redisReply *reply = (redisReply *)redisCommand(redis_context_, cmd.c_str());
+  // Data field: pack entire map once (similar to Python)
+  push_arg("data");
+  {
+    auto data_buffer = std::make_unique<msgpack::sbuffer>();
+    msgpack::pack(*data_buffer, data);
+    argv.push_back(data_buffer->data());
+    argvlen.push_back(data_buffer->size());
+    packed_value_buffers.emplace_back(std::move(data_buffer));
+  }
+
+  redisReply *reply = (redisReply *)redisCommandArgv(
+      redis_context_, (int)argv.size(), argv.data(), argvlen.data());
 
   if (reply) {
     if (reply->type == REDIS_REPLY_ERROR) {
@@ -116,63 +176,16 @@ void BRANDNode::publish(const std::string &stream,
   }
 }
 
-StreamEntry *BRANDNode::read_one(const std::string &stream, int block_ms) {
-  if (!redis_context_) {
-    log_error("Redis context not available for reading");
-    return nullptr;
-  }
-
-  std::string last_id = cursors_.count(stream) ? cursors_[stream] : "$";
-
-  redisReply *reply = (redisReply *)redisCommand(
-      redis_context_, "XREAD BLOCK %d COUNT 1 STREAMS %s %s", block_ms,
-      stream.c_str(), last_id.c_str());
-
-  if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements == 0) {
-    if (reply)
-      freeReplyObject(reply);
-    return nullptr;
-  }
-
-  // Parse the reply
-  if (reply->element[0]->type == REDIS_REPLY_ARRAY &&
-      reply->element[0]->elements >= 2) {
-
-    redisReply *stream_data = reply->element[0]->element[1];
-    if (stream_data->type == REDIS_REPLY_ARRAY && stream_data->elements > 0) {
-
-      redisReply *entry = stream_data->element[0];
-      if (entry->type == REDIS_REPLY_ARRAY && entry->elements >= 2) {
-
-        StreamEntry *result = new StreamEntry();
-        result->id = entry->element[0]->str;
-        cursors_[stream] = result->id;
-
-        // Parse fields
-        redisReply *fields = entry->element[1];
-        if (fields->type == REDIS_REPLY_ARRAY) {
-          for (size_t i = 0; i < fields->elements; i += 2) {
-            if (i + 1 < fields->elements) {
-              std::string key = fields->element[i]->str;
-              std::string value = fields->element[i + 1]->str;
-              result->fields[key] = value;
-            }
-          }
-        }
-
-        freeReplyObject(reply);
-        return result;
-      }
-    }
-  }
-
-  freeReplyObject(reply);
-  return nullptr;
-}
+// removed read_one in favor of generic read
 
 std::vector<StreamEntry> BRANDNode::read_latest(const std::string &stream,
                                                 int count) {
   std::vector<StreamEntry> result;
+
+  // Check if shutdown is requested (matching Python)
+  if (shutdown_requested_) {
+    return result;
+  }
 
   if (!redis_context_) {
     log_error("Redis context not available for reading");
@@ -214,77 +227,7 @@ std::vector<StreamEntry> BRANDNode::read_latest(const std::string &stream,
   return result;
 }
 
-StreamEntries *BRANDNode::read_n(const std::string &stream, int n,
-                                 int block_ms) {
-  if (!redis_context_) {
-    log_error("Redis context not available for reading");
-    return nullptr;
-  }
-
-  std::string last_id = cursors_.count(stream) ? cursors_[stream] : "$";
-
-  redisReply *reply;
-  if (block_ms >= 0) {
-    reply = (redisReply *)redisCommand(
-        redis_context_, "XREAD BLOCK %d COUNT %d STREAMS %s %s", block_ms, n,
-        stream.c_str(), last_id.c_str());
-  } else {
-    reply = (redisReply *)redisCommand(redis_context_,
-                                       "XREAD COUNT %d STREAMS %s %s", n,
-                                       stream.c_str(), last_id.c_str());
-  }
-
-  if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements == 0) {
-    if (reply)
-      freeReplyObject(reply);
-    return nullptr;
-  }
-
-  StreamEntries *result = new StreamEntries();
-
-  // Parse the reply structure
-  if (reply->element[0]->type == REDIS_REPLY_ARRAY &&
-      reply->element[0]->elements >= 2) {
-
-    redisReply *stream_data = reply->element[0]->element[1];
-    if (stream_data->type == REDIS_REPLY_ARRAY) {
-
-      for (size_t i = 0; i < stream_data->elements; i++) {
-        redisReply *entry = stream_data->element[i];
-        if (entry->type == REDIS_REPLY_ARRAY && entry->elements >= 2) {
-
-          std::string entry_id = entry->element[0]->str;
-          result->entry_ids.push_back(entry_id);
-          cursors_[stream] = entry_id;
-
-          // Parse fields
-          redisReply *fields = entry->element[1];
-          if (fields->type == REDIS_REPLY_ARRAY) {
-            for (size_t j = 0; j < fields->elements; j += 2) {
-              if (j + 1 < fields->elements) {
-                std::string key = fields->element[j]->str;
-                std::string value = fields->element[j + 1]->str;
-
-                // Handle JSON parsing for _hdr field
-                if (key == "_hdr") {
-                  auto hdr_map = parseJsonToMap(value);
-                  for (const auto &hdr_pair : hdr_map) {
-                    result->data[hdr_pair.first].push_back(hdr_pair.second);
-                  }
-                } else {
-                  result->data[key].push_back(value);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  freeReplyObject(reply);
-  return result;
-}
+// removed read_n in favor of generic read
 
 std::vector<std::map<std::string, std::string>>
 BRANDNode::getParametersFromSupergraph(bool complete_supergraph) {
@@ -380,7 +323,8 @@ void BRANDNode::log(const std::string &level, const std::string &message) {
 
 void BRANDNode::signalHandler(int sig) {
   if (instance_) {
-    instance_->terminate(sig);
+    // Set shutdown flag only; avoid heavy work in signal context
+    instance_->shutdown_requested_ = true;
   }
 }
 
@@ -396,8 +340,12 @@ void BRANDNode::updateParameters() {
   }
 }
 
-void BRANDNode::setupLogging(const std::string &log_level) {
+void BRANDNode::setup_logging(const std::string &log_level) {
   log_info("Logging setup completed with level: " + log_level);
+}
+
+void BRANDNode::add_redis_logging(const std::string &log_level) {
+  log_info("Redis logging added with level: " + log_level);
 }
 
 bool BRANDNode::connectToRedis(const std::string &host, int port,
@@ -446,9 +394,9 @@ void BRANDNode::initializeParameters(const std::string &fallback_params) {
 }
 
 int64_t BRANDNode::getTimestampNs() {
-  auto now = std::chrono::high_resolution_clock::now();
-  auto duration = now.time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return static_cast<int64_t>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 
 std::map<std::string, std::string>
@@ -513,17 +461,26 @@ BRANDNode::mapToJson(const std::map<std::string, std::string> &map) {
 
 void BRANDNode::terminate(int sig) {
   log_info("Signal " + std::to_string(sig) + " received, exiting");
+  shutdown_requested_ = true;
+
+  // Give a brief moment for ongoing operations to complete (matching Python)
+  usleep(100000); // 0.1 seconds
 
   cleanup();
 
-  // Post termination status to Redis
+  // Post termination status to Redis (only if connection is still alive)
   if (redis_context_) {
-    redisReply *reply = (redisReply *)redisCommand(
-        redis_context_, "XADD %s * code %s status %s",
-        (name_ + "_state").c_str(), "0", "done");
+    try {
+      redisReply *reply = (redisReply *)redisCommand(
+          redis_context_, "XADD %s * code %s status %s",
+          (name_ + "_state").c_str(), "0", "done");
 
-    if (reply) {
-      freeReplyObject(reply);
+      if (reply) {
+        freeReplyObject(reply);
+      }
+    } catch (...) {
+      // Don't fail on Redis close errors, just log them
+      log_debug("Error closing Redis connection during termination");
     }
 
     redisFree(redis_context_);
@@ -533,7 +490,7 @@ void BRANDNode::terminate(int sig) {
   std::exit(0);
 }
 
-void BRANDNode::handleException(const std::string &error) {
+void BRANDNode::handle_exception(const std::string &error) {
   log_error(error);
   if (redis_context_) {
     // Log error to Redis
@@ -668,6 +625,185 @@ bool BRANDNode::validateParameters() {
   }
 
   return true;
+}
+
+void BRANDNode::get_latest_id_per_stream(
+    const std::vector<std::string> &streams) {
+  for (const auto &stream : streams) {
+    try {
+      // Get latest ID for stream using XINFO STREAM
+      redisReply *reply = (redisReply *)redisCommand(
+          redis_context_, "XINFO STREAM %s", stream.c_str());
+
+      if (reply && reply->type == REDIS_REPLY_ARRAY) {
+        // Parse XINFO response to get last-generated-id
+        for (size_t i = 0; i < reply->elements; i += 2) {
+          if (i + 1 < reply->elements &&
+              strcmp(reply->element[i]->str, "last-generated-id") == 0) {
+            cursors_[stream] = reply->element[i + 1]->str;
+            break;
+          }
+        }
+      }
+
+      if (reply) {
+        freeReplyObject(reply);
+      }
+    } catch (...) {
+      log_warning("Error getting latest ID for stream " + stream);
+      cursors_[stream] = "0-0";
+    }
+  }
+}
+
+// Overloaded read method for multiple streams (matching Python interface)
+std::map<std::string,
+         std::pair<std::vector<std::string>,
+                   std::map<std::string, std::vector<msgpack::type::variant>>>>
+BRANDNode::read(const std::vector<std::string> &streams, int count,
+                int block_ms) {
+  std::map<
+      std::string,
+      std::pair<std::vector<std::string>,
+                std::map<std::string, std::vector<msgpack::type::variant>>>>
+      result;
+
+  // Initialize result with empty structures
+  for (const auto &s : streams) {
+    result[s] = std::make_pair(
+        std::vector<std::string>(),
+        std::map<std::string, std::vector<msgpack::type::variant>>());
+  }
+
+  // Check if shutdown is requested
+  if (shutdown_requested_) {
+    return result;
+  }
+
+  if (!redis_context_) {
+    log_error("Redis context not available for reading");
+    return result;
+  }
+
+  // Build XREAD command for all streams at once
+  std::ostringstream cmd;
+  cmd << "XREAD BLOCK " << block_ms << " COUNT " << count << " STREAMS";
+  for (const auto &s : streams) {
+    cmd << " " << s;
+  }
+  for (const auto &s : streams) {
+    auto it = cursors_.find(s);
+    cmd << " " << (it != cursors_.end() ? it->second : std::string("$"));
+  }
+
+  redisReply *reply =
+      (redisReply *)redisCommand(redis_context_, cmd.str().c_str());
+  if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements == 0) {
+    if (reply)
+      freeReplyObject(reply);
+    return result;
+  }
+
+  // Parse reply: array of [stream, [ [id, [k,v ...]], ... ]]
+  for (size_t i = 0; i < reply->elements; ++i) {
+    redisReply *stream_arr = reply->element[i];
+    if (!stream_arr || stream_arr->type != REDIS_REPLY_ARRAY ||
+        stream_arr->elements < 2)
+      continue;
+
+    std::string stream_name = stream_arr->element[0]->str;
+    redisReply *entries = stream_arr->element[1];
+    if (!entries || entries->type != REDIS_REPLY_ARRAY)
+      continue;
+
+    auto &entry_ids = result[stream_name].first;
+    auto &data_map = result[stream_name].second;
+
+    for (size_t e = 0; e < entries->elements; ++e) {
+      redisReply *entry = entries->element[e];
+      if (!entry || entry->type != REDIS_REPLY_ARRAY || entry->elements < 2)
+        continue;
+
+      std::string entry_id = entry->element[0]->str;
+      entry_ids.push_back(entry_id);
+      cursors_[stream_name] = entry_id; // advance cursor
+
+      redisReply *fields = entry->element[1];
+      if (!fields || fields->type != REDIS_REPLY_ARRAY)
+        continue;
+
+      // Iterate field pairs
+      for (size_t j = 0; j + 1 < fields->elements; j += 2) {
+        std::string key = fields->element[j]->str;
+        redisReply *val = fields->element[j + 1];
+        if (!val)
+          continue;
+
+        if (key == "_hdr") {
+          const char *buf = val->str;
+          std::cout << "buf: " << buf << std::endl;
+          size_t len = val->len;
+          try {
+            msgpack::object_handle oh = msgpack::unpack(buf, len);
+            msgpack::object obj = oh.get();
+            Header header;
+            obj.convert(header);
+            // msgpack::type::variant v = header;
+            // data_map["_hdr"].push_back(v);
+          } catch (const std::exception &e) {
+            log_error(std::string("Failed to unpack _hdr: ") + e.what());
+          }
+        } else if (key == "data") {
+          const char *buf = val->str;
+          size_t len = val->len;
+          try {
+            msgpack::object_handle oh = msgpack::unpack(buf, len);
+            msgpack::object obj = oh.get();
+            if (obj.type == msgpack::type::MAP) {
+              for (uint32_t m = 0; m < obj.via.map.size; ++m) {
+                const msgpack::object_kv &kv = obj.via.map.ptr[m];
+                std::string dkey;
+                kv.key.convert(dkey);
+                msgpack::type::variant v;
+                kv.val.convert(v);
+                data_map[dkey].push_back(v);
+              }
+            } else {
+              // If 'data' is not a map, store whole object as variant
+              msgpack::type::variant v;
+              obj.convert(v);
+              data_map["data"].push_back(v);
+            }
+          } catch (const std::exception &e) {
+            log_error(std::string("Failed to unpack data: ") + e.what());
+          }
+        } else {
+          // Fallback: store raw string value
+          msgpack::type::variant v;
+          v = std::string(val->str ? std::string(val->str, val->len)
+                                   : std::string());
+          data_map[key].push_back(v);
+        }
+      }
+    }
+  }
+
+  freeReplyObject(reply);
+  return result;
+}
+
+// Overloaded read method for single stream (matching Python interface)
+std::pair<std::vector<std::string>,
+          std::map<std::string, std::vector<msgpack::type::variant>>>
+BRANDNode::read(const std::string &stream, int count, int block_ms) {
+  auto multi = read(std::vector<std::string>{stream}, count, block_ms);
+  auto it = multi.find(stream);
+  if (it != multi.end()) {
+    return it->second;
+  }
+  return std::make_pair(
+      std::vector<std::string>(),
+      std::map<std::string, std::vector<msgpack::type::variant>>());
 }
 
 } // namespace brand
