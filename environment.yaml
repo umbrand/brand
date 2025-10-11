@@ -159,3 +159,4 @@ dependencies:
     - -e ./lib/python
     - -e ../neuraldecoding
     - ability-hand
+    - envyaml

@@ -965,8 +965,9 @@ class Supervisor:
 
         if node_list is None:
             node_list = list(self.child_nodes.keys())
-
-        for node, proc in self.child_nodes.items():
+        # Move node with kill_last == True to end of the list
+        sorted_child_nodes = sorted(self.child_nodes.items(), key=lambda item: self.model['nodes'][item[0]].get('kill_last', False))
+        for node, proc in sorted_child_nodes:
             if node in node_list:
                 try:
                     # check if process exists
