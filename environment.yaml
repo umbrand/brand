@@ -160,3 +160,4 @@ dependencies:
     - -e ../neuraldecoding
     - ability-hand
     - envyaml
+    - InquirerPy>=0.3
