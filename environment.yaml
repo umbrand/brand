@@ -161,3 +161,4 @@ dependencies:
     - ability-hand
     - envyaml
     - InquirerPy>=0.3
+    - opensourceleg
