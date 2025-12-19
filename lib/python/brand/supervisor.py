@@ -4,9 +4,11 @@ import logging
 import numbers
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 from copy import deepcopy
@@ -69,7 +71,9 @@ class Supervisor:
         graph_dict = self.parse_args()
 
         self.start_redis_server()
-
+        if self.enable_redis_monitor:
+            self.start_redis_monitor()
+        
         self.redis_log_handler = RedisLoggingHandler(self.r, 'supervisor')
         self.logger.addHandler(self.redis_log_handler)
 
@@ -136,6 +140,7 @@ class Supervisor:
         ap.add_argument("-a", "--redis-affinity", type=str, required=False, help="cpu affinity to use for the redis server")
         ap.add_argument("-l", "--log-level", default=logging.DEBUG, type=lambda x: getattr(logging, x.upper()), required=False, help="supervisor logging level")
         ap.add_argument("-d", "--data-dir", type=str, default=self.DEFAULT_DATA_DIR, required=False, help="root data directory for supervisor's save path")
+        ap.add_argument("--no-redis-monitor", action="store_true", help="disable redis monitor logging")
         ap.add_argument(
             "--bind",
             type=str,
@@ -185,6 +190,7 @@ class Supervisor:
         self.machine = args.machine
         self.redis_priority = args.redis_priority
         self.redis_affinity = args.redis_affinity
+        self.enable_redis_monitor = not args.no_redis_monitor
 
         logger.setLevel(args.log_level)
 
@@ -284,6 +290,57 @@ class Supervisor:
         self.rdb_filename =  'idle_' + datetime.now().strftime(r'%y%m%dT%H%M') + '.rdb'
         self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
 
+    def start_redis_monitor(self):
+        redis_monitor_command = ['redis-cli', 'MONITOR']
+        logger.info('Starting redis-monitor: ' + ' '.join(redis_monitor_command))
+        
+        # Create a temp file to capture monitor output
+        self.redis_monitor_temp_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.log')
+        
+        proc = subprocess.Popen(redis_monitor_command, stdout=self.redis_monitor_temp_file, 
+                               stderr=subprocess.STDOUT, preexec_fn=os.setsid)
+        self.redis_monitor_pid = proc.pid
+        self.redis_monitor_proc = proc
+        return proc
+
+    def dump_redis_monitor(self, save_path=None, rdb_filename=None):
+        """
+        Dump redis monitor output to a file alongside the RDB, then truncate the temp file
+        
+        Parameters
+        ----------
+        save_path : str, optional
+            Directory where to save the monitor log. Defaults to self.save_path_rdb
+        rdb_filename : str, optional
+            RDB filename to base the monitor log name on. Defaults to self.rdb_filename
+        """
+        if not hasattr(self, 'redis_monitor_temp_file'):
+            return
+        
+        # Flush the temp file to ensure all data is written
+        self.redis_monitor_temp_file.flush()
+        os.fsync(self.redis_monitor_temp_file.fileno())
+        
+        temp_path = self.redis_monitor_temp_file.name
+        
+        # Check if there's any content
+        if os.path.getsize(temp_path) > 0:
+            # Use provided parameters or defaults
+            target_path = save_path if save_path else self.save_path_rdb
+            target_filename = rdb_filename if rdb_filename else self.rdb_filename
+            
+            # Create final log path alongside the RDB file
+            monitor_log_filename = target_filename.replace('.rdb', '_redis_monitor.log')
+            monitor_log_path = os.path.join(target_path, monitor_log_filename)
+            
+            # Copy temp file to final location (efficient for large files)
+            shutil.copyfile(temp_path, monitor_log_path)
+            
+            logger.info(f"Dumped redis monitor log ({os.path.getsize(temp_path)} bytes) to {monitor_log_path}")
+        
+        # Truncate the temp file to clear it for next save
+        self.redis_monitor_temp_file.truncate(0)
+        self.redis_monitor_temp_file.seek(0)
 
     def get_save_path(self, graph_dict:dict={}):
         """
@@ -1186,6 +1243,9 @@ class Supervisor:
         # Save rdb file
         self.r.bgsave()
         logger.info(f"Started RDB save to file: {self.rdb_filename}")
+        
+        # Dump redis monitor log
+        self.dump_redis_monitor()
 
     def flush_db(self):
         '''
@@ -1237,6 +1297,9 @@ class Supervisor:
             # Save the RDB file
             self.r.bgsave()
             logger.info(f"Started RDB save to: {os.path.join(run_path, rdb_filename)}")
+            
+            # Dump redis monitor log with the correct path and filename
+            self.dump_redis_monitor(save_path=run_path, rdb_filename=rdb_filename)
             
             # Wait until finished
             while True:
