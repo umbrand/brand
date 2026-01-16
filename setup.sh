@@ -27,6 +27,8 @@ export NEURALDECODING_CONFIGS_DIR
 # Activate the rt environment to get to work
 conda activate rt
 
+# Necessary to allow mujoco nodes to run when launched through supervisor
+export PYGLFW_LIBRARY=$(python -c "import site; print(site.getsitepackages()[0])")/glfw/wayland/libglfw.so
 # Make aliases for booter and supervisor
 alias booter='sudo -E env "PATH=$PATH" python supervisor/booter.py'
 alias supervisor='sudo -E env "PATH=$PATH" python supervisor/supervisor.py'

@@ -20,6 +20,7 @@ import yaml
 
 import redis
 from redis import Redis
+from envyaml import EnvYAML
 
 from .derivative import AutorunDerivatives, RunDerivative
 from .exceptions import (BooterError, CommandError, DerivativeError,
@@ -964,8 +965,9 @@ class Supervisor:
 
         if node_list is None:
             node_list = list(self.child_nodes.keys())
-
-        for node, proc in self.child_nodes.items():
+        # Move node with kill_last == True to end of the list
+        sorted_child_nodes = sorted(self.child_nodes.items(), key=lambda item: self.model['nodes'][item[0]].get('kill_last', False))
+        for node, proc in sorted_child_nodes:
             if node in node_list:
                 try:
                     # check if process exists
@@ -1490,10 +1492,9 @@ class Supervisor:
 
                 graph_dict = {}
                 try:
-                    with open(file, 'r') as stream:
-                        graph_dict = yaml.safe_load(stream)
-                        graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
-                        self.graph_file = file
+                    graph_dict = dict(EnvYAML(file))
+                    graph_dict['graph_name'] = os.path.splitext(os.path.split(file)[-1])[0]
+                    self.graph_file = file
                 except FileNotFoundError as exc:
                     raise GraphError(f"Could not find the graph at {file}", file) from exc
                 except yaml.YAMLError as exc:
