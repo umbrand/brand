@@ -15,8 +15,17 @@ namespace brand {
 BRANDNode *BRANDNode::instance_ = nullptr;
 
 BRANDNode::BRANDNode()
-    : redis_context_(nullptr), redis_port_(6379), seq_(0),
-      supergraph_id_("0-0"), shutdown_requested_(false) {
+    : name_(),
+      redis_host_(),
+      redis_port_(6379),
+      redis_socket_(),
+      producer_gid_hex_(),
+      supergraph_id_("0-0"),
+      parameters_(),
+      cursors_(),
+      redis_context_(nullptr),
+      seq_(0),
+      shutdown_requested_(false) {
   instance_ = this;
   producer_gid_hex_ = generateUUID();
 }
@@ -116,15 +125,20 @@ void BRANDNode::publish(
     return;
   }
 
-  // Create header
-  std::map<std::string, std::string> header = {
-      {"ts", std::to_string(get_timestamp())},
-      {"seq", std::to_string(next_seq())},
+  // Create header (match Python msgpack types)
+  std::map<std::string, msgpack::type::variant> header = {
+      {"ts", static_cast<int64_t>(get_timestamp())},
+      {"seq", static_cast<int64_t>(next_seq())},
       {"producer_gid", producer_gid_hex_},
       {"node", name_}};
 
   if (!parents.empty()) {
-    header["parents"] = mapToJson(parents);
+    std::map<msgpack::type::variant, msgpack::type::variant> parents_variant_map;
+    for (const auto &pair : parents) {
+      parents_variant_map[msgpack::type::variant(pair.first)] =
+          msgpack::type::variant(pair.second);
+    }
+    header["parents"] = parents_variant_map;
   }
 
   // Build argv for binary-safe publish using msgpack for values
@@ -132,6 +146,11 @@ void BRANDNode::publish(
   std::vector<const char *> argv;
   std::vector<size_t> argvlen;
   std::vector<std::unique_ptr<msgpack::sbuffer>> packed_value_buffers;
+
+  // Prevent std::string reallocation from invalidating argv pointers.
+  string_args_storage.reserve(5); // XADD, stream, *, _hdr, data
+  argv.reserve(7);                // 5 strings + 2 msgpack values
+  argvlen.reserve(7);
 
   auto push_arg = [&](const std::string &s) {
     string_args_storage.push_back(s);
@@ -205,16 +224,36 @@ std::vector<StreamEntry> BRANDNode::read_latest(const std::string &stream,
     redisReply *entry = reply->element[i];
     if (entry->type == REDIS_REPLY_ARRAY && entry->elements >= 2) {
       StreamEntry stream_entry;
-      stream_entry.id = entry->element[0]->str;
+      stream_entry.id = std::string(entry->element[0]->str,
+                                    entry->element[0]->len);
 
       // Parse fields
       redisReply *fields = entry->element[1];
       if (fields->type == REDIS_REPLY_ARRAY) {
-        for (size_t j = 0; j < fields->elements; j += 2) {
-          if (j + 1 < fields->elements) {
-            std::string key = fields->element[j]->str;
-            std::string value = fields->element[j + 1]->str;
-            stream_entry.fields[key] = value;
+        for (size_t j = 0; j + 1 < fields->elements; j += 2) {
+          std::string key = std::string(fields->element[j]->str,
+                                        fields->element[j]->len);
+          redisReply *val = fields->element[j + 1];
+          if (!val)
+            continue;
+
+          if (key == "_hdr" || key == "data") {
+            const char *buf = val->str;
+            size_t len = val->len;
+            try {
+              msgpack::object_handle oh = msgpack::unpack(buf, len);
+              msgpack::object obj = oh.get();
+              msgpack::type::variant v;
+              obj.convert(v);
+              stream_entry.fields[key] = v;
+            } catch (const std::exception &e) {
+              log_error("Failed to unpack " + key + ": " + e.what());
+            }
+          } else {
+            msgpack::type::variant v;
+            v = std::string(val->str ? std::string(val->str, val->len)
+                                     : std::string());
+            stream_entry.fields[key] = v;
           }
         }
       }
@@ -711,7 +750,8 @@ BRANDNode::read(const std::vector<std::string> &streams, int count,
         stream_arr->elements < 2)
       continue;
 
-    std::string stream_name = stream_arr->element[0]->str;
+    std::string stream_name = std::string(stream_arr->element[0]->str,
+                                          stream_arr->element[0]->len);
     redisReply *entries = stream_arr->element[1];
     if (!entries || entries->type != REDIS_REPLY_ARRAY)
       continue;
@@ -724,7 +764,8 @@ BRANDNode::read(const std::vector<std::string> &streams, int count,
       if (!entry || entry->type != REDIS_REPLY_ARRAY || entry->elements < 2)
         continue;
 
-      std::string entry_id = entry->element[0]->str;
+      std::string entry_id =
+          std::string(entry->element[0]->str, entry->element[0]->len);
       entry_ids.push_back(entry_id);
       cursors_[stream_name] = entry_id; // advance cursor
 
@@ -734,22 +775,21 @@ BRANDNode::read(const std::vector<std::string> &streams, int count,
 
       // Iterate field pairs
       for (size_t j = 0; j + 1 < fields->elements; j += 2) {
-        std::string key = fields->element[j]->str;
+        std::string key = std::string(fields->element[j]->str,
+                                      fields->element[j]->len);
         redisReply *val = fields->element[j + 1];
         if (!val)
           continue;
 
         if (key == "_hdr") {
           const char *buf = val->str;
-          std::cout << "buf: " << buf << std::endl;
           size_t len = val->len;
           try {
             msgpack::object_handle oh = msgpack::unpack(buf, len);
             msgpack::object obj = oh.get();
-            Header header;
-            obj.convert(header);
-            // msgpack::type::variant v = header;
-            // data_map["_hdr"].push_back(v);
+            msgpack::type::variant v;
+            obj.convert(v);
+            data_map["_hdr"].push_back(v);
           } catch (const std::exception &e) {
             log_error(std::string("Failed to unpack _hdr: ") + e.what());
           }

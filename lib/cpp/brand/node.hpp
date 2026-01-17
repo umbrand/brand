@@ -2,6 +2,7 @@
 #define BRAND_NODE_HPP
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -24,19 +25,20 @@ namespace brand {
 
 struct Header {
   // C++ member variables matching the Python keys
-  int32_t ts;
-  int32_t seq;
+  int64_t ts;
+  int64_t seq;
   std::string producer_gid;
   std::string node;
+  std::map<std::string, std::string> parents;
 
   // This macro enables automatic serialization and deserialization.
   // The names must match the member variables exactly.
-  MSGPACK_DEFINE_MAP(ts, seq, producer_gid, node);
+  MSGPACK_DEFINE_MAP(ts, seq, producer_gid, node, parents);
 };
 
 struct StreamEntry {
   std::string id;
-  std::map<std::string, std::string> fields;
+  std::map<std::string, msgpack::type::variant> fields;
 };
 
 class BRANDNode {
