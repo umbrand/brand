@@ -1,4 +1,4 @@
-PROJECT=msgpack_example
+PROJECT=cpp_example_node
 
 ROOT ?= ../../../../
 include $(ROOT)/setenv.mk
@@ -25,7 +25,7 @@ CXXINCLUDE = $(MSGPACK_CFLAGS) -I$(ROOT)/lib/cpp \
 TARGET=$(PROJECT).bin
 
 COBJS = nxjson.o
-CXXOBJS = msgpack_example.o node.o
+CXXOBJS = cpp_example_node.o node.o
 
 all: $(PROJECT)
 
@@ -35,7 +35,7 @@ nxjson.o: $(ROOT)/lib/nxjson/nxjson.c
 node.o: $(ROOT)/lib/cpp/brand/node.cpp
 	$(CXX) $(CXXFLAGS) $(CXXINCLUDE) -c $< -o $@
 
-msgpack_example.o: msgpack_example.cpp
+cpp_example_node.o: cpp_example_node.cpp
 	$(CXX) $(CXXFLAGS) $(CXXINCLUDE) -c $< -o $@
 
 $(PROJECT): $(COBJS) $(CXXOBJS)

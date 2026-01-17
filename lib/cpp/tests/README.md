@@ -1,4 +1,6 @@
-# Msgpack C++ Roundtrip Tests
+# Msgpack C++ Node Roundtrip Tests
+
+Testing the C++ node code that uses msgpack to communicate with python nodes
 
 Build:
 - `make`
