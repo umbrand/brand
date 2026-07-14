@@ -162,3 +162,4 @@ dependencies:
     - envyaml
     - InquirerPy>=0.3
     - opensourceleg
+    - textual>=0.80.0
