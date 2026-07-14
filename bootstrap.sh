@@ -40,6 +40,9 @@ libsdl2-image-dev
 libsdl2-gfx-1.0-0
 libsdl2-gfx-dev
 libsdl2-ttf-dev
+libmsgpackc2
+libmsgpack-dev
+cifs-utils
 )
 
 sudo apt-get update
