@@ -244,6 +244,11 @@ class Supervisor:
 
     def update_rdb_save_configs(self, rdb_save_path=None, rdb_filename=None):
         if rdb_save_path:
+            # CONFIG SET dir silently no-ops if the path doesn't exist yet
+            # (e.g. the first run of the day for a given participant), which
+            # left `dir` stuck at its previous value with no error - create
+            # the directory first so the config actually takes.
+            os.makedirs(rdb_save_path, exist_ok=True)
             self.r.config_set('dir', rdb_save_path)
             if self.model:
                 self.model["rdb_dirpath"] = rdb_save_path
@@ -479,7 +484,7 @@ class Supervisor:
         # model is valid if we make it here
         self.model = model
 
-        self.update_rdb_save_configs(rdb_filename=self.rdb_filename)
+        self.update_rdb_save_configs(rdb_save_path=self.save_path_rdb, rdb_filename=self.rdb_filename)
 
         # Load stream information
         self.parse_stream_definitions()
