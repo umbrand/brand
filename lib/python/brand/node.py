@@ -430,11 +430,9 @@ class BRANDNode():
         except Exception as e:
             if not self._shutdown_requested:
                 self.logger.error(f"Error reading from streams {streams}: {e}")
-            if count == 1:
-                return {stream: (None, None) for stream in streams}
-            else:
-                return {stream: (None, None) for stream in streams}
-    
+            result = {stream: (None, None) for stream in streams}
+            return result if isinstance(streams_in, list) else result[streams_in]
+
     def is_shutdown_requested(self):
         """
         Check if shutdown has been requested.

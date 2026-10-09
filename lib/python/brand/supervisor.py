@@ -354,6 +354,15 @@ class Supervisor:
         # Add participant_id to model so CLI can access it
         model["participant_id"] = self.participant_id
 
+        # Add participant_folder_path to model so the GUI/CLI can find the
+        # participant config and RDB/NWB files without guessing. Graphs may
+        # set it explicitly; otherwise derive it from participant_id's
+        # directory (e.g. "Monkeys/War Machine" -> "Monkeys",
+        # "Humans/RPNI/C-P2" -> "Humans/RPNI") so monkey subjects default to
+        # the Monkeys folder and human subjects default to Humans/RPNI.
+        default_folder_path = "/".join(self.participant_id.split("/")[:-1]) or "Monkeys"
+        model["participant_folder_path"] = graph_dict.get("participant_folder_path", default_folder_path)
+
         # Set rdb filename
         if rdb_filename is None:
             self.rdb_filename =  self.participant_id.split('/')[-1] + '_' + datetime.now().strftime(r'%y%m%dT%H%M') + '_' + self.graph_name + '.rdb'

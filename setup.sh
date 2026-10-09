@@ -30,8 +30,8 @@ conda activate rt
 # Necessary to allow mujoco nodes to run when launched through supervisor
 export PYGLFW_LIBRARY=$(python -c "import site; print(site.getsitepackages()[0])")/glfw/wayland/libglfw.so
 # Make aliases for booter and supervisor
-alias booter='sudo -E env "PATH=$PATH" python supervisor/booter.py'
-alias supervisor='sudo -E env "PATH=$PATH" python supervisor/supervisor.py'
+alias booter='sudo -E env "PATH=$PATH" "DECODER_CONFIGS_DIR=$DECODER_CONFIGS_DIR" "NEURALDECODING_CONFIGS_DIR=$NEURALDECODING_CONFIGS_DIR" "PYGLFW_LIBRARY=$PYGLFW_LIBRARY" python supervisor/booter.py'
+alias supervisor='sudo -E env "PATH=$PATH" "DECODER_CONFIGS_DIR=$DECODER_CONFIGS_DIR" "NEURALDECODING_CONFIGS_DIR=$NEURALDECODING_CONFIGS_DIR" "PYGLFW_LIBRARY=$PYGLFW_LIBRARY" python supervisor/supervisor.py'
 
 # useful alias for WSL to mount server
 alias mount_server='sudo mkdir /mnt/z && sudo mount -t drvfs Z: /mnt/z'
